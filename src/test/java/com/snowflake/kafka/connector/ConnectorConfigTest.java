@@ -647,4 +647,11 @@ public class ConnectorConfigTest {
     config.put(Utils.SF_ROLE, "ACCOUNTADMIN");
     Utils.validateConfig(config);
   }
+
+  @Test
+  public void testEmptyTopic2TableMap() {
+    Map<String, String> config = getConfig();
+    config.put(SnowflakeSinkConnectorConfig.TOPICS, "");
+    Utils.validateConfig(config);
+  }
 }
