@@ -134,6 +134,13 @@ public class SnowflakeSinkTask extends SinkTask {
                   .toUpperCase(Locale.ROOT));
     }
 
+    // we would have already validated the config inside SFConnector start()
+    boolean enableCustomJMXMonitoring = SnowflakeSinkConnectorConfig.JMX_OPT_DEFAULT;
+    if (parsedConfig.containsKey(SnowflakeSinkConnectorConfig.JMX_OPT)) {
+      enableCustomJMXMonitoring =
+          Boolean.parseBoolean(parsedConfig.get(SnowflakeSinkConnectorConfig.JMX_OPT));
+    }
+
     conn =
         SnowflakeConnectionServiceFactory.builder()
             .setProperties(parsedConfig)
@@ -151,6 +158,7 @@ public class SnowflakeSinkTask extends SinkTask {
             .setTopic2TableMap(topic2table)
             .setMetadataConfig(metadataConfig)
             .setBehaviorOnNullValuesConfig(behavior)
+            .setCustomJMXMetrics(enableCustomJMXMonitoring)
             .build();
 
     LOGGER.info(

@@ -283,4 +283,20 @@ public class ConnectorConfigTest {
     config.put(SnowflakeSinkConnectorConfig.TOPICS, "");
     Utils.validateConfig(config);
   }
+
+  public void testJMX_valid_value() {
+    Map<String, String> config = getConfig();
+    config.put(SnowflakeSinkConnectorConfig.JMX_OPT, "true");
+    Utils.validateConfig(config);
+
+    config.put(SnowflakeSinkConnectorConfig.JMX_OPT, "False");
+    Utils.validateConfig(config);
+  }
+
+  @Test(expected = SnowflakeKafkaConnectorException.class)
+  public void testJMX_invalid_value() {
+    Map<String, String> config = getConfig();
+    config.put(SnowflakeSinkConnectorConfig.JMX_OPT, "INVALID");
+    Utils.validateConfig(config);
+  }
 }
