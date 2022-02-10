@@ -192,6 +192,12 @@ public class TestUtils {
     return executeQuery(query);
   }
 
+  public static ResultSet showTableForStreaming(String tableName) {
+    String query = "select * from " + tableName;
+
+    return executeQueryForStreaming(query);
+  }
+
   static String getDesRsaKey() {
     return getProfile().get(DES_RSA_KEY).asText();
   }
