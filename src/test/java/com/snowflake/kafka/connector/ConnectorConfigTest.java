@@ -5,12 +5,17 @@ import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.NAME;
 import static com.snowflake.kafka.connector.internal.TestUtils.getConfig;
 
+import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TopicToTableValidator;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
 import java.util.Locale;
 import java.util.Map;
+
+import org.apache.kafka.common.config.ConfigException;
 import org.junit.Test;
+
+import static org.junit.Assert.assertThrows;
 
 public class ConnectorConfigTest {
 
@@ -143,6 +148,26 @@ public class ConnectorConfigTest {
     Map<String, String> config = getConfig();
     config.put(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP, "topic1:table1,topic2:table1");
     Utils.validateConfig(config);
+  }
+
+  @Test
+  public void testTopicToTableValidatorOnlyThrowsConfigException() {
+    assertThrows(ConfigException.class, () -> {
+      new TopicToTableValidator().ensureValid(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
+          "$@#$#@%^$12312");
+    });
+    assertThrows(ConfigException.class, () -> {
+      new TopicToTableValidator().ensureValid(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
+          "topic1:!@#@!#!@");
+    });
+    assertThrows(ConfigException.class, () -> {
+      new TopicToTableValidator().ensureValid(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
+          "topic1:table1,topic1:table2");
+    });
+    assertThrows(ConfigException.class, () -> {
+      new TopicToTableValidator().ensureValid(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
+          "topic1:table1,topic2:table1");
+    });
   }
 
   @Test

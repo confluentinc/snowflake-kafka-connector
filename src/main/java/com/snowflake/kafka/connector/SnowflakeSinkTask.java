@@ -30,6 +30,7 @@ import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -191,7 +192,8 @@ public class SnowflakeSinkTask extends SinkTask {
       // connector would never start or reach the sink task stage
       behavior =
           SnowflakeSinkConnectorConfig.BehaviorOnNullValues.valueOf(
-              parsedConfig.get(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG));
+              parsedConfig.get(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG)
+                  .toUpperCase(Locale.ROOT));
     }
 
     // we would have already validated the config inside SFConnector start()
