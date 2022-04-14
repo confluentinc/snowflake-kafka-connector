@@ -458,7 +458,7 @@ public class TestUtils {
     String query = "show channels in table " + tableName;
     ResultSet result = executeQueryForStreaming(query);
 
-    if (result.next()) {
+    while (result.next()) {
       if (result.getString("name").equalsIgnoreCase(channelName)) {
         return result.getInt("client_sequencer");
       }
@@ -477,9 +477,9 @@ public class TestUtils {
     String query = "show channels in table " + tableName;
     ResultSet result = executeQueryForStreaming(query);
 
-    if (result.next()) {
+    while (result.next()) {
       if (result.getString("name").equalsIgnoreCase(channelName)) {
-        return result.getInt("client_sequencer");
+        return result.getInt("offset_token");
       }
     }
     return -1;
