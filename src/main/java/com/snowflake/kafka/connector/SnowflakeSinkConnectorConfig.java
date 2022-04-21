@@ -89,6 +89,11 @@ public class SnowflakeSinkConnectorConfig {
   public static final String SNOWFLAKE_METADATA_ALL = "snowflake.metadata.all";
   public static final String SNOWFLAKE_METADATA_DEFAULT = "true";
 
+  private static final String SNOWFLAKE_CLEANER_RESTARTS_CONFIG = "snowflake.cleaner.retries";
+  private static final String SNOWFLAKE_CLEANER_RESTARTS_DISPLAY = "Snowflake Cleaner Retries";
+  private static final String SNOWFLAKE_CLEANER_RESTARTS_DEFAULT = "-1";
+
+
   // Where is Kafka hosted? self, confluent or any other in future.
   // By default it will be None since this is not enforced and only used for monitoring
   public static final String PROVIDER_CONFIG = "provider";
@@ -368,7 +373,17 @@ public class SnowflakeSinkConnectorConfig {
             DELIVERY_GUARANTEE_VALIDATOR,
             Importance.LOW,
             "Determines the ingest semantics for snowflake connector, currently support"
-                + " at-least-once and exactly-once delivery guarantees");
+                + " at-least-once and exactly-once delivery guarantees")
+        .define(
+            SNOWFLAKE_CLEANER_RESTARTS_CONFIG,
+            Type.INT,
+            SNOWFLAKE_CLEANER_RESTARTS_DEFAULT,
+            Importance.LOW,
+            "Number of times to retry a failed cleaner operation. Defaults to unbounded retries.",
+            CONNECTOR_CONFIG,
+            5,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_CLEANER_RESTARTS_DISPLAY);
   }
 
   public static class TopicToTableValidator implements ConfigDef.Validator {
