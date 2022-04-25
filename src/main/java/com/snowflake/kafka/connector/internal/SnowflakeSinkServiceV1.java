@@ -42,9 +42,6 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
   // Set in config (Time based flush) in seconds
   private long flushTime;
   // Set in config (buffer size based flush) in bytes
-  private static final int UNBOUNDED_CLEANER_RETRIES = -1;
-
-  private long flushTime; // in seconds
   private long fileSize;
 
   // Set in config (Threshold before we send the buffer to internal stage) corresponds to # of
@@ -60,7 +57,7 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
 
   // Behavior to be set at the start of connector start. (For tombstone records)
   private SnowflakeSinkConnectorConfig.BehaviorOnNullValues behaviorOnNullValues;
-  private AtomicReference<ConnectException> failedCleanerException;
+  private AtomicReference<Exception> failedCleanerException;
 
   // default is true unless the configuration provided is false;
   // If this is true, we will enable Mbean for required classes and emit JMX metrics for monitoring
@@ -107,13 +104,14 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
 
   @Override
   public void insert(final Collection<SinkRecord> records) {
-    ConnectException potentialEx = failedCleanerException.get();
+    Exception potentialEx = failedCleanerException.get();
     if (potentialEx != null) {
       for (ServiceContext pipe : pipes.values()) {
         // flush current buffers
         pipe.flushBuffer();
       }
-      throw potentialEx;
+
+      throw new ConnectException("Cleaner encountered an exception", potentialEx);
     }
 
     // note that records can be empty
@@ -594,7 +592,7 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
                   cleanerRetries--;
                   forceCleanerFileReset = true;
                 } else if(cleanerRetries == 0) {
-                  failedCleanerException.set(new ConnectException(e));
+                  failedCleanerException.set(e);
                   break;
                 }
               }
