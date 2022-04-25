@@ -89,9 +89,9 @@ public class SnowflakeSinkConnectorConfig {
   public static final String SNOWFLAKE_METADATA_ALL = "snowflake.metadata.all";
   public static final String SNOWFLAKE_METADATA_DEFAULT = "true";
 
-  private static final String SNOWFLAKE_CLEANER_RESTARTS_CONFIG = "snowflake.cleaner.retries";
-  private static final String SNOWFLAKE_CLEANER_RESTARTS_DISPLAY = "Snowflake Cleaner Retries";
-  private static final String SNOWFLAKE_CLEANER_RESTARTS_DEFAULT = "-1";
+  public static final String SNOWFLAKE_CLEANER_MAX_RETRIES_CONFIG = "snowflake.cleaner.retries";
+  public static final String SNOWFLAKE_CLEANER_MAX_RETRIES_DEFAULT = "-1";
+  private static final String SNOWFLAKE_CLEANER_MAX_RETRIES_DISPLAY = "Snowflake Cleaner Retries";
 
 
   // Where is Kafka hosted? self, confluent or any other in future.
@@ -375,15 +375,15 @@ public class SnowflakeSinkConnectorConfig {
             "Determines the ingest semantics for snowflake connector, currently support"
                 + " at-least-once and exactly-once delivery guarantees")
         .define(
-            SNOWFLAKE_CLEANER_RESTARTS_CONFIG,
+            SNOWFLAKE_CLEANER_MAX_RETRIES_CONFIG,
             Type.INT,
-            SNOWFLAKE_CLEANER_RESTARTS_DEFAULT,
+            SNOWFLAKE_CLEANER_MAX_RETRIES_DEFAULT,
             Importance.LOW,
             "Number of times to retry a failed cleaner operation. Defaults to unbounded retries.",
             CONNECTOR_CONFIG,
             5,
             ConfigDef.Width.NONE,
-            SNOWFLAKE_CLEANER_RESTARTS_DISPLAY);
+            SNOWFLAKE_CLEANER_MAX_RETRIES_DISPLAY);
   }
 
   public static class TopicToTableValidator implements ConfigDef.Validator {

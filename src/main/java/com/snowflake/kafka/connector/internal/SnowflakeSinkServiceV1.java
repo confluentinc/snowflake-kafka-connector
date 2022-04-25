@@ -53,7 +53,7 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
   private boolean isStopped;
   private final SnowflakeTelemetryService telemetryService;
   private Map<String, String> topic2TableMap;
-  private int cleanerRetries;
+  private int maxCleanerRetries;
 
   // Behavior to be set at the start of connector start. (For tombstone records)
   private SnowflakeSinkConnectorConfig.BehaviorOnNullValues behaviorOnNullValues;
@@ -367,8 +367,8 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
   }
 
   @Override
-  public void setCleanerRetries(int num) {
-    this.cleanerRetries = num;
+  public void setMaxCleanerRetries(int num) {
+    this.maxCleanerRetries = num;
   }
 
 
@@ -588,13 +588,11 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
                     e.getMessage(),
                     e.getStackTrace());
                 telemetryService.reportKafkaFatalError(e.getMessage());
-                if (cleanerRetries == 0) {
+                if (maxCleanerRetries >= 0 &&  pipeStatus.cleanerRestartCount.intValue() == maxCleanerRetries) {
                   failedCleanerException.set(e);
                   break;
-                } else if(cleanerRetries > 0) {
-                  cleanerRetries--;
-                  forceCleanerFileReset = true;
                 }
+                forceCleanerFileReset = true;
               }
             }
           });

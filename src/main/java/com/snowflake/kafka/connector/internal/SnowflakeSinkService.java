@@ -127,7 +127,7 @@ public interface SnowflakeSinkService {
   void setCustomJMXMetrics(boolean enableJMX);
 
   /* Set the behavior on what action to perform when this( @see com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig#BEHAVIOR_ON_NULL_VALUES_CONFIG ) config is set. */
-  void setCleanerRetries(int retries);
+  void setMaxCleanerRetries(int retries);
 
 
   /* Only used in testing and verifying what was the passed value of this behavior from config to sink service*/

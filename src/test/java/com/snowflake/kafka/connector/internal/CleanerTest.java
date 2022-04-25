@@ -38,7 +38,7 @@ public class CleanerTest {
                 SnowflakeSinkServiceFactory.builder(conn)
                         .setRecordNumber(1)
                         .addTask(table, topic, partition)
-                        .setCleanerRetries(0)
+                        .setMaxCleanerRetries(0)
                         .build();
         service.startTask(table, topic, partition);
 
