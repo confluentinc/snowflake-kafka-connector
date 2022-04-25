@@ -86,7 +86,7 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
     // Setting the default value in constructor
     // meaning it will not ignore the null values (Tombstone records wont be ignored/filtered)
     this.behaviorOnNullValues = SnowflakeSinkConnectorConfig.BehaviorOnNullValues.DEFAULT;
-    this.failedCleanerException = null;
+    this.failedCleanerException = new AtomicReference<>();
   }
 
   @Override
@@ -588,12 +588,12 @@ class SnowflakeSinkServiceV1 extends Logging implements SnowflakeSinkService {
                     e.getMessage(),
                     e.getStackTrace());
                 telemetryService.reportKafkaFatalError(e.getMessage());
-                if (cleanerRetries > 0) {
-                  cleanerRetries--;
-                  forceCleanerFileReset = true;
-                } else if(cleanerRetries == 0) {
+                if (cleanerRetries == 0) {
                   failedCleanerException.set(e);
                   break;
+                } else if(cleanerRetries > 0) {
+                  cleanerRetries--;
+                  forceCleanerFileReset = true;
                 }
               }
             }
