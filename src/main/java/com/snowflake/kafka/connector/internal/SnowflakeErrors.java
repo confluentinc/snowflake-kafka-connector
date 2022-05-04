@@ -97,6 +97,10 @@ public enum SnowflakeErrors {
       "0023",
       "Invalid proxy username or password",
       "Both username and password need to be provided if one of them is provided"),
+  ERROR_0024(
+      "0024",
+      "Reader schema invalid",
+      "A reader schema is provided but can not be parsed as an Avro schema"),
   // Snowflake connection issues 1---
   ERROR_1001(
       "1001",
@@ -161,7 +165,9 @@ public enum SnowflakeErrors {
       "Failed to create pipe",
       "User may have insufficient privileges. If this persists, please "
           + "contact Snowflake support. "),
-
+  ERROR_3006("3006", "Failed to configure client status", "Exception reported by Ingest SDK"),
+  ERROR_3007("3007", "Failed to get client status", "Exception reported by Ingest SDK"),
+  ERROR_3008("3008", "Failed to ingest file with client info", "Exception reported by Ingest SDK"),
   // Wrong result issues 4---
   ERROR_4001("4001", "Unexpected Result", "Get wrong results from Snowflake service"),
   // Connector internal errors 5---
@@ -230,7 +236,8 @@ public enum SnowflakeErrors {
   ERROR_5017(
       "5017", "Invalid api call to cached put", "Cached put only support AWS, Azure and GCS."),
   ERROR_5018("5018", "Failed to execute cached put", "Error in cached put command"),
-  ERROR_5019("5019", "Failed to get stage storage type", "Error in get storage type");
+  ERROR_5019("5019", "Failed to get stage storage type", "Error in get storage type"),
+  ERROR_5020("5020", "Failed to register MBean in MbeanServer", "Object Name is invalid");
 
   // properties
 

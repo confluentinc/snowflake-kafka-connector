@@ -16,6 +16,8 @@
  */
 package com.snowflake.kafka.connector;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.DELIVERY_GUARANTEE;
+
 import com.snowflake.kafka.connector.internal.*;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import java.util.Collection;
@@ -53,6 +55,19 @@ public class SnowflakeSinkTask extends SinkTask {
   // account and execute queries
   private SnowflakeConnectionService conn = null;
   private String id = "-1";
+
+  // Rebalancing Test
+  private boolean enableRebalancing = SnowflakeSinkConnectorConfig.REBALANCING_DEFAULT;
+  // After REBALANCING_THRESHOLD put operations, insert a thread.sleep which will trigger rebalance
+  private int rebalancingCounter = 0;
+
+  // After 5 put operations, we will insert a sleep which will cause a rebalance since heartbeat is
+  // not found
+  private final int REBALANCING_THRESHOLD = 10;
+
+  // This value should be more than max.poll.interval.ms
+  // check connect-distributed.properties file used to start kafka connect
+  private final int rebalancingSleepTime = 370000;
 
   private static final Logger LOGGER = LoggerFactory.getLogger(SnowflakeSinkTask.class);
 
@@ -134,6 +149,22 @@ public class SnowflakeSinkTask extends SinkTask {
                   .toUpperCase(Locale.ROOT));
     }
 
+    // we would have already validated the config inside SFConnector start()
+    boolean enableCustomJMXMonitoring = SnowflakeSinkConnectorConfig.JMX_OPT_DEFAULT;
+    if (parsedConfig.containsKey(SnowflakeSinkConnectorConfig.JMX_OPT)) {
+      enableCustomJMXMonitoring =
+          Boolean.parseBoolean(parsedConfig.get(SnowflakeSinkConnectorConfig.JMX_OPT));
+    }
+
+    // Get the Delivery guarantee type from config, default to at_least_once
+    SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee ingestionDeliveryGuarantee =
+        SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee.of(
+            parsedConfig.getOrDefault(
+                DELIVERY_GUARANTEE,
+                SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee.AT_LEAST_ONCE.name()));
+
+    enableRebalancing =
+        Boolean.parseBoolean(parsedConfig.get(SnowflakeSinkConnectorConfig.REBALANCING));
     conn =
         SnowflakeConnectionServiceFactory.builder()
             .setProperties(parsedConfig)
@@ -151,6 +182,8 @@ public class SnowflakeSinkTask extends SinkTask {
             .setTopic2TableMap(topic2table)
             .setMetadataConfig(metadataConfig)
             .setBehaviorOnNullValuesConfig(behavior)
+            .setCustomJMXMetrics(enableCustomJMXMonitoring)
+            .setDeliveryGuarantee(ingestionDeliveryGuarantee)
             .build();
 
     LOGGER.info(
@@ -227,6 +260,10 @@ public class SnowflakeSinkTask extends SinkTask {
    */
   @Override
   public void put(final Collection<SinkRecord> records) {
+    if (enableRebalancing && records.size() > 0) {
+      processRebalancingTest();
+    }
+
     long startTime = System.currentTimeMillis();
     LOGGER.debug(
         Logging.logMessage("SnowflakeSinkTask[ID:{}]:put {} records", this.id, records.size()));
@@ -347,6 +384,19 @@ public class SnowflakeSinkTask extends SinkTask {
               apiName,
               size,
               executionTime));
+    }
+  }
+
+  /** When rebalancing test is enabled, trigger sleep after rebalacing threshold is reached */
+  void processRebalancingTest() {
+    rebalancingCounter++;
+    if (rebalancingCounter == REBALANCING_THRESHOLD) {
+      try {
+        LOGGER.debug("[TEST_ONLY] Sleeping :{} ms to trigger a rebalance", rebalancingSleepTime);
+        Thread.sleep(rebalancingSleepTime);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
   }
 }

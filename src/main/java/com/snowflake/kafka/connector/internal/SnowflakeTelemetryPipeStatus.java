@@ -1,22 +1,45 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.*;
+
+import com.codahale.metrics.*;
+import com.codahale.metrics.Timer;
+import com.google.common.collect.Maps;
+import com.snowflake.kafka.connector.internal.metrics.MetricsJmxReporter;
+import com.snowflake.kafka.connector.internal.metrics.MetricsUtil;
+import com.snowflake.kafka.connector.internal.metrics.MetricsUtil.EventType;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.node.ObjectNode;
 
 public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
-  // Offset info
-  AtomicLong processedOffset; // processed offset (offset that is most recent in buffer)
-  AtomicLong flushedOffset; // flushed offset (files on stage)
-  AtomicLong committedOffset; // committed offset (files being ingested)
-  AtomicLong purgedOffset; // purged offset (files purged or moved to table stage)
+  // ---------- Offset info ----------
+
+  // processed offset (offset that is most recent in buffer)
+  AtomicLong processedOffset;
+
+  // flushed offset (files on stage)
+  AtomicLong flushedOffset;
+
+  // committed offset (files being ingested)
+  // NOTE: These offsets are not necessarily the offsets that were ingested into SF table. These are
+  // the offsets for which commit API has being called and KC has invoked ingestFiles for those set
+  // of offsets.
+  AtomicLong committedOffset;
+
+  // purged offset (files purged or moved to table stage)
+  AtomicLong purgedOffset;
+
   static final String PROCESSED_OFFSET = "processed_offset";
   static final String FLUSHED_OFFSET = "flushed_offset";
   static final String COMMITTED_OFFSET = "committed_offset";
   static final String PURGED_OFFSET = "purged_offset";
 
-  // Legacy metrix
+  // Legacy metrics
   AtomicLong totalNumberOfRecord; // total number of record
   AtomicLong totalSizeOfData; // total size of data
   static final String RECORD_NUMBER = "record_number";
@@ -26,9 +49,9 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
   AtomicLong fileCountOnStage; // files that are currently on stage
   AtomicLong fileCountOnIngestion; // files that are being ingested
   AtomicLong fileCountPurged; // files that are purged
-  AtomicLong
+  private final AtomicLong
       fileCountTableStageIngestFail; // files that are moved to table stage due to ingestion failure
-  AtomicLong
+  private final AtomicLong
       fileCountTableStageBrokenRecord; // files that are moved to table stage due to broken record
   static final String FILE_COUNT_ON_STAGE = "file_count_on_stage";
   static final String FILE_COUNT_ON_INGESTION = "file_count_on_ingestion";
@@ -46,21 +69,21 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
 
   // ------------ following metrics are not cumulative, reset every time sent ------------//
   // Average lag of Kafka
-  AtomicLong averageKafkaLag; // average lag on Kafka side
+  AtomicLong averageKafkaLagMs; // average lag on Kafka side
   AtomicLong averageKafkaLagRecordCount; // record count
-  static final String AVERAGE_KAFKA_LAG = "average_kafka_lag";
+  static final String AVERAGE_KAFKA_LAG_MS = "average_kafka_lag";
   static final String AVERAGE_KAFKA_LAG_RECORD_COUNT = "average_kafka_lag_record_count";
 
   // Average lag of ingestion
-  AtomicLong averageIngestionLag; // average lag between file upload and file delete
+  AtomicLong averageIngestionLagMs; // average lag between file upload and file delete
   AtomicLong averageIngestionLagFileCount; // file count
-  static final String AVERAGE_INGESTION_LAG = "average_ingestion_lag";
+  static final String AVERAGE_INGESTION_LAG_MS = "average_ingestion_lag";
   static final String AVERAGE_INGESTION_LAG_FILE_COUNT = "average_ingestion_lag_file_count";
 
   // Average lag of commit
-  AtomicLong averageCommitLag; // average lag between file upload and ingest api calling
+  AtomicLong averageCommitLagMs; // average lag between file upload and ingest api calling
   AtomicLong averageCommitLagFileCount; // file count
-  static final String AVERAGE_COMMIT_LAG = "average_commit_lag";
+  static final String AVERAGE_COMMIT_LAG_MS = "average_commit_lag";
   static final String AVERAGE_COMMIT_LAG_FILE_COUNT = "average_commit_lag_file_count";
 
   // Need to update two values atomically when calculating lag, thus
@@ -71,8 +94,21 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
   static final String START_TIME = "start_time";
   static final String END_TIME = "end_time";
 
+  // JMX Metrics related to Latencies
+  private ConcurrentMap<EventType, Timer> eventsByType = Maps.newConcurrentMap();
+
+  // A boolean to turn on or off a JMX metric as required.
+  private final boolean enableCustomJMXConfig;
+
+  // May not be set if jmx is set to false
+  Meter fileCountTableStageBrokenRecordMeter, fileCountTableStageIngestFailMeter;
+
   SnowflakeTelemetryPipeStatus(
-      final String tableName, final String stageName, final String pipeName) {
+      final String tableName,
+      final String stageName,
+      final String pipeName,
+      final boolean enableCustomJMXConfig,
+      final MetricsJmxReporter metricsJmxReporter) {
     super(tableName, stageName, pipeName);
 
     // Initial value of processed/flushed/committed/purged offset should be set to -1,
@@ -93,30 +129,39 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
     this.cleanerRestartCount = new AtomicLong(0);
     this.memoryUsage = new AtomicLong(0);
 
-    this.averageKafkaLag = new AtomicLong(0);
+    this.averageKafkaLagMs = new AtomicLong(0);
     this.averageKafkaLagRecordCount = new AtomicLong(0);
-    this.averageIngestionLag = new AtomicLong(0);
+    this.averageIngestionLagMs = new AtomicLong(0);
     this.averageIngestionLagFileCount = new AtomicLong(0);
-    this.averageCommitLag = new AtomicLong(0);
+    this.averageCommitLagMs = new AtomicLong(0);
     this.averageCommitLagFileCount = new AtomicLong(0);
     this.startTime = new AtomicLong(System.currentTimeMillis());
 
     this.lagLock = new ReentrantLock();
+    this.enableCustomJMXConfig = enableCustomJMXConfig;
+    if (enableCustomJMXConfig) {
+      registerPipeJMXMetrics(pipeName, metricsJmxReporter);
+    }
   }
 
   void updateKafkaLag(final long lag) {
-    updateLag(lag, averageKafkaLagRecordCount, averageKafkaLag);
+    updateLag(lag, averageKafkaLagRecordCount, averageKafkaLagMs, EventType.KAFKA_LAG);
   }
 
   void updateIngestionLag(final long lag) {
-    updateLag(lag, averageIngestionLagFileCount, averageIngestionLag);
+    updateLag(lag, averageIngestionLagFileCount, averageIngestionLagMs, EventType.INGESTION_LAG);
   }
 
   void updateCommitLag(final long lag) {
-    updateLag(lag, averageCommitLagFileCount, averageCommitLag);
+    updateLag(lag, averageCommitLagFileCount, averageCommitLagMs, EventType.COMMIT_LAG);
   }
 
-  private void updateLag(final long lag, AtomicLong averageFileCount, AtomicLong averageLag) {
+  private void updateLag(
+      final long lag, AtomicLong averageFileCount, AtomicLong averageLag, EventType eventType) {
+    if (this.enableCustomJMXConfig) {
+      // Map will only be non empty if jmx is enabled.
+      eventsByType.get(eventType).update(lag, TimeUnit.MILLISECONDS);
+    }
     lagLock.lock();
     try {
       long lagFileCount = averageFileCount.getAndIncrement();
@@ -124,6 +169,30 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
       averageLag.updateAndGet(value -> (value * lagFileCount + lag) / (lagFileCount + 1));
     } finally {
       lagLock.unlock();
+    }
+  }
+
+  /**
+   * When either key or value is broken.
+   *
+   * @param n number of records
+   */
+  public void updateBrokenRecordMetrics(long n) {
+    this.fileCountTableStageBrokenRecord.addAndGet(n);
+    if (enableCustomJMXConfig) {
+      this.fileCountTableStageBrokenRecordMeter.mark(n);
+    }
+  }
+
+  /**
+   * When Ingestion status of n number of files is not found/failed.
+   *
+   * @param n number of files failed ingestion
+   */
+  public void updateFailedIngestionMetrics(long n) {
+    this.fileCountTableStageIngestFail.addAndGet(n);
+    if (enableCustomJMXConfig) {
+      this.fileCountTableStageIngestFailMeter.mark(n);
     }
   }
 
@@ -142,11 +211,11 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
         && this.fileCountTableStageBrokenRecord.get() == 0
         && this.cleanerRestartCount.get() == 0
         && this.memoryUsage.get() == 0
-        && this.averageKafkaLag.get() == 0
+        && this.averageKafkaLagMs.get() == 0
         && this.averageKafkaLagRecordCount.get() == 0
-        && this.averageIngestionLag.get() == 0
+        && this.averageIngestionLagMs.get() == 0
         && this.averageIngestionLagFileCount.get() == 0
-        && this.averageCommitLag.get() == 0
+        && this.averageCommitLagMs.get() == 0
         && this.averageCommitLagFileCount.get() == 0;
   }
 
@@ -172,11 +241,11 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
 
     lagLock.lock();
     try {
-      msg.put(AVERAGE_KAFKA_LAG, averageKafkaLag.getAndSet(0));
+      msg.put(AVERAGE_KAFKA_LAG_MS, averageKafkaLagMs.getAndSet(0));
       msg.put(AVERAGE_KAFKA_LAG_RECORD_COUNT, averageKafkaLagRecordCount.getAndSet(0));
-      msg.put(AVERAGE_INGESTION_LAG, averageIngestionLag.getAndSet(0));
+      msg.put(AVERAGE_INGESTION_LAG_MS, averageIngestionLagMs.getAndSet(0));
       msg.put(AVERAGE_INGESTION_LAG_FILE_COUNT, averageIngestionLagFileCount.getAndSet(0));
-      msg.put(AVERAGE_COMMIT_LAG, averageCommitLag.getAndSet(0));
+      msg.put(AVERAGE_COMMIT_LAG_MS, averageCommitLagMs.getAndSet(0));
       msg.put(AVERAGE_COMMIT_LAG_FILE_COUNT, averageCommitLagFileCount.getAndSet(0));
     } finally {
       lagLock.unlock();
@@ -184,5 +253,89 @@ public class SnowflakeTelemetryPipeStatus extends SnowflakeTelemetryBasicInfo {
 
     msg.put(START_TIME, startTime.getAndSet(System.currentTimeMillis()));
     msg.put(END_TIME, System.currentTimeMillis());
+  }
+
+  // --------------- JMX Metrics --------------- //
+
+  /**
+   * Registers all the Metrics inside the metricRegistry. The registered metric will be a subclass
+   * of {@link Metric}
+   *
+   * @param pipeName pipeName
+   * @param metricsJmxReporter wrapper class for registering all metrics related to above connector
+   *     and pipe
+   */
+  private void registerPipeJMXMetrics(
+      final String pipeName, MetricsJmxReporter metricsJmxReporter) {
+    MetricRegistry currentMetricRegistry = metricsJmxReporter.getMetricRegistry();
+
+    // Lazily remove all registered metrics from the registry since this can be invoked during
+    // partition reassignment
+    LOGGER.debug(
+        Logging.logMessage(
+            "Registering metrics for pipe:{}, existing:{}",
+            pipeName,
+            metricsJmxReporter.getMetricRegistry().getMetrics().keySet().toString()));
+    metricsJmxReporter.removeMetricsFromRegistry(pipeName);
+
+    try {
+      // Latency JMX
+      // create meter per event type
+      Arrays.stream(EventType.values())
+          .forEach(
+              eventType ->
+                  eventsByType.put(
+                      eventType,
+                      currentMetricRegistry.timer(
+                          constructMetricName(
+                              pipeName, LATENCY_SUB_DOMAIN, eventType.getMetricName()))));
+
+      // Offset JMX
+      currentMetricRegistry.register(
+          constructMetricName(pipeName, OFFSET_SUB_DOMAIN, MetricsUtil.PROCESSED_OFFSET),
+          (Gauge<Long>) () -> processedOffset.get());
+
+      currentMetricRegistry.register(
+          constructMetricName(pipeName, OFFSET_SUB_DOMAIN, MetricsUtil.FLUSHED_OFFSET),
+          (Gauge<Long>) () -> flushedOffset.get());
+
+      currentMetricRegistry.register(
+          constructMetricName(pipeName, OFFSET_SUB_DOMAIN, MetricsUtil.COMMITTED_OFFSET),
+          (Gauge<Long>) () -> committedOffset.get());
+
+      currentMetricRegistry.register(
+          constructMetricName(pipeName, OFFSET_SUB_DOMAIN, MetricsUtil.PURGED_OFFSET),
+          (Gauge<Long>) () -> purgedOffset.get());
+
+      // File count JMX
+      currentMetricRegistry.register(
+          constructMetricName(pipeName, FILE_COUNT_SUB_DOMAIN, MetricsUtil.FILE_COUNT_ON_INGESTION),
+          (Gauge<Long>) () -> fileCountOnIngestion.get());
+
+      currentMetricRegistry.register(
+          constructMetricName(pipeName, FILE_COUNT_SUB_DOMAIN, MetricsUtil.FILE_COUNT_ON_STAGE),
+          (Gauge<Long>) () -> fileCountOnStage.get());
+
+      metricsJmxReporter
+          .getMetricRegistry()
+          .register(
+              constructMetricName(pipeName, FILE_COUNT_SUB_DOMAIN, MetricsUtil.FILE_COUNT_PURGED),
+              (Gauge<Long>) () -> fileCountPurged.get());
+
+      fileCountTableStageBrokenRecordMeter =
+          currentMetricRegistry.meter(
+              constructMetricName(
+                  pipeName,
+                  FILE_COUNT_SUB_DOMAIN,
+                  MetricsUtil.FILE_COUNT_TABLE_STAGE_BROKEN_RECORD));
+
+      fileCountTableStageIngestFailMeter =
+          currentMetricRegistry.meter(
+              constructMetricName(
+                  pipeName, FILE_COUNT_SUB_DOMAIN, FILE_COUNT_TABLE_STAGE_INGESTION_FAIL));
+
+    } catch (IllegalArgumentException ex) {
+      LOGGER.warn("Metrics already present:{}", ex.getMessage());
+    }
   }
 }
