@@ -489,7 +489,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.25</version>
+            <version>1.7.36</version>
         </dependency>
         <!-- Upstream still seems to be using log4j12. For future merges,
             even if we get log4j12, we should ensure using reload4j
