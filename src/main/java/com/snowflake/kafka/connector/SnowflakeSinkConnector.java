@@ -61,7 +61,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   private static final int VALIDATION_NETWORK_TIMEOUT = 45000;
 
-  private static final int LOGIN_VALIDATION_NETWORK_TIMEOUT_IN_SEC = 20;
+  private static final int VALIDATION_LOGIN_TIMEOUT_IN_SEC = 20;
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
@@ -238,7 +238,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
           SnowflakeConnectionServiceFactory.builder()
                   .setProperties(connectorConfigs)
                   .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT)
-                  .setLoginTimeOut(LOGIN_VALIDATION_NETWORK_TIMEOUT_IN_SEC)
+                  .setLoginTimeOut(VALIDATION_LOGIN_TIMEOUT_IN_SEC)
                   .build();
 
     } catch (SnowflakeKafkaConnectorException e) {
