@@ -59,9 +59,9 @@ public class SnowflakeSinkConnector extends SinkConnector {
   // Using setupComplete to synchronize
   private boolean setupComplete;
 
-  private int VALIDATION_NETWORK_TIMEOUT = 45000;
+  private static final int VALIDATION_NETWORK_TIMEOUT = 45000;
 
-  private int LOGIN_VALIDATION_NETWORK_TIMEOUT_IN_SEC = 20;
+  private static final int LOGIN_VALIDATION_NETWORK_TIMEOUT_IN_SEC = 20;
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
