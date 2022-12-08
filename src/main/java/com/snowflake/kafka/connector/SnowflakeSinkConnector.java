@@ -61,6 +61,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   private int VALIDATION_NETWORK_TIMEOUT = 45000;
 
+  private int LOGIN_VALIDATION_NETWORK_TIMEOUT_IN_SEC = 20;
+
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
     setupComplete = false;
@@ -236,6 +238,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
           SnowflakeConnectionServiceFactory.builder()
                   .setProperties(connectorConfigs)
                   .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT)
+                  .setLoginTimeOut(LOGIN_VALIDATION_NETWORK_TIMEOUT_IN_SEC)
                   .build();
 
     } catch (SnowflakeKafkaConnectorException e) {
@@ -266,7 +269,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
               result, Utils.SF_PRIVATE_KEY, " must be a valid PEM RSA private key");
           break;
         default:
-          throw e; // Shouldn't reach here, so crash.
+          Utils.updateConfigErrorMessage(result, Utils.SF_PRIVATE_KEY, "network is the because");
+          //throw e; // Shouldn't reach here, so crash.
       }
       return result;
     }
