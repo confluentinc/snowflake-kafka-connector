@@ -59,7 +59,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
   // Using setupComplete to synchronize
   private boolean setupComplete;
 
-  private static final int VALIDATION_NETWORK_TIMEOUT = 45000;
+  private static final int VALIDATION_NETWORK_TIMEOUT_IN_MS = 45000;
 
   private static final int VALIDATION_LOGIN_TIMEOUT_IN_SEC = 20;
 
@@ -237,7 +237,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
       testConnection =
           SnowflakeConnectionServiceFactory.builder()
                   .setProperties(connectorConfigs)
-                  .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT)
+                  .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT_IN_MS)
                   .setLoginTimeOut(VALIDATION_LOGIN_TIMEOUT_IN_SEC)
                   .build();
 
