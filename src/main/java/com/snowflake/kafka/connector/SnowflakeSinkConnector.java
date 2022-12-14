@@ -269,8 +269,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
               result, Utils.SF_PRIVATE_KEY, " must be a valid PEM RSA private key");
           break;
         default:
-          Utils.updateConfigErrorMessage(result, Utils.SF_PRIVATE_KEY, "network is the because");
-          //throw e; // Shouldn't reach here, so crash.
+          throw e; // Shouldn't reach here, so crash.
       }
       return result;
     }
