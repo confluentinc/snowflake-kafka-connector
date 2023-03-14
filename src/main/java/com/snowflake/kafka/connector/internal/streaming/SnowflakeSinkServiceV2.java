@@ -1,39 +1,34 @@
 package com.snowflake.kafka.connector.internal.streaming;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_DEFAULT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWFLAKE_ROLE;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_FILE_VERSION;
 import static com.snowflake.kafka.connector.internal.streaming.StreamingUtils.STREAMING_BUFFER_COUNT_RECORDS_DEFAULT;
 import static com.snowflake.kafka.connector.internal.streaming.StreamingUtils.STREAMING_BUFFER_FLUSH_TIME_DEFAULT_SEC;
-import static com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+import static net.snowflake.ingest.utils.ParameterProvider.BLOB_FORMAT_VERSION;
 
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Strings;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWFLAKE_ROLE;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
-import com.snowflake.kafka.connector.internal.KCLogger;
+import com.snowflake.kafka.connector.internal.LoggerHandler;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkService;
-import com.snowflake.kafka.connector.internal.metrics.MetricsJmxReporter;
-import static com.snowflake.kafka.connector.internal.streaming.StreamingUtils.STREAMING_BUFFER_COUNT_RECORDS_DEFAULT;
-import static com.snowflake.kafka.connector.internal.streaming.StreamingUtils.STREAMING_BUFFER_FLUSH_TIME_DEFAULT_SEC;
-import static com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import com.snowflake.kafka.connector.records.RecordService;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
+import java.util.Properties;
 import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
+import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClientFactory;
+import net.snowflake.ingest.utils.SFException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 
@@ -54,7 +49,10 @@ import org.apache.kafka.connect.sink.SinkTaskContext;
  */
 public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
 
-  private static final KCLogger LOGGER = new KCLogger(SnowflakeSinkServiceV2.class.getName());
+  private static final LoggerHandler LOGGER =
+      new LoggerHandler(SnowflakeSinkServiceV2.class.getName());
+
+  private static String STREAMING_CLIENT_PREFIX_NAME = "KC_CLIENT_";
 
   // Assume next three values are a threshold after which we will call insertRows API
   // Set in config (Time based flush) in seconds
@@ -79,7 +77,10 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   // default is true unless the configuration provided is false;
   // If this is true, we will enable Mbean for required classes and emit JMX metrics for monitoring
   private boolean enableCustomJMXMonitoring = SnowflakeSinkConnectorConfig.JMX_OPT_DEFAULT;
-  private MetricsJmxReporter metricsJmxReporter;
+
+  // We will make this non configurable if ingestion method is SNOWPIPE_STREAMING
+  private SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee ingestionDeliveryGuarantee =
+      SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee.EXACTLY_ONCE;
 
   /**
    * Fetching this from {@link org.apache.kafka.connect.sink.SinkTaskContext}'s {@link
@@ -97,6 +98,10 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   // Config set in JSON
   private final Map<String, String> connectorConfig;
 
+  private final String taskId;
+
+  private final String streamingIngestClientName;
+
   private boolean enableSchematization;
 
   /**
@@ -105,12 +110,6 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
    * <p>value is the Streaming Ingest Channel implementation (Wrapped around TopicPartitionChannel)
    */
   private final Map<String, TopicPartitionChannel> partitionsToChannel;
-
-  // Cache for schema evolution
-  private final Map<String, Boolean> tableName2SchemaEvolutionPermission;
-
-  // Set that keeps track of the channels that have been seen per input batch
-  private final Set<String> channelsVisitedPerBatch = new HashSet<>();
 
   public SnowflakeSinkServiceV2(
       SnowflakeConnectionService conn, Map<String, String> connectorConfig) {
@@ -135,65 +134,11 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     this.enableSchematization =
         this.recordService.setAndGetEnableSchematizationFromConfig(this.connectorConfig);
 
-    this.streamingIngestClient =
-        StreamingClientProvider.getStreamingClientProviderInstance()
-            .getClient(this.connectorConfig);
-
+    this.taskId = connectorConfig.getOrDefault(Utils.TASK_ID, "-1");
+    this.streamingIngestClientName =
+        STREAMING_CLIENT_PREFIX_NAME + conn.getConnectorName() + "_" + taskId;
+    initStreamingClient();
     this.partitionsToChannel = new HashMap<>();
-
-    this.tableName2SchemaEvolutionPermission = new HashMap<>();
-
-    // jmx
-    String connectorName =
-        conn == null || Strings.isNullOrEmpty(this.conn.getConnectorName())
-            ? "default_connector"
-            : this.conn.getConnectorName();
-    this.metricsJmxReporter = new MetricsJmxReporter(new MetricRegistry(), connectorName);
-  }
-
-  @VisibleForTesting
-  public SnowflakeSinkServiceV2(
-      long flushTimeSeconds,
-      long fileSizeBytes,
-      long recordNum,
-      SnowflakeConnectionService conn,
-      RecordService recordService,
-      SnowflakeTelemetryService telemetryService,
-      Map<String, String> topicToTableMap,
-      SnowflakeSinkConnectorConfig.BehaviorOnNullValues behaviorOnNullValues,
-      boolean enableCustomJMXMonitoring,
-      KafkaRecordErrorReporter kafkaRecordErrorReporter,
-      SinkTaskContext sinkTaskContext,
-      SnowflakeStreamingIngestClient streamingIngestClient,
-      Map<String, String> connectorConfig,
-      boolean enableSchematization,
-      Map<String, TopicPartitionChannel> partitionsToChannel) {
-    this.flushTimeSeconds = flushTimeSeconds;
-    this.fileSizeBytes = fileSizeBytes;
-    this.recordNum = recordNum;
-    this.conn = conn;
-    this.recordService = recordService;
-    this.telemetryService = telemetryService;
-    this.topicToTableMap = topicToTableMap;
-    this.behaviorOnNullValues = behaviorOnNullValues;
-    this.enableCustomJMXMonitoring = enableCustomJMXMonitoring;
-    this.kafkaRecordErrorReporter = kafkaRecordErrorReporter;
-    this.sinkTaskContext = sinkTaskContext;
-    this.streamingIngestClient = streamingIngestClient;
-    this.connectorConfig = connectorConfig;
-    this.streamingIngestClient =
-        StreamingClientProvider.getStreamingClientProviderInstance()
-            .getClient(this.connectorConfig);
-    this.enableSchematization = enableSchematization;
-    this.partitionsToChannel = partitionsToChannel;
-
-    this.tableName2SchemaEvolutionPermission = new HashMap<>();
-    if (this.topicToTableMap != null) {
-      this.topicToTableMap.forEach(
-          (topic, tableName) -> {
-            populateSchemaEvolutionPermissions(tableName);
-          });
-    }
   }
 
   /**
@@ -206,33 +151,12 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
    * @param topicPartition TopicPartition passed from Kafka
    */
   @Override
-  public void startPartition(String tableName, TopicPartition topicPartition) {
+  public void startTask(String tableName, TopicPartition topicPartition) {
     // the table should be present before opening a channel so let's do a table existence check here
     createTableIfNotExists(tableName);
 
     // Create channel for the given partition
-    createStreamingChannelForTopicPartition(
-        tableName, topicPartition, tableName2SchemaEvolutionPermission.get(tableName));
-  }
-
-  /**
-   * Initializes multiple Channels and partitionsToChannel maps with new instances of {@link
-   * TopicPartitionChannel}
-   *
-   * @param partitions collection of topic partition
-   * @param topic2Table map of topic to table name
-   */
-  @Override
-  public void startPartitions(
-      Collection<TopicPartition> partitions, Map<String, String> topic2Table) {
-    partitions.forEach(
-        tp -> {
-          String tableName = Utils.tableName(tp.topic(), topic2Table);
-          createTableIfNotExists(tableName);
-
-          createStreamingChannelForTopicPartition(
-              tableName, tp, tableName2SchemaEvolutionPermission.get(tableName));
-        });
+    createStreamingChannelForTopicPartition(tableName, topicPartition);
   }
 
   /**
@@ -242,9 +166,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
    * presented or not.
    */
   private void createStreamingChannelForTopicPartition(
-      final String tableName,
-      final TopicPartition topicPartition,
-      boolean hasSchemaEvolutionPermission) {
+      final String tableName, final TopicPartition topicPartition) {
     final String partitionChannelKey =
         partitionChannelKey(topicPartition.topic(), topicPartition.partition());
     // Create new instance of TopicPartitionChannel which will always open the channel.
@@ -255,16 +177,12 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
             topicPartition,
             partitionChannelKey, // Streaming channel name
             tableName,
-            hasSchemaEvolutionPermission,
             new StreamingBufferThreshold(this.flushTimeSeconds, this.fileSizeBytes, this.recordNum),
             this.connectorConfig,
             this.kafkaRecordErrorReporter,
             this.sinkTaskContext,
             this.conn,
-            this.recordService,
-            this.conn.getTelemetryClient(),
-            this.enableCustomJMXMonitoring,
-            this.metricsJmxReporter));
+            this.recordService));
   }
 
   /**
@@ -278,15 +196,13 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
    *     Topic and multiple Partitions
    */
   @Override
-  public void insert(final Collection<SinkRecord> records) {
+  public void insert(Collection<SinkRecord> records) {
     // note that records can be empty but, we will still need to check for time based flush
-    channelsVisitedPerBatch.clear();
     for (SinkRecord record : records) {
-      // check if it needs to handle null value records
+      // check if need to handle null value records
       if (recordService.shouldSkipNullValue(record, behaviorOnNullValues)) {
         continue;
       }
-
       // While inserting into buffer, we will check for count threshold and buffered bytes
       // threshold.
       insert(record);
@@ -315,14 +231,13 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
           "Topic: {} Partition: {} hasn't been initialized by OPEN function",
           record.topic(),
           record.kafkaPartition());
-      startPartition(
+      startTask(
           Utils.tableName(record.topic(), this.topicToTableMap),
           new TopicPartition(record.topic(), record.kafkaPartition()));
     }
 
     TopicPartitionChannel channelPartition = partitionsToChannel.get(partitionChannelKey);
-    boolean isFirstRowPerPartitionInBatch = channelsVisitedPerBatch.add(partitionChannelKey);
-    channelPartition.insertRecordToBuffer(record, isFirstRowPerPartitionInBatch);
+    channelPartition.insertRecordToBuffer(record);
   }
 
   @Override
@@ -330,15 +245,13 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     String partitionChannelKey =
         partitionChannelKey(topicPartition.topic(), topicPartition.partition());
     if (partitionsToChannel.containsKey(partitionChannelKey)) {
-      long offset = partitionsToChannel.get(partitionChannelKey).getOffsetSafeToCommitToKafka();
-      partitionsToChannel.get(partitionChannelKey).setLatestConsumerOffset(offset);
-      return offset;
+      return partitionsToChannel.get(partitionChannelKey).getOffsetSafeToCommitToKafka();
     } else {
       LOGGER.warn(
           "Topic: {} Partition: {} hasn't been initialized to get offset",
           topicPartition.topic(),
           topicPartition.partition());
-      return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+      return 0;
     }
   }
 
@@ -360,9 +273,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
           topicPartitionChannel.closeChannel();
         });
     partitionsToChannel.clear();
-
-    StreamingClientProvider.getStreamingClientProviderInstance()
-        .closeClient(this.connectorConfig, this.streamingIngestClient);
+    closeStreamingClient();
   }
 
   /**
@@ -392,40 +303,15 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
           }
           LOGGER.info(
               "Closing partitionChannel:{}, partition:{}, topic:{}",
-              topicPartitionChannel == null ? null : topicPartitionChannel.getChannelNameFormatV1(),
+              topicPartitionChannel == null ? null : topicPartitionChannel.getChannelName(),
               topicPartition.topic(),
               topicPartition.partition());
-          partitionsToChannel.remove(partitionChannelKey);
         });
-    LOGGER.info(
-        "Closing {} partitions and remaining partitions which are not closed are:{}, with size:{}",
-        partitions.size(),
-        partitionsToChannel.keySet().toString(),
-        partitionsToChannel.size());
+    partitionsToChannel.clear();
   }
 
   @Override
-  public void stop() {
-    final boolean isOptimizationEnabled =
-        Boolean.parseBoolean(
-            connectorConfig.getOrDefault(
-                SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG,
-                Boolean.toString(ENABLE_STREAMING_CLIENT_OPTIMIZATION_DEFAULT)));
-    // when optimization is enabled single streamingIngestClient instance may be used by many
-    // SinkService instances
-    // stopping the client may cause unexpected behaviour
-    if (!isOptimizationEnabled) {
-      try {
-        StreamingClientProvider.getStreamingClientProviderInstance()
-            .closeClient(connectorConfig, this.streamingIngestClient);
-      } catch (Exception e) {
-        LOGGER.warn(
-            "Could not close streaming ingest client {}. Reason: {}",
-            streamingIngestClient.getName(),
-            e.getMessage());
-      }
-    }
-  }
+  public void setIsStoppedToTrue() {}
 
   /* Undefined */
   @Override
@@ -525,6 +411,14 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     return this.behaviorOnNullValues;
   }
 
+  @Override
+  public void setDeliveryGuarantee(
+      SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee ingestionDeliveryGuarantee) {
+    assert ingestionDeliveryGuarantee
+        == SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee.EXACTLY_ONCE;
+    this.ingestionDeliveryGuarantee = ingestionDeliveryGuarantee;
+  }
+
   /* Set this to send records to DLQ. */
   @Override
   public void setErrorReporter(KafkaRecordErrorReporter kafkaRecordErrorReporter) {
@@ -537,15 +431,8 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   }
 
   @Override
-  public Optional<MetricRegistry> getMetricRegistry(String partitionChannelKey) {
-    return this.partitionsToChannel.containsKey(partitionChannelKey)
-        ? Optional.of(
-            this.partitionsToChannel
-                .get(partitionChannelKey)
-                .getSnowflakeTelemetryChannelStatus()
-                .getMetricsJmxReporter()
-                .getMetricRegistry())
-        : Optional.empty();
+  public Optional<MetricRegistry> getMetricRegistry(String pipeName) {
+    return Optional.empty();
   }
 
   /**
@@ -556,13 +443,13 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
    * @return combinartion of topic and partition
    */
   @VisibleForTesting
-  public static String partitionChannelKey(String topic, int partition) {
+  protected static String partitionChannelKey(String topic, int partition) {
     return topic + "_" + partition;
   }
 
   /* Used for testing */
   @VisibleForTesting
-  public SnowflakeStreamingIngestClient getStreamingIngestClient() {
+  SnowflakeStreamingIngestClient getStreamingIngestClient() {
     return this.streamingIngestClient;
   }
 
@@ -580,6 +467,55 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   }
 
   // ------ Streaming Ingest Related Functions ------ //
+
+  /* Init Streaming client. If is also used to re-init the client if client was closed before. */
+  private void initStreamingClient() {
+    Map<String, String> streamingPropertiesMap =
+        StreamingUtils.convertConfigForStreamingClient(new HashMap<>(this.connectorConfig));
+    Properties streamingClientProps = new Properties();
+    streamingClientProps.putAll(streamingPropertiesMap);
+    if (this.streamingIngestClient == null || this.streamingIngestClient.isClosed()) {
+      try {
+        // Override only if bdec version is explicitly set in config, default to the version set
+        // inside
+        // Ingest SDK
+        Map<String, Object> parameterOverrides = new HashMap<>();
+        Optional<String> snowpipeStreamingBdecVersion =
+            Optional.ofNullable(this.connectorConfig.get(SNOWPIPE_STREAMING_FILE_VERSION));
+        snowpipeStreamingBdecVersion.ifPresent(
+            overriddenValue -> {
+              LOGGER.info("Config is overridden for {} ", SNOWPIPE_STREAMING_FILE_VERSION);
+              parameterOverrides.put(BLOB_FORMAT_VERSION, overriddenValue);
+            });
+
+        LOGGER.info("Initializing Streaming Client. ClientName:{}", this.streamingIngestClientName);
+        this.streamingIngestClient =
+            SnowflakeStreamingIngestClientFactory.builder(this.streamingIngestClientName)
+                .setProperties(streamingClientProps)
+                .setParameterOverrides(parameterOverrides)
+                .build();
+      } catch (SFException ex) {
+        LOGGER.error(
+            "Exception creating streamingIngestClient with name:{}",
+            this.streamingIngestClientName);
+        throw new ConnectException(ex);
+      }
+    }
+  }
+
+  /** Closes the streaming client. */
+  private void closeStreamingClient() {
+    LOGGER.info("Closing Streaming Client:{}", this.streamingIngestClientName);
+    try {
+      streamingIngestClient.close();
+    } catch (Exception e) {
+      LOGGER.error(
+          "Failure closing Streaming client msg:{}, cause:{}",
+          e.getMessage(),
+          Arrays.toString(e.getCause().getStackTrace()));
+    }
+  }
+
   private void createTableIfNotExists(final String tableName) {
     if (this.conn.tableExist(tableName)) {
       if (!this.enableSchematization) {
@@ -600,23 +536,6 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
         this.conn.createTableWithOnlyMetadataColumn(tableName);
       } else {
         this.conn.createTable(tableName);
-      }
-    }
-
-    // Populate schema evolution cache if needed
-    populateSchemaEvolutionPermissions(tableName);
-  }
-
-  private void populateSchemaEvolutionPermissions(String tableName) {
-    if (!tableName2SchemaEvolutionPermission.containsKey(tableName)) {
-      if (enableSchematization) {
-        tableName2SchemaEvolutionPermission.put(
-            tableName,
-            conn != null
-                && conn.hasSchemaEvolutionPermission(
-                    tableName, connectorConfig.get(SNOWFLAKE_ROLE)));
-      } else {
-        tableName2SchemaEvolutionPermission.put(tableName, false);
       }
     }
   }

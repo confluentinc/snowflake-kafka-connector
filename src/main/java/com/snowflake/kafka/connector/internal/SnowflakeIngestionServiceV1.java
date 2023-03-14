@@ -3,17 +3,15 @@ package com.snowflake.kafka.connector.internal;
 import static com.snowflake.kafka.connector.internal.InternalUtils.convertIngestStatus;
 import static com.snowflake.kafka.connector.internal.InternalUtils.timestampToDate;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.security.PrivateKey;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
-import javax.annotation.Nullable;
 import net.snowflake.ingest.SimpleIngestManager;
+import net.snowflake.ingest.connection.ClientStatusResponse;
+import net.snowflake.ingest.connection.ConfigureClientResponse;
 import net.snowflake.ingest.connection.HistoryRangeResponse;
 import net.snowflake.ingest.connection.HistoryResponse;
+import net.snowflake.ingest.connection.InsertFilesClientInfo;
 import net.snowflake.ingest.utils.StagedFileWrapper;
 
 /**
@@ -28,14 +26,12 @@ import net.snowflake.ingest.utils.StagedFileWrapper;
  * <p>The difference between above two APIs @see <a
  * href="https://docs.snowflake.com/en/user-guide/data-load-snowpipe-rest-apis.html">here</a>
  */
-public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
-
-  private final KCLogger LOGGER = new KCLogger(SnowflakeIngestionServiceV1.class.getName());
+public class SnowflakeIngestionServiceV1 extends EnableLogging
+    implements SnowflakeIngestionService {
   private static final long ONE_HOUR = 60 * 60 * 1000;
 
   private final String stageName;
   private final SimpleIngestManager ingestManager;
-  private final String pipeName;
   private SnowflakeTelemetryService telemetry = null;
 
   private String beginMark = null;
@@ -49,61 +45,23 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
       String stageName,
       String pipeName,
       PrivateKey privateKey,
-      String userAgentSuffix,
-      @Nullable SnowflakeTelemetryService telemetry) {
-
-    this(
-        stageName,
-        pipeName,
-        createOrThrow(
-            accountName,
-            userName,
-            host,
-            port,
-            connectionScheme,
-            pipeName,
-            privateKey,
-            userAgentSuffix,
-            telemetry),
-        telemetry);
-    LOGGER.info("initialized the pipe connector for pipe {}", pipeName);
-  }
-
-  @VisibleForTesting
-  SnowflakeIngestionServiceV1(
-      String stageName,
-      String pipeName,
-      SimpleIngestManager ingestManager,
-      @Nullable SnowflakeTelemetryService telemetry) {
+      String userAgentSuffix) {
     this.stageName = stageName;
-    this.pipeName = pipeName;
-    this.ingestManager = ingestManager;
-    this.telemetry = telemetry;
-  }
-
-  private static SimpleIngestManager createOrThrow(
-      String accountName,
-      String userName,
-      String host,
-      int port,
-      String connectionScheme,
-      String pipeName,
-      PrivateKey privateKey,
-      String userAgentSuffix,
-      SnowflakeTelemetryService telemetry) {
     try {
-      return new SimpleIngestManager(
-          accountName,
-          userName,
-          pipeName,
-          privateKey,
-          connectionScheme,
-          host,
-          port,
-          userAgentSuffix);
+      this.ingestManager =
+          new SimpleIngestManager(
+              accountName,
+              userName,
+              pipeName,
+              privateKey,
+              connectionScheme,
+              host,
+              port,
+              userAgentSuffix);
     } catch (Exception e) {
-      throw SnowflakeErrors.ERROR_0002.getException(e, telemetry);
+      throw SnowflakeErrors.ERROR_0002.getException(e, this.telemetry);
     }
+    LOG_INFO_MSG("initialized the pipe connector for pipe {}", pipeName);
   }
 
   @Override
@@ -121,7 +79,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_3001.getException(e, this.telemetry);
     }
-    LOGGER.debug("ingest file: {}", fileName);
+    LOG_DEBUG_MSG("ingest file: {}", fileName);
   }
 
   @Override
@@ -129,7 +87,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
     if (fileNames.isEmpty()) {
       return;
     }
-    LOGGER.debug("ingest files: {}", Arrays.toString(fileNames.toArray()));
+    LOG_DEBUG_MSG("ingest files: {}", Arrays.toString(fileNames.toArray()));
     try {
       InternalUtils.backoffAndRetry(
           telemetry,
@@ -186,20 +144,13 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
           if (fileStatus.containsKey(file.getPath())) {
             numOfRecords++;
 
-            final InternalUtils.IngestedFileStatus ingestionStatus =
-                convertIngestStatus(file.getStatus());
-            fileStatus.put(file.getPath(), ingestionStatus);
-            // Log errors
-            if (InternalUtils.IngestedFileStatus.FAILED.equals(ingestionStatus)
-                || InternalUtils.IngestedFileStatus.PARTIALLY_LOADED.equals(ingestionStatus)) {
-              LOGGER.warn("Failed to load file {} for pipe {}", file.getPath(), this.pipeName);
-            }
+            fileStatus.put(file.getPath(), convertIngestStatus(file.getStatus()));
           }
         }
       }
     }
 
-    LOGGER.info("searched {} files in ingest report, found {}", files.size(), numOfRecords);
+    LOG_INFO_MSG("searched {} files in ingest report, found {}", files.size(), numOfRecords);
 
     return fileStatus;
   }
@@ -220,45 +171,6 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
         });
 
     return result;
-  }
-
-  @Override
-  public int readIngestHistoryForward(
-      Map<String, InternalUtils.IngestedFileStatus> storage,
-      Predicate<HistoryResponse.FileEntry> fileFilter,
-      AtomicReference<String> historyMarker,
-      Integer lastNSeconds) {
-    HistoryResponse response;
-    try {
-      response =
-          (HistoryResponse)
-              InternalUtils.backoffAndRetry(
-                  telemetry,
-                  SnowflakeInternalOperations.INSERT_REPORT_SNOWPIPE_API,
-                  () -> ingestManager.getHistory(null, lastNSeconds, historyMarker.get()));
-    } catch (Exception e) {
-      throw SnowflakeErrors.ERROR_3002.getException(e, this.telemetry);
-    }
-
-    AtomicInteger loadedRecords = new AtomicInteger();
-    if (response != null) {
-      historyMarker.set(response.getNextBeginMark());
-      response.files.stream()
-          .filter(file -> fileFilter == null || fileFilter.test(file))
-          .forEach(
-              historyEntry -> {
-                storage.compute(
-                    historyEntry.getPath(),
-                    (key, status) -> convertIngestStatus(historyEntry.getStatus()));
-                loadedRecords.incrementAndGet();
-              });
-      LOGGER.info(
-          "loaded {} files out of {} in ingest report since marker {}",
-          loadedRecords.get(),
-          response.files.size(),
-          historyMarker.get());
-    }
-    return loadedRecords.get();
   }
 
   /**
@@ -307,7 +219,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
             "the response of load history is null", this.telemetry);
       }
 
-      LOGGER.info(
+      LOG_INFO_MSG(
           "read load history between {} and {}. retrieved {} records.",
           startTimeInclusive,
           endTimeExclusive,
@@ -323,9 +235,9 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
     try {
       ingestManager.close();
     } catch (Exception e) {
-      LOGGER.error("Failed to close ingestManager: " + e.getMessage());
+      LOG_ERROR_MSG("Failed to close ingestManager: " + e.getMessage());
     }
-    LOGGER.info("IngestService Closed");
+    LOG_INFO_MSG("IngestService Closed");
   }
 
   /**
@@ -347,5 +259,102 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
   /* Only used for testing */
   public SimpleIngestManager getIngestManager() {
     return this.ingestManager;
+  }
+
+  @Override
+  public ConfigureClientResponse configureClient() {
+    ConfigureClientResponse response;
+    try {
+      response =
+          (ConfigureClientResponse)
+              InternalUtils.backoffAndRetry(
+                  telemetry,
+                  SnowflakeInternalOperations.CONFIGURE_CLIENT_SNOWPIPE_API,
+                  () -> ingestManager.configureClient(null));
+    } catch (Exception e) {
+      throw SnowflakeErrors.ERROR_3006.getException(e);
+    }
+    if (response != null) {
+      return response;
+    } else {
+      throw SnowflakeErrors.ERROR_4001.getException("the response of configure client is null");
+    }
+  }
+
+  @Override
+  public ClientStatusResponse getClientStatus() {
+    ClientStatusResponse response;
+    try {
+      response =
+          (ClientStatusResponse)
+              InternalUtils.backoffAndRetry(
+                  telemetry,
+                  SnowflakeInternalOperations.GET_CLIENT_STATUS_SNOWPIPE_API,
+                  () -> ingestManager.getClientStatus(null));
+    } catch (Exception e) {
+      throw SnowflakeErrors.ERROR_3007.getException(e);
+    }
+    if (response != null) {
+      // offsetToken is ok to be null
+      return response;
+    } else {
+      throw SnowflakeErrors.ERROR_4001.getException("the response of get client status is null");
+    }
+  }
+
+  @Override
+  public void ingestFilesWithClientInfo(List<String> fileNames, long clientSequencer) {
+    if (fileNames.isEmpty()) {
+      return;
+    }
+    try {
+      InternalUtils.backoffAndRetry(
+          telemetry,
+          SnowflakeInternalOperations.INSERT_FILES_WITH_CLIENT_INFO_SNOWPIPE_API,
+          () -> {
+            while (fileNames.size() > 0) {
+              // Can not send more than 5000 files in one request,
+              // so batch 4000 as one request
+              int toIndex = Math.min(4000, fileNames.size());
+              List<String> fileNamesBatch = fileNames.subList(0, toIndex);
+              String offsetToken = getLastOffsetTokenFromBatch(fileNamesBatch);
+              LOG_DEBUG_MSG(
+                  "ingest files with client info: {}, clientSequencer: {}, offsetToken: {} ",
+                  Arrays.toString(fileNamesBatch.toArray()),
+                  clientSequencer,
+                  offsetToken);
+              InsertFilesClientInfo clientInfo =
+                  new InsertFilesClientInfo(clientSequencer, offsetToken);
+              Set<String> fileNamesSet = new HashSet<>(fileNamesBatch);
+              ingestManager.ingestFiles(
+                  SimpleIngestManager.wrapFilepaths(fileNamesSet),
+                  null /* requestId*/,
+                  false /*showSkippedFiles*/,
+                  clientInfo);
+              fileNamesBatch.clear();
+            }
+            return true;
+          });
+    } catch (Exception e) {
+      throw SnowflakeErrors.ERROR_3008.getException(e);
+    }
+  }
+
+  /**
+   * Get the last offset number from a list of fileName
+   *
+   * @param fileNameBatch
+   * @return Offset number in String format
+   */
+  private String getLastOffsetTokenFromBatch(List<String> fileNameBatch) {
+    Long lastFileEndOffset =
+        FileNameUtils.fileNameToEndOffset(fileNameBatch.get(fileNameBatch.size() - 1));
+    for (String fileName : fileNameBatch) {
+      if (lastFileEndOffset < FileNameUtils.fileNameToEndOffset(fileName)) {
+        lastFileEndOffset = FileNameUtils.fileNameToEndOffset(fileName);
+        LOG_WARN_MSG("The fileName list is not sequential.");
+      }
+    }
+    return lastFileEndOffset.toString();
   }
 }
