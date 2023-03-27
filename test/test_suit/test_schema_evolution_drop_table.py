@@ -46,7 +46,7 @@ class TestSchemaEvolutionDropTable:
         self.driver.sendBytesData(self.topic, value, key)
 
         # Sleep for some time and then verify the rows are ingested
-        sleep(120)
+        sleep(60)
         self.verify("0")
 
         # Recreate the table
@@ -56,6 +56,7 @@ class TestSchemaEvolutionDropTable:
             "alter table {} set ENABLE_SCHEMA_EVOLUTION = true".format(self.table))
 
         # Ingest another set of rows
+        sleep(30)
         self.driver.sendBytesData(self.topic, value, key)
 
     def verify(self, round):
@@ -66,6 +67,9 @@ class TestSchemaEvolutionDropTable:
         gold_columns_copy = self.gold_columns.copy()
 
         for index, row in enumerate(rows):
+            print(row)
+            print(gold_columns_copy)
+            print(self.gold_columns)
             gold_columns_copy.remove(row[0])
             if not row[1].startswith(self.gold_type[row[0]]):
                 raise NonRetryableError("Column {} has the wrong type. got: {}, expected: {}".format(row[0], row[1],
