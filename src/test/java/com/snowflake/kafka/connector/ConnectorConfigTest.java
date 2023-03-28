@@ -84,6 +84,7 @@ public class ConnectorConfigTest {
     }
   }
 
+  @Test
   public void testURL() {
     try {
       Map<String, String> config = getConfig();
@@ -554,6 +555,7 @@ public class ConnectorConfigTest {
     }
   }
 
+  @Test
   public void testStreamingFlushTimeNotNumber() {
     try {
       Map<String, String> config = getConfig();
@@ -583,6 +585,7 @@ public class ConnectorConfigTest {
     }
   }
 
+  @Test
   public void testStreamingEmptyBufferCount() {
     try {
       Map<String, String> config = getConfig();
@@ -597,6 +600,7 @@ public class ConnectorConfigTest {
     }
   }
 
+  @Test
   public void testStreamingBufferCountNegative() {
     try {
       Map<String, String> config = getConfig();
@@ -611,6 +615,7 @@ public class ConnectorConfigTest {
     }
   }
 
+  @Test
   public void testStreamingBufferCountValue() {
     try {
       Map<String, String> config = getConfig();
@@ -663,6 +668,7 @@ public class ConnectorConfigTest {
     Utils.validateConfig(config);
   }
 
+  @Test
   public void testInvalidKeyConvertersForStreamingSnowpipe() {
     try {
       Map<String, String> config = getConfig();
@@ -685,6 +691,7 @@ public class ConnectorConfigTest {
     }
   }
 
+  @Test
   public void testInvalidValueConvertersForStreamingSnowpipe() {
     try {
       Map<String, String> config = getConfig();
@@ -703,7 +710,7 @@ public class ConnectorConfigTest {
     } catch (SnowflakeKafkaConnectorException exception) {
       assert exception
           .getMessage()
-          .contains(SnowflakeSinkConnectorConfig.KEY_CONVERTER_CONFIG_FIELD);
+          .contains(SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD);
     }
   }
 
