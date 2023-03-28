@@ -27,8 +27,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -47,23 +45,20 @@ public class SnowflakeSinkConnectorConfig {
 
   // Connector config
   private static final String CONNECTOR_CONFIG = "Connector Config";
+  public static final String BUFFER_COUNT_RECORDS = "buffer.count.records";
+  public static final long BUFFER_COUNT_RECORDS_DEFAULT = 10000;
+  public static final String BUFFER_SIZE_BYTES = "buffer.size.bytes";
+  public static final long BUFFER_SIZE_BYTES_DEFAULT = 5000000;
+  public static final long BUFFER_SIZE_BYTES_MIN = 1;
   static final String TOPICS_TABLES_MAP = "snowflake.topic2table.map";
 
   // For tombstone records
   public static final String BEHAVIOR_ON_NULL_VALUES_CONFIG = "behavior.on.null.values";
 
-  // Buffer thresholds
-  public static final String BUFFER_FLUSH_TIME_SEC = "buffer.flush.time";
-  public static final long BUFFER_FLUSH_TIME_SEC_DEFAULT = 120;
+  // Time in seconds
   public static final long BUFFER_FLUSH_TIME_SEC_MIN = 10;
-
-  public static final String BUFFER_SIZE_BYTES = "buffer.size.bytes";
-  public static final long BUFFER_SIZE_BYTES_DEFAULT = 5000000;
-  public static final long BUFFER_SIZE_BYTES_MIN = 1;
-
-  public static final String BUFFER_COUNT_RECORDS = "buffer.count.records";
-  public static final long BUFFER_COUNT_RECORDS_DEFAULT = 10000;
-  public static final long BUFFER_COUNT_RECORDS_MIN = 1;
+  public static final long BUFFER_FLUSH_TIME_SEC_DEFAULT = 120;
+  public static final String BUFFER_FLUSH_TIME_SEC = "buffer.flush.time";
 
   // Snowflake connection and database config
   private static final String SNOWFLAKE_LOGIN_INFO = "Snowflake Login Info";
@@ -73,10 +68,6 @@ public class SnowflakeSinkConnectorConfig {
   static final String SNOWFLAKE_DATABASE = Utils.SF_DATABASE;
   static final String SNOWFLAKE_SCHEMA = Utils.SF_SCHEMA;
   static final String SNOWFLAKE_PRIVATE_KEY_PASSPHRASE = Utils.PRIVATE_KEY_PASSPHRASE;
-  static final String AUTHENTICATOR_TYPE = Utils.SF_AUTHENTICATOR;
-  static final String OAUTH_CLIENT_ID = Utils.SF_OAUTH_CLIENT_ID;
-  static final String OAUTH_CLIENT_SECRET = Utils.SF_OAUTH_CLIENT_SECRET;
-  static final String OAUTH_REFRESH_TOKEN = Utils.SF_OAUTH_REFRESH_TOKEN;
 
   // For Snowpipe Streaming client
   public static final String SNOWFLAKE_ROLE = Utils.SF_ROLE;
@@ -87,7 +78,6 @@ public class SnowflakeSinkConnectorConfig {
   private static final String PROXY_INFO = "Proxy Info";
   public static final String JVM_PROXY_HOST = "jvm.proxy.host";
   public static final String JVM_PROXY_PORT = "jvm.proxy.port";
-  public static final String JVM_NON_PROXY_HOSTS = "jvm.nonProxy.hosts";
   public static final String JVM_PROXY_USERNAME = "jvm.proxy.username";
   public static final String JVM_PROXY_PASSWORD = "jvm.proxy.password";
 
@@ -110,6 +100,8 @@ public class SnowflakeSinkConnectorConfig {
   // By default it will be None since this is not enforced and only used for monitoring
   public static final String PROVIDER_CONFIG = "provider";
 
+  public static final String DELIVERY_GUARANTEE = "delivery.guarantee";
+
   // metrics
   public static final String JMX_OPT = "jmx";
   public static final boolean JMX_OPT_DEFAULT = true;
@@ -119,33 +111,9 @@ public class SnowflakeSinkConnectorConfig {
   public static final String INGESTION_METHOD_DEFAULT_SNOWPIPE =
       IngestionMethodConfig.SNOWPIPE.toString();
 
-  // addresses https://snowflakecomputing.atlassian.net/browse/SNOW-1019628 - use new file cleaner
-  public static final String SNOWPIPE_FILE_CLEANER_FIX_ENABLED =
-      "snowflake.snowpipe.v2CleanerEnabled";
-  public static final String SNOWPIPE_FILE_CLEANER_THREADS = "snowflake.snowpipe.v2CleanerThreads";
-
-  public static final boolean SNOWPIPE_FILE_CLEANER_FIX_ENABLED_DEFAULT = false;
-  public static final int SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT = 1;
-
-  public static final String SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP =
-          "snowflake.snowpipe.v1Cleaner.disable.reprocessFiles.cleanup";
-  public static final boolean SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT = false;
-
-  public static final String SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED =
-      "snowflake.snowpipe.stageFileNameExtensionEnabled";
-  public static final boolean SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED_DEFAULT = true;
-
-  // Whether to close streaming channels in parallel.
-  public static final String SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL =
-      "snowflake.streaming.closeChannelsInParallel.enabled";
-  public static final boolean SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL_DEFAULT = true;
-
-  // This is the streaming max client lag which can be defined in config
-  public static final String SNOWPIPE_STREAMING_MAX_CLIENT_LAG =
-      "snowflake.streaming.max.client.lag";
-
-  public static final String SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP =
-      "snowflake.streaming.client.provider.override.map";
+  // This is the streaming bdec file version which can be defined in config
+  // NOTE: Please do not override this value unless recommended from snowflake
+  public static final String SNOWPIPE_STREAMING_FILE_VERSION = "snowflake.streaming.file.version";
 
   // TESTING
   public static final String REBALANCING = "snowflake.test.rebalancing";
@@ -156,9 +124,8 @@ public class SnowflakeSinkConnectorConfig {
   private static final ConfigDef.Validator nonEmptyStringValidator = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Validator topicToTableValidator = new TopicToTableValidator();
   private static final ConfigDef.Validator KAFKA_PROVIDER_VALIDATOR = new KafkaProviderValidator();
-
-  private static final ConfigDef.Validator STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP_VALIDATOR =
-      new CommaSeparatedKeyValueValidator();
+  private static final ConfigDef.Validator DELIVERY_GUARANTEE_VALIDATOR =
+      new DeliveryGuaranteeValidator();
 
   // For error handling
   public static final String ERROR_GROUP = "ERRORS";
@@ -192,33 +159,10 @@ public class SnowflakeSinkConnectorConfig {
       "enable.streaming.client.optimization";
   public static final String ENABLE_STREAMING_CLIENT_OPTIMIZATION_DISPLAY =
       "Enable streaming client optimization";
-  public static final boolean ENABLE_STREAMING_CLIENT_OPTIMIZATION_DEFAULT = true;
+  public static final boolean ENABLE_STREAMING_CLIENT_OPTIMIZATION_DEFAULT = false;
   public static final String ENABLE_STREAMING_CLIENT_OPTIMIZATION_DOC =
       "Whether to optimize the streaming client to reduce cost. Note that this may affect"
           + " throughput or latency and can only be set if Streaming Snowpipe is enabled";
-
-  public static final String ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG =
-      "enable.streaming.channel.offset.migration";
-  public static final String ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DISPLAY =
-      "Enable Streaming Channel Offset Migration";
-  public static final boolean ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DEFAULT = true;
-  public static final String ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DOC =
-      "This config is used to enable/disable streaming channel offset migration logic. If true, we"
-          + " will migrate offset token from channel name format V2 to name format v1. V2 channel"
-          + " format is deprecated and V1 will be used always, disabling this config could have"
-          + " ramifications. Please consult Snowflake support before setting this to false.";
-
-  public static final String ENABLE_TASK_FAIL_ON_AUTHORIZATION_ERRORS =
-      "enable.task.fail.on.authorization.errors";
-  public static final boolean ENABLE_TASK_FAIL_ON_AUTHORIZATION_ERRORS_DEFAULT = false;
-
-  // MDC logging header
-  public static final String ENABLE_MDC_LOGGING_CONFIG = "enable.mdc.logging";
-  public static final String ENABLE_MDC_LOGGING_DISPLAY = "Enable MDC logging";
-  public static final String ENABLE_MDC_LOGGING_DEFAULT = "false";
-  public static final String ENABLE_MDC_LOGGING_DOC =
-      "Enable MDC context to prepend log messages. Note that this is only available after Apache"
-          + " Kafka 2.3";
 
   /**
    * Used to serialize the incoming records to kafka connector. Note: Converter code is invoked
@@ -349,46 +293,6 @@ public class SnowflakeSinkConnectorConfig {
             6,
             ConfigDef.Width.NONE,
             SNOWFLAKE_ROLE)
-        .define(
-            AUTHENTICATOR_TYPE,
-            Type.STRING, // TODO: SNOW-889748 change to enum and add validator
-            Utils.SNOWFLAKE_JWT,
-            Importance.LOW,
-            "Authenticator for JDBC and streaming ingest sdk",
-            SNOWFLAKE_LOGIN_INFO,
-            7,
-            ConfigDef.Width.NONE,
-            AUTHENTICATOR_TYPE)
-        .define(
-            OAUTH_CLIENT_ID,
-            Type.STRING,
-            "",
-            Importance.HIGH,
-            "Client id of target OAuth integration",
-            SNOWFLAKE_LOGIN_INFO,
-            8,
-            ConfigDef.Width.NONE,
-            OAUTH_CLIENT_ID)
-        .define(
-            OAUTH_CLIENT_SECRET,
-            Type.STRING,
-            "",
-            Importance.HIGH,
-            "Client secret of target OAuth integration",
-            SNOWFLAKE_LOGIN_INFO,
-            9,
-            ConfigDef.Width.NONE,
-            OAUTH_CLIENT_SECRET)
-        .define(
-            OAUTH_REFRESH_TOKEN,
-            Type.STRING,
-            "",
-            Importance.HIGH,
-            "Refresh token for OAuth",
-            SNOWFLAKE_LOGIN_INFO,
-            10,
-            ConfigDef.Width.NONE,
-            OAUTH_REFRESH_TOKEN)
         // proxy
         .define(
             JVM_PROXY_HOST,
@@ -411,23 +315,13 @@ public class SnowflakeSinkConnectorConfig {
             ConfigDef.Width.NONE,
             JVM_PROXY_PORT)
         .define(
-            JVM_NON_PROXY_HOSTS,
-            Type.STRING,
-            "",
-            Importance.LOW,
-            "JVM option: http.nonProxyHosts",
-            PROXY_INFO,
-            2,
-            ConfigDef.Width.NONE,
-            JVM_NON_PROXY_HOSTS)
-        .define(
             JVM_PROXY_USERNAME,
             Type.STRING,
             "",
             Importance.LOW,
             "JVM proxy username",
             PROXY_INFO,
-            3,
+            2,
             ConfigDef.Width.NONE,
             JVM_PROXY_USERNAME)
         .define(
@@ -437,7 +331,7 @@ public class SnowflakeSinkConnectorConfig {
             Importance.LOW,
             "JVM proxy password",
             PROXY_INFO,
-            4,
+            3,
             ConfigDef.Width.NONE,
             JVM_PROXY_PASSWORD)
         // Connector Config
@@ -556,6 +450,14 @@ public class SnowflakeSinkConnectorConfig {
             ConfigDef.Importance.HIGH,
             "Whether to enable JMX MBeans for custom SF metrics")
         .define(
+            DELIVERY_GUARANTEE,
+            Type.STRING,
+            IngestionDeliveryGuarantee.AT_LEAST_ONCE.name(),
+            DELIVERY_GUARANTEE_VALIDATOR,
+            Importance.LOW,
+            "Determines the ingest semantics for snowflake connector, currently support"
+                + " at-least-once and exactly-once delivery guarantees")
+        .define(
             REBALANCING,
             Type.BOOLEAN,
             REBALANCING_DEFAULT,
@@ -574,61 +476,17 @@ public class SnowflakeSinkConnectorConfig {
             ConfigDef.Width.NONE,
             INGESTION_METHOD_OPT)
         .define(
-            SNOWPIPE_FILE_CLEANER_FIX_ENABLED,
-            Type.BOOLEAN,
-            SNOWPIPE_FILE_CLEANER_FIX_ENABLED_DEFAULT,
+            SNOWPIPE_STREAMING_FILE_VERSION,
+            Type.STRING,
+            "", // default is handled in Ingest SDK
+            null, // no validator
             Importance.LOW,
-            "Whether to use new file cleaner for snowpipe data ingestion")
-        .define(
-            SNOWPIPE_FILE_CLEANER_THREADS,
-            Type.INT,
-            SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT,
-            Importance.LOW,
-            "Defines number of worker threads to associate with the cleaner task. By default there"
-                + " is one cleaner per topic's partition and they all share one worker thread")
-        .define(
-            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
-            Type.BOOLEAN,
-            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
-            Importance.LOW,
-            "Whether to disable cleanup of reprocess files in Snowpipe used with v1Cleaner. "
-                + "Note: This configuration will not take effect if `snowflake.snowpipe.v2CleanerEnabled` is"
-                + " `true`.")
-        .define(
-            SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED,
-            ConfigDef.Type.BOOLEAN,
-            SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED_DEFAULT,
-            ConfigDef.Importance.LOW,
-            "Defines whether stage file names should be prefixed with source topic's name hash."
-                + " This is required in scenarios, when there are multiple topics configured to"
-                + " ingest data into a single table via topic2table map. If disabled, there is a"
-                + " risk that files from various topics may collide with each other and be deleted"
-                + " before ingestion.")
-        .define(
-            SNOWPIPE_STREAMING_MAX_CLIENT_LAG,
-            Type.LONG,
-            StreamingUtils.STREAMING_BUFFER_FLUSH_TIME_MINIMUM_SEC,
-            ConfigDef.Range.atLeast(StreamingUtils.STREAMING_BUFFER_FLUSH_TIME_MINIMUM_SEC),
-            Importance.LOW,
-            "Decide how often the buffer in the Ingest SDK will be flushed",
+            "Acceptable values for Snowpipe Streaming BDEC Versions: 1 and 3. Check Ingest"
+                + " SDK for default behavior. Please do not set this unless Absolutely needed. ",
             CONNECTOR_CONFIG,
             6,
             ConfigDef.Width.NONE,
-            SNOWPIPE_STREAMING_MAX_CLIENT_LAG)
-        .define(
-            SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP,
-            Type.STRING,
-            "",
-            STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP_VALIDATOR,
-            Importance.LOW,
-            "Map of Key value pairs representing Streaming Client Properties to Override. These are"
-                + " optional and recommended to use ONLY after consulting Snowflake Support. Format"
-                + " : comma-separated tuples, e.g.:"
-                + " MAX_CLIENT_LAG:5000,other_key:value...",
-            CONNECTOR_CONFIG,
-            0,
-            ConfigDef.Width.NONE,
-            SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP)
+            SNOWPIPE_STREAMING_FILE_VERSION)
         .define(
             ERRORS_TOLERANCE_CONFIG,
             Type.STRING,
@@ -669,34 +527,7 @@ public class SnowflakeSinkConnectorConfig {
             CONNECTOR_CONFIG,
             7,
             ConfigDef.Width.NONE,
-            ENABLE_STREAMING_CLIENT_OPTIMIZATION_DISPLAY)
-        .define(
-            ENABLE_MDC_LOGGING_CONFIG,
-            Type.BOOLEAN,
-            ENABLE_MDC_LOGGING_DEFAULT,
-            Importance.LOW,
-            ENABLE_MDC_LOGGING_DOC,
-            CONNECTOR_CONFIG,
-            8,
-            ConfigDef.Width.NONE,
-            ENABLE_MDC_LOGGING_DISPLAY)
-        .define(
-            ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG,
-            Type.BOOLEAN,
-            ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DEFAULT,
-            Importance.LOW,
-            ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DOC,
-            CONNECTOR_CONFIG,
-            9,
-            ConfigDef.Width.NONE,
-            ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DISPLAY)
-        .define(
-            ENABLE_TASK_FAIL_ON_AUTHORIZATION_ERRORS,
-            Type.BOOLEAN,
-            ENABLE_TASK_FAIL_ON_AUTHORIZATION_ERRORS_DEFAULT,
-            Importance.LOW,
-            "If set to true the Connector will fail its tasks when authorization error from"
-                + " Snowflake occurred");
+            ENABLE_STREAMING_CLIENT_OPTIMIZATION_DISPLAY);
   }
 
   public static class TopicToTableValidator implements ConfigDef.Validator {
@@ -706,12 +537,7 @@ public class SnowflakeSinkConnectorConfig {
       String s = (String) value;
       if (s != null && !s.isEmpty()) // this value is optional and can be empty
       {
-        try {
-          if (Utils.parseTopicToTableMap(s) == null) {
-            throw new ConfigException(
-                name, value, "Format: <topic-1>:<table-1>,<topic-2>:<table-2>,...");
-          }
-        } catch (SnowflakeKafkaConnectorException e) {
+        if (Utils.parseTopicToTableMap(s) == null) {
           throw new ConfigException(
               name, value, "Format: <topic-1>:<table-1>,<topic-2>:<table-2>,...");
         }
@@ -746,6 +572,29 @@ public class SnowflakeSinkConnectorConfig {
       return "Whether kafka is running on Confluent code, self hosted or other managed service."
           + " Allowed values are:"
           + String.join(",", KafkaProvider.PROVIDER_NAMES);
+    }
+  }
+
+  /* Validator to validate Kafka delivery guarantee types    */
+  public static class DeliveryGuaranteeValidator implements ConfigDef.Validator {
+    public DeliveryGuaranteeValidator() {}
+
+    @Override
+    public void ensureValid(String name, Object value) {
+      assert value instanceof String;
+      final String strValue = (String) value;
+      // The value can be null or empty.
+      try {
+        IngestionDeliveryGuarantee ingestionDeliveryGuarantee =
+            IngestionDeliveryGuarantee.of(strValue);
+      } catch (final IllegalArgumentException e) {
+        throw new ConfigException(PROVIDER_CONFIG, value, e.getMessage());
+      }
+    }
+
+    public String toString() {
+      return "Allowed Delivery guarantee types:"
+          + String.join(",", IngestionDeliveryGuarantee.DELIVERY_GUARANTEE_TYPES);
     }
   }
 
@@ -836,6 +685,50 @@ public class SnowflakeSinkConnectorConfig {
     }
   }
 
+  /**
+   * Enum which represents the type of delivery guarantees that the customer want (either
+   * at_least_once (default) or exactly_once
+   */
+  public enum IngestionDeliveryGuarantee {
+    /**
+     * At-least-once semantics means records received by Snowflake Connector are never lost but
+     * could be ingested multiple times
+     */
+    AT_LEAST_ONCE,
+    /**
+     * Exactly-once semantics means records received by Snowflake Connector are only ingested once
+     */
+    EXACTLY_ONCE,
+    ;
+
+    public static final List<String> DELIVERY_GUARANTEE_TYPES =
+        Arrays.stream(IngestionDeliveryGuarantee.values())
+            .map(deliveryGuarantee -> deliveryGuarantee.name().toLowerCase())
+            .collect(Collectors.toList());
+
+    public static IngestionDeliveryGuarantee of(final String deliveryGuaranteeType) {
+
+      if (Strings.isNullOrEmpty(deliveryGuaranteeType)) {
+        return AT_LEAST_ONCE;
+      }
+
+      for (final IngestionDeliveryGuarantee b : IngestionDeliveryGuarantee.values()) {
+        if (b.name().equalsIgnoreCase(deliveryGuaranteeType)) {
+          return b;
+        }
+      }
+      throw new IllegalArgumentException(
+          String.format(
+              "Unsupported Delivery Guarantee Type: %s. Supported are: %s",
+              deliveryGuaranteeType, String.join(",", DELIVERY_GUARANTEE_TYPES)));
+    }
+
+    @Override
+    public String toString() {
+      return name().toLowerCase(Locale.ROOT);
+    }
+  }
+
   /* https://www.confluent.io/blog/kafka-connect-deep-dive-error-handling-dead-letter-queues/ */
   public enum ErrorTolerance {
 
@@ -905,45 +798,4 @@ public class SnowflakeSinkConnectorConfig {
           this.validator.ensureValid(name, value);
         }
       };
-
-  /**
-   * Class which validates key value pairs in the format <key-1>:<value-1>,<key-2>:<value-2>
-   *
-   * <p>It doesn't validate the type of values, only making sure the format is correct.
-   */
-  public static class CommaSeparatedKeyValueValidator implements ConfigDef.Validator {
-    public CommaSeparatedKeyValueValidator() {}
-
-    public void ensureValid(String name, Object value) {
-      String s = (String) value;
-      // Validate the comma-separated key-value pairs string
-      if (s != null && !s.isEmpty() && !isValidCommaSeparatedKeyValueString(s)) {
-        throw new ConfigException(name, value, "Format: <key-1>:<value-1>,<key-2>:<value-2>,...");
-      }
-    }
-
-    private boolean isValidCommaSeparatedKeyValueString(String input) {
-      // Split the input string by commas
-      String[] pairs = input.split(",");
-      for (String pair : pairs) {
-        // Trim the pair to remove leading and trailing whitespaces
-        pair = pair.trim();
-        // Split each pair by colon
-        String[] keyValue = pair.split(":");
-        // Check if the pair has exactly two elements after trimming
-        if (keyValue.length != 2) {
-          return false;
-        }
-        // Check if the key or value is empty after trimming
-        if (keyValue[0].trim().isEmpty() || keyValue[1].trim().isEmpty()) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    public String toString() {
-      return "Comma-separated key-value pairs format: <key-1>:<value-1>,<key-2>:<value-2>,...";
-    }
-  }
 }
