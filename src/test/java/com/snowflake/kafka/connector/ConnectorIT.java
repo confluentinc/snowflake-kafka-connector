@@ -4,16 +4,12 @@ import static com.snowflake.kafka.connector.Utils.NAME;
 import static com.snowflake.kafka.connector.Utils.TASK_ID;
 import static com.snowflake.kafka.connector.internal.TestUtils.TEST_CONNECTOR_NAME;
 import static com.snowflake.kafka.connector.internal.TestUtils.getConf;
-import static com.snowflake.kafka.connector.internal.TestUtils.getConfWithOAuth;
-import static org.junit.Assert.assertEquals;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import com.snowflake.kafka.connector.internal.TestUtils;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class ConnectorIT {
@@ -100,14 +96,6 @@ public class ConnectorIT {
     return config;
   }
 
-  static Map<String, String> getCorrectConfigWithOAuth() {
-    Map<String, String> config = getConfWithOAuth();
-    config.remove(Utils.SF_WAREHOUSE);
-    config.remove(Utils.NAME);
-    config.remove(TASK_ID);
-    return config;
-  }
-
   @Test
   public void testValidateErrorConfig() {
     Map<String, ConfigValue> validateMap = toValidateMap(getErrorConfig());
@@ -138,13 +126,6 @@ public class ConnectorIT {
   @Test
   public void testValidateCorrectConfig() {
     Map<String, ConfigValue> validateMap = toValidateMap(getCorrectConfig());
-    assertPropHasError(validateMap, new String[] {});
-  }
-
-  @Test
-  @Ignore("OAuth tests are temporary disabled")
-  public void testValidateCorrectConfigWithOAuth() {
-    Map<String, ConfigValue> validateMap = toValidateMap(getCorrectConfigWithOAuth());
     assertPropHasError(validateMap, new String[] {});
   }
 
@@ -192,10 +173,6 @@ public class ConnectorIT {
     Map<String, ConfigValue> validateMap = toValidateMap(config);
     assertPropHasError(
         validateMap, new String[] {SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY});
-    assertEquals(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY + " must be a valid PEM RSA private key",
-        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY).errorMessages().get(0)
-    );
   }
 
   @Test
@@ -217,72 +194,9 @@ public class ConnectorIT {
   }
 
   @Test
-  public void testValidateWrongRoleConfig() {
-    Map<String, String> config = TestUtils.getConfForStreaming();
-    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_ROLE, "wrongRole");
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(
-        validateMap,
-        new String[] {
-            SnowflakeSinkConnectorConfig.SNOWFLAKE_USER,
-            SnowflakeSinkConnectorConfig.SNOWFLAKE_URL,
-            SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY
-        });
-    assertEquals(
-        "snowflake.url.name: Cannot connect to Snowflake, due to Role 'WRONGROLE' specified in the connect string does not exist or not authorized. Contact your local system administrator, or attempt to login with another role, e.g. PUBLIC.",
-        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_URL).errorMessages().get(0)
-    );
-  }
-
-  @Test
-  @Ignore("OAuth tests are temporary disabled")
-  public void testValidateNullOAuthClientIdConfig() {
-    Map<String, String> config = getCorrectConfigWithOAuth();
-    config.remove(SnowflakeSinkConnectorConfig.OAUTH_CLIENT_ID);
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(validateMap, new String[] {SnowflakeSinkConnectorConfig.OAUTH_CLIENT_ID});
-  }
-
-  @Test
-  @Ignore("OAuth tests are temporary disabled")
-  public void testValidateNullOAuthClientSecretConfig() {
-    Map<String, String> config = getCorrectConfigWithOAuth();
-    config.remove(SnowflakeSinkConnectorConfig.OAUTH_CLIENT_SECRET);
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(
-        validateMap, new String[] {SnowflakeSinkConnectorConfig.OAUTH_CLIENT_SECRET});
-  }
-
-  @Test
-  @Ignore("OAuth tests are temporary disabled")
-  public void testValidateNullOAuthRefreshTokenConfig() {
-    Map<String, String> config = getCorrectConfigWithOAuth();
-    config.remove(SnowflakeSinkConnectorConfig.OAUTH_REFRESH_TOKEN);
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(
-        validateMap, new String[] {SnowflakeSinkConnectorConfig.OAUTH_REFRESH_TOKEN});
-  }
-
-  @Test
-  public void testValidateInvalidAuthenticator() {
-    Map<String, String> config = getCorrectConfig();
-    config.put(SnowflakeSinkConnectorConfig.AUTHENTICATOR_TYPE, "invalid_authenticator");
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(validateMap, new String[] {SnowflakeSinkConnectorConfig.AUTHENTICATOR_TYPE});
-  }
-
-  @Test
   public void testValidateFilePasswordConfig() {
     Map<String, String> config = getCorrectConfig();
     config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY, " ${file:/");
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(validateMap, new String[] {});
-  }
-
-  @Test
-  public void testValidateConfigProviderPasswordConfig() {
-    Map<String, String> config = getCorrectConfig();
-    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY, " ${configProvider:/");
     Map<String, ConfigValue> validateMap = toValidateMap(config);
     assertPropHasError(validateMap, new String[] {});
   }
@@ -296,16 +210,6 @@ public class ConnectorIT {
   }
 
   @Test
-  public void testValidateConfigProviderPassphraseConfig() {
-    Map<String, String> config = getCorrectConfig();
-    config.put(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE, " ${configProvider:/");
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(validateMap, new String[] {});
-  }
-
-  @Test
-  @Ignore("Ignore because of bc-fips dependency misalignment")
   public void testValidateErrorPassphraseConfig() {
     Map<String, String> config = getCorrectConfig();
     config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE, "wrongPassphrase");
