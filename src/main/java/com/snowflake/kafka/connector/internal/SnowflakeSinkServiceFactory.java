@@ -47,56 +47,7 @@ public class SnowflakeSinkServiceFactory {
         IngestionMethodConfig ingestionType,
         Map<String, String> connectorConfig) {
       if (ingestionType == IngestionMethodConfig.SNOWPIPE) {
-        SnowflakeSinkServiceV1 svc = new SnowflakeSinkServiceV1(conn);
-        this.service = svc;
-        boolean useStageFilesProcessor =
-            SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_FIX_ENABLED_DEFAULT;
-        int threadCount = SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT;
-
-        if (connectorConfig != null
-            && connectorConfig.containsKey(
-                SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_FIX_ENABLED)) {
-          useStageFilesProcessor =
-              Boolean.parseBoolean(
-                  connectorConfig.get(
-                      SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_FIX_ENABLED));
-        }
-        if (connectorConfig != null
-            && connectorConfig.containsKey(
-                SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_THREADS)) {
-          threadCount =
-              Integer.parseInt(
-                  connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_THREADS));
-        }
-
-        if (useStageFilesProcessor) {
-          svc.enableStageFilesProcessor(threadCount);
-        }
-
-        boolean extendedStageFileNameFix =
-            SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED_DEFAULT;
-        if (connectorConfig != null
-            && connectorConfig.containsKey(
-                SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED)) {
-          extendedStageFileNameFix =
-              Boolean.parseBoolean(
-                  connectorConfig.get(
-                      SnowflakeSinkConnectorConfig
-                          .SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED));
-        }
-        svc.configureSingleTableLoadFromMultipleTopics(extendedStageFileNameFix);
-
-        boolean disableReprocessFilesCleanup =
-            SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT;
-        if (connectorConfig != null
-            && connectorConfig.containsKey(
-                SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
-          disableReprocessFilesCleanup =
-              Boolean.parseBoolean(
-                  connectorConfig.get(
-                      SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
-        }
-        svc.configureDisableReprocessFilesCleanup(disableReprocessFilesCleanup);
+        this.service = new SnowflakeSinkServiceV1(conn);
       } else {
         this.service = new SnowflakeSinkServiceV2(conn, connectorConfig);
       }
@@ -117,7 +68,7 @@ public class SnowflakeSinkServiceFactory {
      * @return Builder instance
      */
     public SnowflakeSinkServiceBuilder addTask(String tableName, TopicPartition topicPartition) {
-      this.service.startPartition(tableName, topicPartition);
+      this.service.startTask(tableName, topicPartition);
       LOGGER.info(
           "create new task in {} - table: {}, topicPartition: {}",
           SnowflakeSinkService.class.getName(),
@@ -170,6 +121,13 @@ public class SnowflakeSinkServiceFactory {
     public SnowflakeSinkServiceBuilder setCustomJMXMetrics(final boolean enableJMX) {
       this.service.setCustomJMXMetrics(enableJMX);
       LOGGER.info("Config JMX value {}. (true = Enabled, false = Disabled)", enableJMX);
+      return this;
+    }
+
+    public SnowflakeSinkServiceBuilder setDeliveryGuarantee(
+        SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee ingestionDeliveryGuarantee) {
+      this.service.setDeliveryGuarantee(ingestionDeliveryGuarantee);
+      LOGGER.info("Config Delivery Guarantee type {}.", ingestionDeliveryGuarantee.toString());
       return this;
     }
 

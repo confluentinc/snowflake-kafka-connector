@@ -3,22 +3,17 @@ package com.snowflake.kafka.connector.internal.telemetry;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_COUNT_RECORDS;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_FLUSH_TIME_SEC;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.DELIVERY_GUARANTEE;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_DEFAULT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_DEFAULT_SNOWPIPE;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.KEY_CONVERTER_CONFIG_FIELD;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD;
 
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.KCLogger;
-import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import java.util.Map;
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.JsonNode;
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.ObjectMapper;
@@ -52,7 +47,6 @@ public abstract class SnowflakeTelemetryService {
   private static final String VERSION = "version";
   private static final String KAFKA_VERSION = "kafka_version";
   protected static final String IS_PIPE_CLOSING = "is_pipe_closing";
-  protected static final String IS_CHANNEL_CLOSING = "is_channel_closing";
 
   // Telemetry instance fetched from JDBC
   protected Telemetry telemetry;
@@ -94,7 +88,7 @@ public abstract class SnowflakeTelemetryService {
     dataObjectNode.put(KAFKA_VERSION, AppInfoParser.getVersion());
     addUserConnectorPropertiesToDataNode(userProvidedConfig, dataObjectNode);
 
-    send(SnowflakeTelemetryService.TelemetryType.KAFKA_START, dataObjectNode);
+    send(SnowflakeTelemetryServiceV1.TelemetryType.KAFKA_START, dataObjectNode);
   }
 
   /**
@@ -108,7 +102,7 @@ public abstract class SnowflakeTelemetryService {
     msg.put(START_TIME, startTime);
     msg.put(END_TIME, System.currentTimeMillis());
 
-    send(SnowflakeTelemetryService.TelemetryType.KAFKA_STOP, msg);
+    send(SnowflakeTelemetryServiceV1.TelemetryType.KAFKA_STOP, msg);
   }
 
   /**
@@ -122,48 +116,32 @@ public abstract class SnowflakeTelemetryService {
     msg.put(TIME, System.currentTimeMillis());
     msg.put(ERROR_NUMBER, errorDetail);
 
-    send(SnowflakeTelemetryService.TelemetryType.KAFKA_FATAL_ERROR, msg);
+    send(SnowflakeTelemetryServiceV1.TelemetryType.KAFKA_FATAL_ERROR, msg);
   }
 
   /**
    * report connector's partition usage.
    *
+   * <p>It depends on the underlying implementation of Kafka connector, i.e weather it is Snowpipe
+   * or Snowpipe Streaming
+   *
    * @param partitionStatus SnowflakePipeStatus object
    * @param isClosing is the underlying pipe/channel closing
    */
-  public void reportKafkaPartitionUsage(
-      final SnowflakeTelemetryBasicInfo partitionStatus, boolean isClosing) {
-    ObjectNode msg = getObjectNode();
-
-    partitionStatus.dumpTo(msg);
-    msg.put(
-        partitionStatus.telemetryType == TelemetryType.KAFKA_PIPE_USAGE
-            ? IS_PIPE_CLOSING
-            : IS_CHANNEL_CLOSING,
-        isClosing);
-
-    send(partitionStatus.telemetryType, msg);
-  }
-
-  /**
-   * Get default object Node which will be part of every telemetry being sent to snowflake. Based on
-   * the underlying implementation, node fields might change.
-   *
-   * @return ObjectNode in Json Format
-   */
-  public abstract ObjectNode getObjectNode();
+  public abstract void reportKafkaPartitionUsage(
+      final SnowflakeTelemetryBasicInfo partitionStatus, boolean isClosing);
 
   /**
    * report connector partition start
    *
-   * @param partitionCreation SnowflakeTelemetryBasicInfo object
+   * @param pipeCreation SnowflakeTelemetryBasicInfor object
    */
-  public void reportKafkaPartitionStart(final SnowflakeTelemetryBasicInfo partitionCreation) {
+  public void reportKafkaPartitionStart(final SnowflakeTelemetryBasicInfo pipeCreation) {
     ObjectNode msg = getObjectNode();
 
-    partitionCreation.dumpTo(msg);
+    pipeCreation.dumpTo(msg);
 
-    send(partitionCreation.telemetryType, msg);
+    send(SnowflakeTelemetryServiceV1.TelemetryType.KAFKA_PIPE_START, msg);
   }
 
   /**
@@ -173,17 +151,15 @@ public abstract class SnowflakeTelemetryService {
    * {
    *  "app_name": "<connector_app_name>",
    *  "task_id": 1,
-   *  "snowflake.ingestion.method": "<Enum Ordinal>" for {@link IngestionMethodConfig}
    * }
    * </pre>
    *
    * @return An ObjectNode which is by default always created with certain defined properties in it.
    */
-  protected ObjectNode getDefaultObjectNode(IngestionMethodConfig ingestionMethodConfig) {
+  protected ObjectNode getObjectNode() {
     ObjectNode msg = MAPPER.createObjectNode();
     msg.put(APP_NAME, getAppName());
     msg.put(TASK_ID, getTaskID());
-    msg.put(SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT, ingestionMethodConfig.ordinal());
     return msg;
   }
 
@@ -206,7 +182,7 @@ public abstract class SnowflakeTelemetryService {
    * @param type type of Data
    * @param data JsonData to wrap in a json field called data
    */
-  protected void send(SnowflakeTelemetryService.TelemetryType type, JsonNode data) {
+  protected void send(SnowflakeTelemetryServiceV1.TelemetryType type, JsonNode data) {
     ObjectNode msg = MAPPER.createObjectNode();
     msg.put(SOURCE, KAFKA_CONNECTOR);
     msg.put(TYPE, type.toString());
@@ -257,6 +233,18 @@ public abstract class SnowflakeTelemetryService {
         INGESTION_METHOD_OPT,
         userProvidedConfig.getOrDefault(INGESTION_METHOD_OPT, INGESTION_METHOD_DEFAULT_SNOWPIPE));
 
+    // put delivery guarantee only when ingestion method is snowpipe.
+    // For SNOWPIPE_STREAMING, delivery guarantee is always EXACTLY_ONCE
+    if (userProvidedConfig
+        .getOrDefault(INGESTION_METHOD_OPT, INGESTION_METHOD_DEFAULT_SNOWPIPE)
+        .equalsIgnoreCase(INGESTION_METHOD_DEFAULT_SNOWPIPE)) {
+      dataObjectNode.put(
+          DELIVERY_GUARANTEE,
+          userProvidedConfig.getOrDefault(
+              DELIVERY_GUARANTEE,
+              SnowflakeSinkConnectorConfig.IngestionDeliveryGuarantee.AT_LEAST_ONCE.toString()));
+    }
+
     // Key and value converters to gauge if Snowflake Native converters are used.
     dataObjectNode.put(
         KEY_CONVERTER_CONFIG_FIELD, userProvidedConfig.get(KEY_CONVERTER_CONFIG_FIELD));
@@ -268,39 +256,14 @@ public abstract class SnowflakeTelemetryService {
         ENABLE_SCHEMATIZATION_CONFIG,
         userProvidedConfig.getOrDefault(
             ENABLE_SCHEMATIZATION_CONFIG, ENABLE_SCHEMATIZATION_DEFAULT));
-
-    // Record whether streaming client optimization is enabled
-    dataObjectNode.put(
-        ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG,
-        userProvidedConfig.getOrDefault(
-            ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG,
-            ENABLE_STREAMING_CLIENT_OPTIMIZATION_DEFAULT + ""));
-    if (userProvidedConfig.containsKey(ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG)) {
-      dataObjectNode.put(
-          ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG,
-          userProvidedConfig.get(ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG));
-    }
-    // These are Optional, so we add only if it's provided in user config
-    if (userProvidedConfig.containsKey(SNOWPIPE_STREAMING_MAX_CLIENT_LAG)) {
-      dataObjectNode.put(
-          SNOWPIPE_STREAMING_MAX_CLIENT_LAG,
-          userProvidedConfig.get(SNOWPIPE_STREAMING_MAX_CLIENT_LAG));
-    }
-    if (userProvidedConfig.containsKey(SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP)) {
-      dataObjectNode.put(
-          SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP,
-          userProvidedConfig.get(SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP));
-    }
   }
 
-  public enum TelemetryType {
+  enum TelemetryType {
     KAFKA_START("kafka_start"),
     KAFKA_STOP("kafka_stop"),
     KAFKA_FATAL_ERROR("kafka_fatal_error"),
     KAFKA_PIPE_USAGE("kafka_pipe_usage"),
-    KAFKA_PIPE_START("kafka_pipe_start"),
-    KAFKA_CHANNEL_USAGE("kafka_channel_usage"),
-    KAFKA_CHANNEL_START("kafka_channel_start");
+    KAFKA_PIPE_START("kafka_pipe_start");
 
     private final String name;
 

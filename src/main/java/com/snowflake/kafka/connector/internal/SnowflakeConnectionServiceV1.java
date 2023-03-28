@@ -3,13 +3,7 @@ package com.snowflake.kafka.connector.internal;
 import static com.snowflake.kafka.connector.Utils.TABLE_COLUMN_CONTENT;
 import static com.snowflake.kafka.connector.Utils.TABLE_COLUMN_METADATA;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.Utils;
-import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetTokenResponseDTO;
-import com.snowflake.kafka.connector.internal.streaming.ChannelMigrationResponseCode;
-import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.SchematizationUtils;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryServiceFactory;
@@ -21,7 +15,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -62,16 +55,13 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   // User agent suffix we want to pass in to ingest service
   public static final String USER_AGENT_SUFFIX_FORMAT = "SFKafkaConnector/%s provider/%s";
 
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
   SnowflakeConnectionServiceV1(
       Properties prop,
       SnowflakeURL url,
       String connectorName,
       String taskID,
       Properties proxyProperties,
-      String kafkaProvider,
-      IngestionMethodConfig ingestionMethodConfig) {
+      String kafkaProvider) {
     this.connectorName = connectorName;
     this.taskID = taskID;
     this.url = url;
@@ -97,7 +87,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
         new SnowflakeInternalStage(
             (SnowflakeConnectionV1) this.conn, credentialExpireTimeMillis, proxyProperties);
     this.telemetry =
-        SnowflakeTelemetryServiceFactory.builder(conn, ingestionMethodConfig)
+        SnowflakeTelemetryServiceFactory.builder(conn)
             .setAppName(this.connectorName)
             .setTaskID(this.taskID)
             .build();
@@ -496,8 +486,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   public void appendColumnsToTable(String tableName, Map<String, String> columnToType) {
     checkConnection();
     InternalUtils.assertNotEmpty("tableName", tableName);
-    StringBuilder appendColumnQuery =
-        new StringBuilder("alter table identifier(?) add column if not exists ");
+    StringBuilder appendColumnQuery = new StringBuilder("alter table identifier(?) add column ");
     boolean first = true;
     StringBuilder logColumn = new StringBuilder("[");
     for (String columnName : columnToType.keySet()) {
@@ -668,129 +657,6 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     }
 
     LOGGER.info("schema {} exists", schemaName);
-  }
-
-  @Override
-  public void hasSchemaPrivileges(String schemaName, String ingestionMethod) {
-    checkConnection();
-    String queryUseSchema = "USE SCHEMA IDENTIFIER(?)";
-    String queryCheckPrivileges = "SHOW GRANTS ON SCHEMA " + schemaName + ";";
-    String currentRole = getCurrentRole(conn);
-
-    boolean hasOwnershipPrivilege = false;
-    boolean hasAllPrivilege = false;
-    boolean hasCreateTablePrivilege = false;
-    boolean hasCreateStagePrivilege = false;
-    boolean hasCreatePipePrivilege = false;
-
-    try {
-      PreparedStatement stmt = conn.prepareStatement(queryUseSchema);
-      stmt.setString(1, schemaName);
-      stmt.execute();
-      stmt.close();
-
-      stmt = conn.prepareStatement(queryCheckPrivileges);
-      ResultSet rs = stmt.executeQuery();
-      while (rs.next()) {
-        if (!rs.getString("grantee_name").equals(currentRole)) {
-          continue;
-        }
-        String privilege = rs.getString("privilege");
-        if (privilege.equalsIgnoreCase("OWNERSHIP")) {
-          hasOwnershipPrivilege = true;
-          break;
-        }
-        if (privilege.equalsIgnoreCase("ALL")) {
-          hasAllPrivilege = true;
-          break;
-        }
-        if (privilege.equalsIgnoreCase("CREATE TABLE")) {
-          hasCreateTablePrivilege = true;
-        }
-        if (privilege.equalsIgnoreCase("CREATE STAGE")) {
-          hasCreateStagePrivilege = true;
-        }
-        if (privilege.equalsIgnoreCase("CREATE PIPE")) {
-          hasCreatePipePrivilege = true;
-        }
-      }
-      rs.close();
-      stmt.close();
-
-      if (hasOwnershipPrivilege || hasAllPrivilege) {
-        LOGGER.info("Schema {} has required privileges", schemaName);
-        return;
-      }
-
-      if (!hasCreateTablePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE TABLE privilege on schema " + schemaName);
-      }
-
-      if(ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
-        LOGGER.info("Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
-        return;
-      }
-
-      // For SNOWPIPE ingestion, we need CREATE STAGE and CREATE PIPE privileges as well
-      if (!hasCreateStagePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE STAGE privilege on schema " + schemaName);
-      }
-      if (!hasCreatePipePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE PIPE privilege on schema " + schemaName);
-      }
-
-      LOGGER.info("Schema {} has required privileges", schemaName);
-
-    } catch (SQLException e) {
-      throw SnowflakeErrors.ERROR_2001.getException(e);
-    }
-  }
-
-  @Override
-  public void hasTableRequiredPrivileges(String tableName) {
-    checkConnection();
-    String queryCheckTablePrivileges = "SHOW GRANTS ON TABLE " + tableName + ";";
-    String currentRole = getCurrentRole(conn);
-    boolean hasOwnershipPrivilege = false;
-    boolean hasAllPrivileges = false;
-    boolean hasInsertPrivilege = false;
-
-    try {
-      PreparedStatement stmt = conn.prepareStatement(queryCheckTablePrivileges);
-      ResultSet rs = stmt.executeQuery();
-      while (rs.next()) {
-        if (!rs.getString("grantee_name").equals(currentRole)) {
-          continue;
-        }
-        String privilege = rs.getString("privilege");
-        if (privilege.equalsIgnoreCase("OWNERSHIP")) {
-          hasOwnershipPrivilege = true;
-          break;
-        }
-        if (privilege.equalsIgnoreCase("ALL")) {
-          hasAllPrivileges = true;
-        }
-        if (privilege.equalsIgnoreCase("INSERT")) {
-          hasInsertPrivilege = true;
-        }
-      }
-      rs.close();
-      stmt.close();
-
-      if (hasOwnershipPrivilege || hasAllPrivileges) {
-        LOGGER.info("Table {} has either OWNERSHIP or ALL privileges", tableName);
-        return;
-      }
-
-      if (!hasInsertPrivilege) { // only checking the bare minimum privilege we need
-        throw SnowflakeErrors.ERROR_2001.getException("Missing INSERT privilege on table " + tableName);
-      }
-
-      LOGGER.info("Table {} has required privilege", tableName);
-
-    } catch (SQLException e) {
-      throw SnowflakeErrors.ERROR_2001.getException(e);
-    }
   }
 
   @Override
@@ -1071,8 +937,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             stageName,
             fullPipeName,
             privateKey,
-            userAgentSuffixInHttpRequest,
-            telemetry)
+            userAgentSuffixInHttpRequest)
+        .setTelemetry(this.telemetry)
         .build();
   }
 
@@ -1137,98 +1003,4 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   public SnowflakeInternalStage getInternalStage() {
     return this.internalStage;
   }
-
-  @Override
-  public ChannelMigrateOffsetTokenResponseDTO migrateStreamingChannelOffsetToken(
-      String tableName, String sourceChannelName, String destinationChannelName) {
-    InternalUtils.assertNotEmpty("tableName", tableName);
-    InternalUtils.assertNotEmpty("sourceChannelName", sourceChannelName);
-    InternalUtils.assertNotEmpty("destinationChannelName", destinationChannelName);
-    String fullyQualifiedTableName =
-        prop.getProperty(InternalUtils.JDBC_DATABASE)
-            + "."
-            + prop.getProperty(InternalUtils.JDBC_SCHEMA)
-            + "."
-            + tableName;
-    String query = "select SYSTEM$SNOWPIPE_STREAMING_MIGRATE_CHANNEL_OFFSET_TOKEN((?), (?), (?));";
-
-    try {
-      PreparedStatement stmt = conn.prepareStatement(query);
-      stmt.setString(1, fullyQualifiedTableName);
-      stmt.setString(2, sourceChannelName);
-      stmt.setString(3, destinationChannelName);
-      ResultSet resultSet = stmt.executeQuery();
-
-      String migrateOffsetTokenResultFromSysFunc = null;
-      if (resultSet.next()) {
-        migrateOffsetTokenResultFromSysFunc = resultSet.getString(1 /*Only one column*/);
-      }
-      if (migrateOffsetTokenResultFromSysFunc == null) {
-        final String errorMsg =
-            String.format(
-                "No result found in Migrating OffsetToken through System Function for tableName:%s,"
-                    + " sourceChannel:%s, destinationChannel:%s",
-                fullyQualifiedTableName, sourceChannelName, destinationChannelName);
-        throw SnowflakeErrors.ERROR_5023.getException(errorMsg, this.telemetry);
-      }
-
-      ChannelMigrateOffsetTokenResponseDTO channelMigrateOffsetTokenResponseDTO =
-          getChannelMigrateOffsetTokenResponseDTO(migrateOffsetTokenResultFromSysFunc);
-
-      LOGGER.info(
-          "Migrate OffsetToken response for table:{}, sourceChannel:{}, destinationChannel:{}"
-              + " is:{}",
-          tableName,
-          sourceChannelName,
-          destinationChannelName,
-          channelMigrateOffsetTokenResponseDTO);
-      if (!ChannelMigrationResponseCode.isChannelMigrationResponseSuccessful(
-          channelMigrateOffsetTokenResponseDTO)) {
-        throw SnowflakeErrors.ERROR_5023.getException(
-            ChannelMigrationResponseCode.getMessageByCode(
-                channelMigrateOffsetTokenResponseDTO.getResponseCode()),
-            this.telemetry);
-      }
-      return channelMigrateOffsetTokenResponseDTO;
-    } catch (SQLException | JsonProcessingException e) {
-      final String errorMsg =
-          String.format(
-              "Migrating OffsetToken for a SourceChannel:%s in table:%s failed due to"
-                  + " exceptionMessage:%s and stackTrace:%s",
-              sourceChannelName,
-              fullyQualifiedTableName,
-              e.getMessage(),
-              Arrays.toString(e.getStackTrace()));
-      throw SnowflakeErrors.ERROR_5023.getException(errorMsg, this.telemetry);
-    }
-  }
-
-  @VisibleForTesting
-  protected ChannelMigrateOffsetTokenResponseDTO getChannelMigrateOffsetTokenResponseDTO(
-      String migrateOffsetTokenResultFromSysFunc) throws JsonProcessingException {
-    ChannelMigrateOffsetTokenResponseDTO channelMigrateOffsetTokenResponseDTO =
-        OBJECT_MAPPER.readValue(
-            migrateOffsetTokenResultFromSysFunc, ChannelMigrateOffsetTokenResponseDTO.class);
-    return channelMigrateOffsetTokenResponseDTO;
-  }
-
-  private String getCurrentRole(Connection conn) {
-    String query = "SELECT CURRENT_ROLE()";
-    String currentRole = null;
-    try {
-      Statement stmt = conn.createStatement();
-      ResultSet rs = stmt.executeQuery(query);
-      if (rs.next()) {
-        currentRole = rs.getString(1);
-      }
-    } catch (SQLException e) {
-      throw SnowflakeErrors.ERROR_2001.getException("Failed to fetch the current role");
-    }
-    if (currentRole == null) {
-      throw SnowflakeErrors.ERROR_2001.getException("Got current role as null");
-    }
-
-    return currentRole;
-  }
-
 }
