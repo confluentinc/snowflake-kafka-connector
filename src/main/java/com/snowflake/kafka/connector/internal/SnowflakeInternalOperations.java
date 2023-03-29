@@ -26,6 +26,4 @@ public enum SnowflakeInternalOperations {
   INSERT_REPORT_SNOWPIPE_API,
 
   LOAD_HISTORY_SCAN_SNOWPIPE_API,
-
-  FETCH_OAUTH_TOKEN
 }
