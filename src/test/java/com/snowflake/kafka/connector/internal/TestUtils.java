@@ -282,7 +282,7 @@ public class TestUtils {
   public static void resetProxyParametersInJDBC() throws SnowflakeSQLException {
     Map<SFSessionProperty, Object> resetProxy = new EnumMap(SFSessionProperty.class);
     resetProxy.put(SFSessionProperty.USE_PROXY, false);
-    HttpUtil.configureCustomProxyProperties(resetProxy);
+//    HttpUtil.configureCustomProxyProperties(resetProxy);
   }
 
   /**
