@@ -1,18 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  ~ /*
-  ~  * Copyright (c) 2019 - 2020 Snowflake Computing Inc. All rights reserved.
-  ~  */
-  -->
-
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.snowflake</groupId>
     <artifactId>snowflake-kafka-connector</artifactId>
-    <version>1.9.1</version>
+    <version>1.9.1-rc-299a2c8</version>
     <packaging>jar</packaging>
     <name>Snowflake Kafka Connector</name>
     <description>Snowflake Kafka Connect Sink Connector</description>
@@ -42,7 +33,7 @@
         <url>https://github.com/snowflakedb/snowflake-kafka-connector</url>
     </scm>
 
-    <!-- Set our Language Level to Java 8 -->
+    
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -313,7 +304,7 @@
             </plugin>
         </plugins>
 
-        <!-- disable default maven deploy plugin since we are using gpg:sign-and-deploy-file -->
+        
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -326,7 +317,7 @@
         </pluginManagement>
     </build>
     <dependencies>
-        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcpkix-fips -->
+        
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-fips</artifactId>
@@ -334,7 +325,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/org.apache.kafka/connect-api -->
+        
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
@@ -364,7 +355,7 @@
             </exclusions>
         </dependency>
 
-        <!-- Ingest SDK for copy staged file into snowflake table -->
+        
         <dependency>
             <groupId>net.snowflake</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
@@ -427,7 +418,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/io.confluent/kafka-connect-avro-data -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-avro-serializer</artifactId>
@@ -439,21 +430,21 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/io.confluent/kafka-connect-avro-converter -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-avro-converter</artifactId>
             <version>7.2.1</version>
         </dependency>
 
-        <!--JDBC driver for building connection with Snowflake-->
+        
         <dependency>
             <groupId>net.snowflake</groupId>
             <artifactId>snowflake-jdbc</artifactId>
             <version>3.13.14</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core -->
+        
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
@@ -472,14 +463,14 @@
             <version>31.0.1-jre</version>
         </dependency>
 
-        <!-- https://github.com/failsafe-lib/failsafe-->
+        
         <dependency>
             <groupId>dev.failsafe</groupId>
             <artifactId>failsafe</artifactId>
             <version>3.2.1</version>
         </dependency>
 
-        <!--junit for unit test-->
+        
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -487,7 +478,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!--Mockito for unit test-->
+        
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
@@ -518,7 +509,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!--Kafka JSON converter for SMT unit test-->
+        
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-json</artifactId>
