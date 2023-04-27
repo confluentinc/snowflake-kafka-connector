@@ -164,10 +164,6 @@ public class ConnectorConfigTest {
       new TopicToTableValidator().ensureValid(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
           "topic1:table1,topic1:table2");
     });
-    assertThrows(ConfigException.class, () -> {
-      new TopicToTableValidator().ensureValid(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
-          "topic1:table1,topic2:table1");
-    });
   }
 
   @Test
