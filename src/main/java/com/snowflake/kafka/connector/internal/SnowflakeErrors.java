@@ -17,7 +17,6 @@
 
 package com.snowflake.kafka.connector.internal;
 
-import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 
@@ -128,15 +127,6 @@ public enum SnowflakeErrors {
           + " parameter when using oauth as authenticator"),
   ERROR_0029(
       "0029", "Invalid authenticator", "Authenticator should be either oauth or snowflake_jwt"),
-  ERROR_0030(
-      "0030",
-      String.format(
-          "Invalid %s map",
-          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP),
-      String.format(
-          "Failed to parse %s map",
-          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP)),
-
   // Snowflake connection issues 1---
   ERROR_1001(
       "1001",
@@ -152,10 +142,6 @@ public enum SnowflakeErrors {
       "Either the current connection is closed or hasn't connect to snowflake" + " server"),
   ERROR_1004(
       "1004", "Fetching OAuth token fail", "Fail to get OAuth token from authorization server"),
-  ERROR_1005(
-      "1005",
-      "Task failed due to authorization error",
-      "Set `enable.task.fail.on.authorization.errors=false` to avoid this behavior"),
   // SQL issues 2---
   ERROR_2001(
       "2001", "Failed to prepare SQL statement", "SQL Exception, reported by Snowflake JDBC"),
@@ -297,10 +283,7 @@ public enum SnowflakeErrors {
   ERROR_5016(
       "5016",
       "Invalid SinkRecord received",
-      "SinkRecord.value and SinkRecord.valueSchema cannot be null unless tombstone record ingestion"
-          + " is enabled (see "
-          + SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG
-          + " for more information."),
+      "SinkRecord.value and SinkRecord.valueSchema cannot be null"),
   ERROR_5017(
       "5017", "Invalid api call to cached put", "Cached put only support AWS, Azure and GCS."),
   ERROR_5018("5018", "Failed to execute cached put", "Error in cached put command"),
@@ -310,18 +293,7 @@ public enum SnowflakeErrors {
       "5021",
       "Failed to get data schema",
       "Failed to get data schema. Unrecognizable data type in JSON object"),
-  ERROR_5022("5022", "Invalid column name", "Failed to find column in the schema"),
-
-  ERROR_5023(
-      "5023",
-      "Failure in Streaming Channel Offset Migration Response",
-      "Streaming Channel Offset Migration from Source to Destination Channel has no/invalid"
-          + " response, please contact Snowflake Support"),
-  ERROR_5024(
-      "5024",
-      "Timeout while waiting for file cleaner to start",
-      "Could not allocate thread for file cleaner to start processing in given time. If problem"
-          + " persists, please try setting snowflake.snowpipe.use_new_cleaner to false");
+  ERROR_5022("5022", "Invalid column name", "Failed to find column in the schema");
 
   // properties
 
@@ -354,7 +326,7 @@ public enum SnowflakeErrors {
     for (StackTraceElement element : e.getStackTrace()) {
       str.append("\n").append(element.toString());
     }
-    return getException(str.toString(), telemetryService, e.getMessage());
+    return getException(str.toString(), telemetryService);
   }
 
   public SnowflakeKafkaConnectorException getException(SnowflakeTelemetryService telemetryService) {
@@ -385,34 +357,6 @@ public enum SnowflakeErrors {
           Utils.formatLogMessage(
               "Exception: {}\nError Code: {}\nDetail: {}\nMessage: {}", name, code, detail, msg),
           code);
-    }
-  }
-
-  /**
-   * Convert a given message into SnowflakeKafkaConnectorException.
-   *
-   * <p>If message is null, we use Enum's toString() method to wrap inside
-   * SnowflakeKafkaConnectorException
-   *
-   * @param msg Message to send to Telemetry Service. Remember, we Strip the message
-   * @param telemetryService can be null
-   * @param errorMessage Trimmed exception message, can be empty
-   * @return Exception wrapped in Snowflake Connector Exception
-   */
-  public SnowflakeKafkaConnectorException getException(
-      String msg, SnowflakeTelemetryService telemetryService, String errorMessage) {
-    if (telemetryService != null) {
-      telemetryService.reportKafkaConnectFatalError(
-          getCode() + msg.substring(0, Math.min(msg.length(), 500)));
-    }
-
-    if (msg == null || msg.isEmpty()) {
-      return new SnowflakeKafkaConnectorException(toString(), code);
-    } else {
-      return new SnowflakeKafkaConnectorException(
-          Utils.formatLogMessage(
-              "Exception: {}\nError Code: {}\nDetail: {}\nMessage: {}", name, code, detail, msg),
-          code, errorMessage);
     }
   }
 
