@@ -63,8 +63,8 @@ public class SchematizationUtilsTest {
     // Get non-existing column name should return nothing
     columnToTypes =
         SchematizationUtils.getColumnTypes(
-            recordWithoutSchema, Collections.singletonList("random"));
-    Assert.assertEquals("VARCHAR", columnToTypes.get("random"));
+            recordWithoutSchema, Collections.singletonList(processedNonExistingColumnName));
+    Assert.assertTrue(columnToTypes.isEmpty());
   }
 
   @Test
