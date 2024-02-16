@@ -742,44 +742,36 @@ public class ConnectorConfigTest {
         });
   }
 
-  @Test(expected = SnowflakeKafkaConnectorException.class)
-  public void testInalidMaxClientLagForSnowpipe() {
+  @Test
+  public void testInValidConfigFileTypeForSnowpipe() {
     try {
       Map<String, String> config = getConfig();
-      config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "3");
+      config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_FILE_VERSION, "3");
       Utils.validateConfig(config);
     } catch (SnowflakeKafkaConnectorException exception) {
       assert exception
           .getMessage()
-          .contains(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG);
-      throw exception;
+          .contains(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_FILE_VERSION);
     }
   }
 
-  @Test(expected = SnowflakeKafkaConnectorException.class)
-  public void testMaxClientLagForSnowpipeStreaming() {
+  @Test
+  public void testValidFileTypesForSnowpipeStreaming() {
     Map<String, String> config = getConfig();
     config.put(
         SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT,
         IngestionMethodConfig.SNOWPIPE_STREAMING.toString());
     config.put(Utils.SF_ROLE, "ACCOUNTADMIN");
 
-    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "3");
+    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_FILE_VERSION, "3");
     Utils.validateConfig(config);
 
-    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "1");
+    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_FILE_VERSION, "1");
     Utils.validateConfig(config);
 
-    // pass in string
-    try {
-      config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "abcd");
-      Utils.validateConfig(config);
-    } catch (SnowflakeKafkaConnectorException exception) {
-      assert exception
-          .getMessage()
-          .contains(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG);
-      throw exception;
-    }
+    // lower case
+    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_FILE_VERSION, "abcd");
+    Utils.validateConfig(config);
   }
 
   @Test

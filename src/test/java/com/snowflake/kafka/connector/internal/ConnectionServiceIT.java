@@ -520,9 +520,7 @@ public class ConnectionServiceIT {
 
       List<SinkRecord> recordsInChannelFormatV2 =
           TestUtils.createJsonStringSinkRecords(0, noOfRecords * 2, tableName, 0);
-      for (int idx = 0; idx < recordsInChannelFormatV2.size(); idx++) {
-        newChannelFormatV2.insertRecordToBuffer(recordsInChannelFormatV2.get(idx), idx == 0);
-      }
+      recordsInChannelFormatV2.forEach(newChannelFormatV2::insertRecordToBuffer);
 
       TestUtils.assertWithRetry(
           () -> newChannelFormatV2.getOffsetSafeToCommitToKafka() == (noOfRecords * 2), 5, 5);

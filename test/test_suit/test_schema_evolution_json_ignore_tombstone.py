@@ -1,5 +1,4 @@
 import json
-from time import sleep
 
 from test_suit.test_utils import NonRetryableError
 
@@ -66,7 +65,7 @@ class TestSchemaEvolutionJsonIgnoreTombstone:
                 key.append(json.dumps({'number': str(self.recordNum - 1)}).encode('utf-8'))
                 value.append(None)
                 key.append(json.dumps({'number': str(self.recordNum)}).encode('utf-8'))
-                value.append("")  # community converters treat this as a tombstone
+                value.append("") # community converters treat this as a tombstone
 
             self.driver.sendBytesData(topic, value, key)
 
@@ -88,13 +87,10 @@ class TestSchemaEvolutionJsonIgnoreTombstone:
         for columnName in self.gold_columns:
             raise NonRetryableError("Column {} was not created".format(columnName))
 
-        # Sleep for some time and then verify the rows are ingested
-        sleep(120)
-
         res = self.driver.snowflake_conn.cursor().execute(
             "SELECT count(*) FROM {}".format(self.table)).fetchone()[0]
         if res != len(self.topics) * (self.recordNum - 2):
-            print("Number of record expected: {}, got: {}".format(len(self.topics) * (self.recordNum - 2), res))
+            print("Number of record expected: {}, got: {}".format(len(self.topics) * (self.recordNum - 1), res))
             raise NonRetryableError("Number of record in table is different from number of record sent")
 
     def clean(self):
