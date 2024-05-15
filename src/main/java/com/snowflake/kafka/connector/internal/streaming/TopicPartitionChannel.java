@@ -1307,6 +1307,7 @@ public class TopicPartitionChannel {
     public Pair<List<Map<String, Object>>, List<SinkRecord>> getData() {
       final List<Map<String, Object>> records = new ArrayList<>();
       final List<SinkRecord> filteredOriginalSinkRecords = new ArrayList<>();
+      final List<Long> offsets = new ArrayList<>();
       for (SinkRecord kafkaSinkRecord : sinkRecords) {
         SinkRecord snowflakeRecord = getSnowflakeSinkRecordFromKafkaRecord(kafkaSinkRecord);
 
