@@ -141,7 +141,7 @@ public class SnowflakeSinkConnectorConfig {
   // Whether to close streaming channels in parallel.
   public static final String SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL =
       "snowflake.streaming.closeChannelsInParallel.enabled";
-  public static final boolean SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL_DEFAULT = true;
+  public static final boolean SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL_DEFAULT = false;
 
   // This is the streaming max client lag which can be defined in config
   public static final String SNOWPIPE_STREAMING_MAX_CLIENT_LAG =
@@ -618,6 +618,13 @@ public class SnowflakeSinkConnectorConfig {
                 + " ingest data into a single table via topic2table map. If disabled, there is a"
                 + " risk that files from various topics may collide with each other and be deleted"
                 + " before ingestion.")
+        .define(
+            SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL,
+            Type.BOOLEAN,
+            SNOWPIPE_STREAMING_CLOSE_CHANNELS_IN_PARALLEL_DEFAULT,
+            Importance.MEDIUM,
+            "Whether to close Snowpipe Streaming channels in parallel during task shutdown or"
+                + " rebalancing")
         .define(
             SNOWPIPE_STREAMING_MAX_CLIENT_LAG,
             Type.LONG,
