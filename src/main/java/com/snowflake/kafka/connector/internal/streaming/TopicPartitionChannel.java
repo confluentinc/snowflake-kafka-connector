@@ -37,8 +37,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -659,10 +662,10 @@ public class TopicPartitionChannel {
           "Invoking insertRows API for channel:{}, streamingBuffer:{}",
           this.channel.getFullyQualifiedName(),
           this.insertRowsStreamingBuffer);
-      Pair<List<Map<String, Object>>, List<SinkRecord>> recordsAndOriginalSinkRecords =
+      Pair<List<Map<String, Object>>, List<Long>> recordsAndOffsets =
           this.insertRowsStreamingBuffer.getData();
-      List<Map<String, Object>> records = recordsAndOriginalSinkRecords.getKey();
-      List<SinkRecord> originalSinkRecords = recordsAndOriginalSinkRecords.getValue();
+      List<Map<String, Object>> records = recordsAndOffsets.getKey();
+      List<Long> offsets = recordsAndOffsets.getValue();
       InsertValidationResponse finalResponse = new InsertValidationResponse();
       boolean needToResetOffset = false;
       if (!enableSchemaEvolution) {
@@ -676,33 +679,46 @@ public class TopicPartitionChannel {
           // For schema evolution, we need to call the insertRows API row by row in order to
           // preserve the original order, for anything after the first schema mismatch error we will
           // retry after the evolution
-          SinkRecord originalSinkRecord = originalSinkRecords.get(idx);
           InsertValidationResponse response =
-              this.channel.insertRow(
-                  records.get(idx), Long.toString(originalSinkRecord.kafkaOffset()));
+              this.channel.insertRow(records.get(idx), Long.toString(offsets.get(idx)));
           if (response.hasErrors()) {
             InsertValidationResponse.InsertError insertError = response.getInsertErrors().get(0);
             List<String> extraColNames = insertError.getExtraColNames();
-            List<String> nonNullableColumns = insertError.getMissingNotNullColNames();
-            // TODO : originalSinkRecordIdx can be replaced by idx
+
+            List<String> missingNotNullColNames = insertError.getMissingNotNullColNames();
+            Set<String> nonNullableColumns =
+                new HashSet<>(
+                    missingNotNullColNames != null
+                        ? missingNotNullColNames
+                        : Collections.emptySet());
+
+            List<String> nullValueForNotNullColNames = insertError.getNullValueForNotNullColNames();
+            nonNullableColumns.addAll(
+                nullValueForNotNullColNames != null
+                    ? nullValueForNotNullColNames
+                    : Collections.emptySet());
+
             long originalSinkRecordIdx =
-                originalSinkRecord.kafkaOffset() - this.insertRowsStreamingBuffer.getFirstOffset();
-            if (extraColNames == null && nonNullableColumns == null) {
+                offsets.get(idx) - this.insertRowsStreamingBuffer.getFirstOffset();
+
+            if (extraColNames == null && nonNullableColumns.isEmpty()) {
               InsertValidationResponse.InsertError newInsertError =
                   new InsertValidationResponse.InsertError(
                       insertError.getRowContent(), originalSinkRecordIdx);
               newInsertError.setException(insertError.getException());
               newInsertError.setExtraColNames(insertError.getExtraColNames());
               newInsertError.setMissingNotNullColNames(insertError.getMissingNotNullColNames());
+              newInsertError.setNullValueForNotNullColNames(
+                  insertError.getNullValueForNotNullColNames());
               // Simply added to the final response if it's not schema related errors
               finalResponse.addError(insertError);
             } else {
               SchematizationUtils.evolveSchemaIfNeeded(
                   this.conn,
                   this.channel.getTableName(),
-                  nonNullableColumns,
+                  new ArrayList<>(nonNullableColumns),
                   extraColNames,
-                  originalSinkRecord);
+                  this.insertRowsStreamingBuffer.getSinkRecord(originalSinkRecordIdx));
               // Offset reset needed since it's possible that we successfully ingested partial batch
               needToResetOffset = true;
               break;
@@ -1328,7 +1344,7 @@ public class TopicPartitionChannel {
    */
   @VisibleForTesting
   protected class StreamingBuffer
-      extends PartitionBuffer<Pair<List<Map<String, Object>>, List<SinkRecord>>> {
+      extends PartitionBuffer<Pair<List<Map<String, Object>>, List<Long>>> {
     // Records coming from Kafka
     private final List<SinkRecord> sinkRecords;
 
@@ -1353,19 +1369,19 @@ public class TopicPartitionChannel {
     }
 
     /**
-     * Get all rows and corresponding SinkRecords. Each map corresponds to one row whose keys are
-     * column names and values are corresponding data in that column.
+     * Get all rows and their offsets. Each map corresponds to one row whose keys are column names
+     * and values are corresponding data in that column.
      *
      * <p>This goes over through all buffered kafka records and transforms into JsonSchema and
      * JsonNode Check {@link #handleNativeRecord(SinkRecord, boolean)}
      *
-     * @return A pair that contains the records and their corresponding original sinkRecords
+     * @return A pair that contains the records and their corresponding offsets
      */
     @Override
-    public Pair<List<Map<String, Object>>, List<SinkRecord>> getData() {
+    public Pair<List<Map<String, Object>>, List<Long>> getData() {
       final List<Map<String, Object>> records = new ArrayList<>();
-      final List<SinkRecord> filteredOriginalSinkRecords = new ArrayList<>();
       final List<Long> offsets = new ArrayList<>();
+
       for (SinkRecord kafkaSinkRecord : sinkRecords) {
         SinkRecord snowflakeRecord = getSnowflakeSinkRecordFromKafkaRecord(kafkaSinkRecord);
 
@@ -1391,7 +1407,7 @@ public class TopicPartitionChannel {
             Map<String, Object> tableRow =
                 recordService.getProcessedRecordForStreamingIngest(snowflakeRecord);
             records.add(tableRow);
-            filteredOriginalSinkRecords.add(kafkaSinkRecord);
+            offsets.add(snowflakeRecord.kafkaOffset());
           } catch (JsonProcessingException e) {
             LOGGER.warn(
                 "Record has JsonProcessingException offset:{}, topic:{}",
@@ -1417,7 +1433,7 @@ public class TopicPartitionChannel {
           getBufferSizeBytes(),
           getFirstOffset(),
           getLastOffset());
-      return new Pair<>(records, filteredOriginalSinkRecords);
+      return new Pair<>(records, offsets);
     }
 
     @Override
