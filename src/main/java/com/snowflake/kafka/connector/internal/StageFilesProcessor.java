@@ -189,7 +189,8 @@ class StageFilesProcessor {
         prefix);
 
     AtomicBoolean shouldFetchInitialStageFiles = new AtomicBoolean(true);
-    AtomicBoolean firstRun = new AtomicBoolean(true);
+    AtomicBoolean isFirstRun = new AtomicBoolean(true);
+    AtomicBoolean hadError = new AtomicBoolean(false);
 
     ProcessorContext ctx =
         new ProcessorContext(progressTelemetry, currentTimeSupplier.currentTime());
@@ -214,7 +215,8 @@ class StageFilesProcessor {
                 // initialize state based on the remote stage state (do it on first call or after
                 // error)
                 if (shouldFetchInitialStageFiles.getAndSet(false)) {
-                  initializeCleanStartState(ctx);
+                  initializeCleanStartState(ctx, isFirstRun.get());
+                  isFirstRun.set(false);
                 }
 
                 LOGGER.debug(
@@ -229,7 +231,7 @@ class StageFilesProcessor {
                 // will retry processing with the current file set in next iteration (with
                 // potentially newly
                 // added files)
-                nextCheck(ctx, register, firstRun.getAndSet(false));
+                nextCheck(ctx, register, hadError.getAndSet(false));
               } catch (Exception e) {
                 progressTelemetry.reportKafkaConnectFatalError(e.getMessage());
                 LOGGER.warn(
@@ -240,6 +242,7 @@ class StageFilesProcessor {
                     e.getStackTrace());
 
                 shouldFetchInitialStageFiles.set(true);
+                hadError.set(true);
                 // as the next cycle will load files from remote due to an error, we can reset
                 // tracking
                 // history timestamp to now
@@ -259,8 +262,14 @@ class StageFilesProcessor {
     }
   }
 
-  private void initializeCleanStartState(ProcessorContext ctx) {
+  private void initializeCleanStartState(ProcessorContext ctx, boolean firstRun) {
     Collection<String> remoteStageFiles = fetchCurrentStage();
+    if (firstRun) {
+      HashSet<String> remoteFiles = new HashSet<>(remoteStageFiles);
+      long remoteFileCount =
+          ctx.files.stream().filter(localFile -> !remoteFiles.contains(localFile)).count();
+      ctx.progressTelemetry.setupInitialState(remoteFileCount);
+    }
     ctx.files.addAll(remoteStageFiles);
     // since we will load completely fresh history from remote, we can reset the history tracking
     // state
@@ -269,14 +278,14 @@ class StageFilesProcessor {
     LOGGER.debug("for pipe {} found {} file(s) on remote stage", pipeName, remoteStageFiles.size());
   }
 
-  private void nextCheck(ProcessorContext ctx, ProgressRegisterImpl register, boolean firstRun) {
+  private void nextCheck(ProcessorContext ctx, ProgressRegisterImpl register, boolean hadErrors) {
 
     // make first categorization - split files into these with start offset higher than current
     FileCategorizer fileCategories =
         FileCategorizer.build(ctx.files, register.offset.get(), filters);
 
-    if (firstRun) {
-      ctx.progressTelemetry.initializeStats(
+    if (hadErrors) {
+      ctx.progressTelemetry.updateStatsAfterError(
           fileCategories.dirtyFiles.size(), fileCategories.stageFiles.size());
     }
 
@@ -316,6 +325,7 @@ class StageFilesProcessor {
         pipeName);
     ctx.files.clear();
     ctx.files.addAll(filesToTrack);
+    ctx.files.addAll(fileCategories.dirtyFiles);
   }
 
   private void loadIngestReport(FileCategorizer fileCategories, ProcessorContext ctx) {
@@ -472,6 +482,7 @@ class StageFilesProcessor {
           files.size(),
           String.join(", ", files));
       conn.purgeStage(stageName, new ArrayList<>(files));
+      files.clear();
     } catch (Exception e) {
       LOGGER.error(
           "Reprocess cleaner encountered an exception {}:\n{}\n{}",
@@ -680,7 +691,7 @@ class StageFilesProcessor {
   // parameters
   @VisibleForTesting
   static class ProcessorContext {
-    final List<String> files = new ArrayList<>();
+    final Set<String> files = new HashSet<>();
     final Map<String, IngestEntry> ingestHistory = new HashMap<>();
     final AtomicReference<String> historyMarker = new AtomicReference<>();
     final PipeProgressRegistryTelemetry progressTelemetry;
