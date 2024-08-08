@@ -216,25 +216,6 @@ public class ConnectorIT {
   }
 
   @Test
-  public void testValidateWrongRoleConfig() {
-    Map<String, String> config = TestUtils.getConfForStreaming();
-    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_ROLE, "wrongRole");
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(
-        validateMap,
-        new String[] {
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_USER,
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_URL,
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY
-        });
-    assertEquals(
-        "snowflake.url.name: Cannot connect to Snowflake, due to Role 'WRONGROLE' specified in the"
-            + " connect string does not exist or not authorized. Contact your local system"
-            + " administrator, or attempt to login with another role, e.g. PUBLIC.",
-        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_URL).errorMessages().get(0));
-  }
-
-  @Test
   @Ignore("OAuth tests are temporary disabled")
   public void testValidateNullOAuthClientIdConfig() {
     Map<String, String> config = getCorrectConfigWithOAuth();

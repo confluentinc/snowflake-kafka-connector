@@ -38,6 +38,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -61,7 +63,7 @@ public class ConnectionServiceIT {
   }
 
   @Test
-  @Ignore("NPE")
+  @Disabled("OAuth tests are temporary disabled")
   public void testOAuthAZ() {
     Map<String, String> confWithOAuth = TestUtils.getConfWithOAuth();
     assert confWithOAuth.containsKey(Utils.SF_OAUTH_CLIENT_ID);
