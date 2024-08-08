@@ -16,8 +16,8 @@ function random-string() {
 source ./utils.sh
 
 # check argument number
-if [ "$#" -lt 2 ] || [ "$#" -gt 4 ] ; then
-    error_exit "Usage: ./run_test.sh <version> <path to apache config folder> <pressure> <ssl>.  Aborting."
+if [ "$#" -lt 2 ] || [ "$#" -gt 6 ] ; then
+    error_exit "Usage: ./run_test.sh <version> <path to apache config folder> <pressure> <ssl> [--skipProxy] [--tests=TestStringJson,TestStringAvro,...].  Aborting."
 fi
 
 CONFLUENT_VERSION=$1
@@ -31,7 +31,22 @@ if [ "$#" -gt 3 ] ; then
   SSL=$4
 else
   SSL="false"
-fi 
+fi
+
+if [ "$#" -gt 4 ] && [[ $5 == "--skipProxy" ]] ; then
+  SKIP_PROXY=true
+else
+  SKIP_PROXY=false
+fi
+
+tests_pattern="[^(--tests=).*]"
+if [ "$#" -gt 5 ] && [[ $6 =~ $tests_pattern ]] ; then
+  # skip initial '--tests='
+  TESTS=`echo $6 | cut -c9-`
+else
+  TESTS=""
+fi
+
 SNOWFLAKE_ZOOKEEPER_CONFIG="zookeeper.properties"
 SNOWFLAKE_KAFKA_CONFIG="server.properties"
 SNOWFLAKE_KAFKA_CONNECT_CONFIG="connect-distributed.properties"
@@ -85,8 +100,8 @@ case $CONFLUENT_VERSION in
 	6.2.*)
     DOWNLOAD_URL="https://packages.confluent.io/archive/6.2/confluent-community-$CONFLUENT_VERSION.tar.gz"
     ;;
-  7.2.*)
-    DOWNLOAD_URL="https://packages.confluent.io/archive/7.2/confluent-community-$CONFLUENT_VERSION.tar.gz"
+  7.6.*)
+    DOWNLOAD_URL="https://packages.confluent.io/archive/7.6/confluent-community-$CONFLUENT_VERSION.tar.gz"
     ;;
   *)
     error_exit "Usage: ./run_test.sh <version> <path to apache config folder>. Unknown version $CONFLUENT_VERSION Aborting."
@@ -139,6 +154,8 @@ sleep 10
 echo -e "\n=== Start Kafka ==="
 $CONFLUENT_FOLDER_NAME/bin/kafka-server-start $SNOWFLAKE_APACHE_CONFIG_PATH/$SNOWFLAKE_KAFKA_CONFIG > $APACHE_LOG_PATH/kafka.log 2>&1 &
 sleep 10
+echo -e "\n=== Java version used ==="
+java -version
 echo -e "\n=== Start Kafka Connect ==="
 KAFKA_HEAP_OPTS="-Xms512m -Xmx6g" $CONFLUENT_FOLDER_NAME/bin/connect-distributed $SNOWFLAKE_APACHE_CONFIG_PATH/$SNOWFLAKE_KAFKA_CONNECT_CONFIG > $APACHE_LOG_PATH/kc.log 2>&1 &
 sleep 10
@@ -153,15 +170,15 @@ KC_PORT=8083
 
 set +e -x
 echo -e "\n=== Clean table stage and pipe ==="
-python3 test_verify.py $SNOWFLAKE_KAFKA_ADDRESS http://$LOCAL_IP:$SC_PORT $LOCAL_IP:$KC_PORT clean $CONFLUENT_VERSION $NAME_SALT $PRESSURE $SSL
+python3 test_verify.py $SNOWFLAKE_KAFKA_ADDRESS http://$LOCAL_IP:$SC_PORT $LOCAL_IP:$KC_PORT clean $CONFLUENT_VERSION $NAME_SALT $PRESSURE $SSL $SKIP_PROXY $TESTS
 
 # record_thread_count 2>&1 &
 # Send test data and verify DB result from Python
-python3 test_verify.py $SNOWFLAKE_KAFKA_ADDRESS http://$LOCAL_IP:$SC_PORT $LOCAL_IP:$KC_PORT $TEST_SET $CONFLUENT_VERSION $NAME_SALT $PRESSURE $SSL
+python3 test_verify.py $SNOWFLAKE_KAFKA_ADDRESS http://$LOCAL_IP:$SC_PORT $LOCAL_IP:$KC_PORT $TEST_SET $CONFLUENT_VERSION $NAME_SALT $PRESSURE $SSL $SKIP_PROXY $TESTS
 testError=$?
 
 # delete_connectors_with_salt $NAME_SALT $LOCAL_IP $KC_PORT
-python3 test_verify.py $SNOWFLAKE_KAFKA_ADDRESS http://$LOCAL_IP:$SC_PORT $LOCAL_IP:$KC_PORT clean $CONFLUENT_VERSION $NAME_SALT $PRESSURE $SSL
+python3 test_verify.py $SNOWFLAKE_KAFKA_ADDRESS http://$LOCAL_IP:$SC_PORT $LOCAL_IP:$KC_PORT clean $CONFLUENT_VERSION $NAME_SALT $PRESSURE $SSL $SKIP_PROXY $TESTS
 
 
 ##### Following commented code is used to track thread leak

@@ -16,7 +16,7 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+import static com.snowflake.kafka.connector.internal.streaming.channel.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
@@ -236,11 +236,14 @@ public class SnowflakeSinkTask extends SinkTask {
   /**
    * stop method is invoked only once outstanding calls to other methods have completed. e.g. after
    * current put, and a final preCommit has completed.
+   *
+   * <p>Note that calling this method does not perform synchronous cleanup in Snowpipe based
+   * implementation
    */
   @Override
   public void stop() {
     if (this.sink != null) {
-      this.sink.setIsStoppedToTrue(); // close cleaner thread
+      this.sink.stop();
     }
 
     this.DYNAMIC_LOGGER.info(
