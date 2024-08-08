@@ -311,6 +311,18 @@ public class SnowflakeSinkConnector extends SinkConnector {
       return result;
     }
 
+    try {
+      testConnection.hasSchemaPrivileges(connectorConfigs.get(Utils.SF_SCHEMA));
+    } catch (SnowflakeKafkaConnectorException e) {
+      LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
+      if (e.getCode().equals("2001")) {
+        Utils.updateConfigErrorMessage(result, Utils.SF_SCHEMA, " schema does not have required privileges (CREATE TABLE, CREATE STAGE, CREATE PIPE, or OWNERSHIP)");
+      } else {
+        throw e;
+      }
+      return result;
+    }
+
     LOGGER.info("Validated config with no error");
     return result;
   }

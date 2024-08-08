@@ -150,6 +150,8 @@ public interface SnowflakeConnectionService {
    */
   void schemaExists(String schemaName);
 
+  void hasSchemaPrivileges(String schemaName);
+
   /**
    * drop snowpipe
    *
