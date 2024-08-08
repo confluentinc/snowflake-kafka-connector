@@ -16,14 +16,11 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BehaviorOnNullValues.VALIDATOR;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.JMX_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP;
 
 import com.google.common.collect.ImmutableMap;
-import com.snowflake.kafka.connector.internal.BufferThreshold;
 import com.snowflake.kafka.connector.internal.InternalUtils;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.OAuthConstants;
@@ -31,7 +28,6 @@ import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeInternalOperations;
 import com.snowflake.kafka.connector.internal.SnowflakeURL;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
@@ -66,7 +62,6 @@ import net.snowflake.client.jdbc.internal.apache.http.util.EntityUtils;
 import net.snowflake.client.jdbc.internal.google.gson.JsonObject;
 import net.snowflake.client.jdbc.internal.google.gson.JsonParser;
 import org.apache.kafka.common.config.Config;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.utils.ThreadUtils;
 

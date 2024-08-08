@@ -23,6 +23,7 @@ import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
+import com.snowflake.kafka.connector.internal.streaming.DefaultStreamingConfigValidator;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -64,10 +65,11 @@ public class SnowflakeSinkConnector extends SinkConnector {
   // creation, etc.
   // Using setupComplete to synchronize
   private boolean setupComplete;
-
   private static final int VALIDATION_NETWORK_TIMEOUT_IN_MS = 45000;
 
   private static final int VALIDATION_LOGIN_TIMEOUT_IN_SEC = 20;
+  private final ConnectorConfigValidator connectorConfigValidator =
+      new DefaultConnectorConfigValidator(new DefaultStreamingConfigValidator());
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
@@ -97,7 +99,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
     // modify invalid connector name
     Utils.convertAppName(config);
 
-    Utils.validateConfig(config);
+    connectorConfigValidator.validateConfig(config);
 
     // enable mdc logging if needed
     KCLogger.toggleGlobalMdcLoggingContext(
