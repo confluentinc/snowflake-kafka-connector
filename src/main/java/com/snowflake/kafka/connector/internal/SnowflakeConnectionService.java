@@ -152,6 +152,8 @@ public interface SnowflakeConnectionService {
 
   void hasSchemaPrivileges(String schemaName);
 
+  void hasTableOwnershipPrivilege(String tableName);
+
   /**
    * drop snowpipe
    *

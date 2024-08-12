@@ -323,6 +323,27 @@ public class SnowflakeSinkConnector extends SinkConnector {
       return result;
     }
 
+    if (connectorConfigs.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP) &&
+            !connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()) {
+
+      Map<String, String> topicsTablesMap = Utils.parseTopicToTableMap(connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
+
+      if (topicsTablesMap != null) {
+        topicsTablesMap.forEach((topic, table) -> {
+          try {
+            testConnection.hasTableOwnershipPrivilege(table);
+          } catch (SnowflakeKafkaConnectorException e) {
+            LOGGER.error("Validation Error for table {}: msg:{}, errorCode:{}", table, e.getMessage(), e.getCode());
+            if (e.getCode().equals("2001")) {
+              Utils.updateConfigErrorMessage(result, table, "Table does not have the required OWNERSHIP privilege");
+            } else {
+              throw e;
+            }
+          }
+        });
+      }
+    }
+
     LOGGER.info("Validated config with no error");
     return result;
   }

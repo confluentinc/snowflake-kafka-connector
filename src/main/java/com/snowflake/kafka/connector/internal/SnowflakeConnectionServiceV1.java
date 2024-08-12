@@ -730,6 +730,37 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
+  public void hasTableOwnershipPrivilege(String tableName) {
+    checkConnection();
+    String queryCheckTablePrivileges = "SHOW GRANTS ON TABLE " + tableName + ";";
+
+    boolean hasOwnershipPrivilege = false;
+
+    try {
+      PreparedStatement stmt = conn.prepareStatement(queryCheckTablePrivileges);
+      ResultSet rs = stmt.executeQuery();
+      while (rs.next()) {
+        String privilege = rs.getString("privilege");
+        if (privilege.equalsIgnoreCase("OWNERSHIP")) {
+          hasOwnershipPrivilege = true;
+          break;
+        }
+      }
+      rs.close();
+      stmt.close();
+
+      if (!hasOwnershipPrivilege) {
+        throw SnowflakeErrors.ERROR_2001.getException("Missing OWNERSHIP privilege on table " + tableName);
+      }
+
+      LOGGER.info("Table {} has OWNERSHIP privilege", tableName);
+
+    } catch (SQLException e) {
+      throw SnowflakeErrors.ERROR_2001.getException(e);
+    }
+  }
+
+  @Override
   public void dropPipe(final String pipeName) {
     checkConnection();
     InternalUtils.assertNotEmpty("pipeName", pipeName);
