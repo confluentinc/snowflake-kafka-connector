@@ -316,11 +316,9 @@ public class SnowflakeSinkConnector extends SinkConnector {
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {
-        Utils.updateConfigErrorMessage(result, Utils.SF_SCHEMA, " schema does not have required privileges (CREATE TABLE, CREATE STAGE, CREATE PIPE, or OWNERSHIP)");
-      } else {
-        throw e;
+        LOGGER.error(Utils.SF_SCHEMA, " schema does not have one of the required privileges "
+                + "(CREATE TABLE, CREATE STAGE, CREATE PIPE, nor OWNERSHIP)");
       }
-      return result;
     }
 
     if (connectorConfigs.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP) &&
@@ -335,9 +333,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
           } catch (SnowflakeKafkaConnectorException e) {
             LOGGER.error("Validation Error for table {}: msg:{}, errorCode:{}", table, e.getMessage(), e.getCode());
             if (e.getCode().equals("2001")) {
-              Utils.updateConfigErrorMessage(result, table, "Table does not have the required OWNERSHIP privilege");
-            } else {
-              throw e;
+              LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
             }
           }
         });
