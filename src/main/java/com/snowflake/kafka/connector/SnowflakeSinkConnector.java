@@ -319,6 +319,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
         LOGGER.error(Utils.SF_SCHEMA, " schema does not have one of the required privileges "
                 + "(CREATE TABLE, CREATE STAGE, CREATE PIPE, nor OWNERSHIP)");
       }
+    } catch (Exception e) {
+      LOGGER.error("Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}", e.getMessage(), e);
     }
 
     if (connectorConfigs.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP) &&
@@ -335,6 +337,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
             if (e.getCode().equals("2001")) {
               LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
             }
+          } catch (Exception e) {
+            LOGGER.error("Unexpected Exception in validate for table privilege check {}: msg:{}, errorCode:{}", table, e.getMessage(), e);
           }
         });
       }
