@@ -21,6 +21,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -674,6 +675,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     checkConnection();
     String queryUseSchema = "USE SCHEMA IDENTIFIER(?)";
     String queryCheckPrivileges = "SHOW GRANTS ON SCHEMA " + schemaName + ";";
+    String currentRole = getCurrentRole(conn);
+
     boolean hasOwnershipPrivilege = false;
     boolean hasCreateTablePrivilege = false;
     boolean hasCreateStagePrivilege = false;
@@ -688,6 +691,9 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       stmt = conn.prepareStatement(queryCheckPrivileges);
       ResultSet rs = stmt.executeQuery();
       while (rs.next()) {
+        if (!rs.getString("grantee_name").equals(currentRole)) {
+          continue;
+        }
         String privilege = rs.getString("privilege");
         if (privilege.equalsIgnoreCase("OWNERSHIP")) {
           hasOwnershipPrivilege = true;
@@ -733,13 +739,16 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   public void hasTableOwnershipPrivilege(String tableName) {
     checkConnection();
     String queryCheckTablePrivileges = "SHOW GRANTS ON TABLE " + tableName + ";";
-
+    String currentRole = getCurrentRole(conn);
     boolean hasOwnershipPrivilege = false;
 
     try {
       PreparedStatement stmt = conn.prepareStatement(queryCheckTablePrivileges);
       ResultSet rs = stmt.executeQuery();
       while (rs.next()) {
+        if (!rs.getString("grantee_name").equals(currentRole)) {
+          continue;
+        }
         String privilege = rs.getString("privilege");
         if (privilege.equalsIgnoreCase("OWNERSHIP")) {
           hasOwnershipPrivilege = true;
@@ -1178,4 +1187,24 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             migrateOffsetTokenResultFromSysFunc, ChannelMigrateOffsetTokenResponseDTO.class);
     return channelMigrateOffsetTokenResponseDTO;
   }
+
+  private String getCurrentRole(Connection conn) {
+    String query = "SELECT CURRENT_ROLE()";
+    String currentRole = null;
+    try {
+      Statement stmt = conn.createStatement();
+      ResultSet rs = stmt.executeQuery(query);
+      if (rs.next()) {
+        currentRole = rs.getString(1);
+      }
+    } catch (SQLException e) {
+      throw SnowflakeErrors.ERROR_2001.getException("Failed to fetch the current role");
+    }
+    if (currentRole == null) {
+      throw SnowflakeErrors.ERROR_2001.getException("Got current role as null");
+    }
+
+    return currentRole;
+  }
+
 }
