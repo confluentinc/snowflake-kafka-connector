@@ -338,13 +338,9 @@ public class SnowflakeSinkConnector extends SinkConnector {
   }
 
   private static boolean shouldCheckTableOwnership(Map<String, String> connectorConfigs) {
-    // Check table ownership privilege if
-    // topics-tables map is provided
-    // ingestion method is SNOWPIPE
-    return connectorConfigs.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP) &&
-            !connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty() &&
-            connectorConfigs.get(INGESTION_METHOD_OPT)
-                    .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString());
+    String topicsTablesMap = connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP);
+    String ingestionMethod = connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, IngestionMethodConfig.SNOWPIPE.toString());
+    return topicsTablesMap != null && !topicsTablesMap.isEmpty() && ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString());
   }
 
   private static void checkTableOwnership(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
