@@ -741,6 +741,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     String queryCheckTablePrivileges = "SHOW GRANTS ON TABLE " + tableName + ";";
     String currentRole = getCurrentRole(conn);
     boolean hasOwnershipPrivilege = false;
+    boolean hasAllPrivileges = false;
+    boolean hasInsertPrivilege = false;
 
     try {
       PreparedStatement stmt = conn.prepareStatement(queryCheckTablePrivileges);
@@ -754,15 +756,26 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
           hasOwnershipPrivilege = true;
           break;
         }
+        if (privilege.equalsIgnoreCase("ALL")) {
+          hasAllPrivileges = true;
+        }
+        if (privilege.equalsIgnoreCase("INSERT")) {
+          hasInsertPrivilege = true;
+        }
       }
       rs.close();
       stmt.close();
 
-      if (!hasOwnershipPrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing OWNERSHIP privilege on table " + tableName);
+      if (hasOwnershipPrivilege || hasAllPrivileges) {
+        LOGGER.info("Table {} has either OWNERSHIP or ALL privileges", tableName);
+        return;
       }
 
-      LOGGER.info("Table {} has OWNERSHIP privilege", tableName);
+      if (!hasInsertPrivilege) { // only checking the bare minimum privilege we need
+        throw SnowflakeErrors.ERROR_2001.getException("Missing INSERT privilege on table " + tableName);
+      }
+
+      LOGGER.info("Table {} has required privilege", tableName);
 
     } catch (SQLException e) {
       throw SnowflakeErrors.ERROR_2001.getException(e);
