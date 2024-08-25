@@ -21,7 +21,6 @@ import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
-import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -315,7 +314,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
     }
 
     try {
-      testConnection.hasSchemaPrivileges(connectorConfigs.get(Utils.SF_SCHEMA));
+      testConnection.hasSchemaPrivileges(connectorConfigs.get(Utils.SF_SCHEMA),
+              connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, "SNOWPIPE"));
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {

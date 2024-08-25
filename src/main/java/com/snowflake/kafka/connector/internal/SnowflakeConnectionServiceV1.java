@@ -671,7 +671,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
-  public void hasSchemaPrivileges(String schemaName) {
+  public void hasSchemaPrivileges(String schemaName, String ingestionMethod) {
     checkConnection();
     String queryUseSchema = "USE SCHEMA IDENTIFIER(?)";
     String queryCheckPrivileges = "SHOW GRANTS ON SCHEMA " + schemaName + ";";
@@ -725,6 +725,13 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       if (!hasCreateTablePrivilege) {
         throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE TABLE privilege on schema " + schemaName);
       }
+
+      if(ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
+        LOGGER.info("Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
+        return;
+      }
+
+      // For SNOWPIPE ingestion, we need CREATE STAGE and CREATE PIPE privileges as well
       if (!hasCreateStagePrivilege) {
         throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE STAGE privilege on schema " + schemaName);
       }
