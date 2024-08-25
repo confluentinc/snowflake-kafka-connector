@@ -678,6 +678,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     String currentRole = getCurrentRole(conn);
 
     boolean hasOwnershipPrivilege = false;
+    boolean hasAllPrivilege = false;
     boolean hasCreateTablePrivilege = false;
     boolean hasCreateStagePrivilege = false;
     boolean hasCreatePipePrivilege = false;
@@ -699,6 +700,10 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
           hasOwnershipPrivilege = true;
           break;
         }
+        if (privilege.equalsIgnoreCase("ALL")) {
+          hasAllPrivilege = true;
+          break;
+        }
         if (privilege.equalsIgnoreCase("CREATE TABLE")) {
           hasCreateTablePrivilege = true;
         }
@@ -712,10 +717,9 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       rs.close();
       stmt.close();
 
-      if (hasOwnershipPrivilege) {
-        hasCreateTablePrivilege = true;
-        hasCreateStagePrivilege = true;
-        hasCreatePipePrivilege = true;
+      if (hasOwnershipPrivilege || hasAllPrivilege) {
+        LOGGER.info("Schema {} has required privileges", schemaName);
+        return;
       }
 
       if (!hasCreateTablePrivilege) {
