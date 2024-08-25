@@ -339,8 +339,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   private static boolean shouldCheckTablePrivilege(Map<String, String> connectorConfigs) {
     String topicsTablesMap = connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP);
-    String ingestionMethod = connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, IngestionMethodConfig.SNOWPIPE.toString());
-    return topicsTablesMap != null && !topicsTablesMap.isEmpty() && ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString());
+    return topicsTablesMap != null && !topicsTablesMap.isEmpty();
   }
 
   private static void checkTablePrivilege(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
