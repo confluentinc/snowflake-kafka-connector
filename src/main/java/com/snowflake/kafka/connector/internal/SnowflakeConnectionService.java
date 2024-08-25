@@ -152,7 +152,7 @@ public interface SnowflakeConnectionService {
 
   void hasSchemaPrivileges(String schemaName);
 
-  void hasTableOwnershipPrivilege(String tableName);
+  void hasTableRequiredPrivileges(String tableName);
 
   /**
    * drop snowpipe

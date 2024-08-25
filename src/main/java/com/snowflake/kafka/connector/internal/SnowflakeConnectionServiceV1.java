@@ -736,7 +736,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
-  public void hasTableOwnershipPrivilege(String tableName) {
+  public void hasTableRequiredPrivileges(String tableName) {
     checkConnection();
     String queryCheckTablePrivileges = "SHOW GRANTS ON TABLE " + tableName + ";";
     String currentRole = getCurrentRole(conn);

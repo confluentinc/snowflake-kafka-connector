@@ -326,10 +326,10 @@ public class SnowflakeSinkConnector extends SinkConnector {
       LOGGER.error("Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}", e.getMessage(), e);
     }
 
-    if (shouldCheckTableOwnership(connectorConfigs)) {
+    if (shouldCheckTablePrivilege(connectorConfigs)) {
       Map<String, String> topicsTablesMap = Utils.parseTopicToTableMap(connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
       if (topicsTablesMap != null) {
-        checkTableOwnership(topicsTablesMap, testConnection);
+        checkTablePrivilege(topicsTablesMap, testConnection);
       }
     }
 
@@ -337,18 +337,18 @@ public class SnowflakeSinkConnector extends SinkConnector {
     return result;
   }
 
-  private static boolean shouldCheckTableOwnership(Map<String, String> connectorConfigs) {
+  private static boolean shouldCheckTablePrivilege(Map<String, String> connectorConfigs) {
     String topicsTablesMap = connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP);
     String ingestionMethod = connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, IngestionMethodConfig.SNOWPIPE.toString());
     return topicsTablesMap != null && !topicsTablesMap.isEmpty() && ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString());
   }
 
-  private static void checkTableOwnership(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
+  private static void checkTablePrivilege(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
     topicsTablesMap.forEach((topic, table) -> {
       try {
         if (testConnection.tableExist(table)) {
           LOGGER.info("Table already {} exists, checking if we sufficient privileges", table);
-          testConnection.hasTableOwnershipPrivilege(table);
+          testConnection.hasTableRequiredPrivileges(table);
         }
       } catch (SnowflakeKafkaConnectorException e) {
         LOGGER.error("Validation Error for table {}: msg:{}, errorCode:{}", table, e.getMessage(), e.getCode());
