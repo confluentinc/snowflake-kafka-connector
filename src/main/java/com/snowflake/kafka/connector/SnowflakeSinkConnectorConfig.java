@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableSet;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -31,24 +30,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.ConfigDef.Importance;
-import org.apache.kafka.common.config.ConfigDef.Type;
-import org.apache.kafka.common.config.ConfigException;
 
-/**
- * SnowflakeSinkConnectorConfig class is used for specifying the set of expected configurations. For
- * each configuration, we can specify the name, the type, the default value, the documentation, the
- * group information, the order in the group, the width of the configuration value, and the name
- * suitable for display in the UI.
- */
+/** A class representing config given by the user */
 public class SnowflakeSinkConnectorConfig {
 
-  static final String NAME = Utils.NAME;
+  public static final String NAME = Utils.NAME;
   public static final String TOPICS = "topics";
 
   // Connector config
-  private static final String CONNECTOR_CONFIG = "Connector Config";
-  static final String TOPICS_TABLES_MAP = "snowflake.topic2table.map";
+  public static final String TOPICS_TABLES_MAP = "snowflake.topic2table.map";
 
   // For tombstone records
   public static final String BEHAVIOR_ON_NULL_VALUES_CONFIG = "behavior.on.null.values";
@@ -64,20 +54,18 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String BUFFER_COUNT_RECORDS = "buffer.count.records";
   public static final long BUFFER_COUNT_RECORDS_DEFAULT = 10000;
-  public static final long BUFFER_COUNT_RECORDS_MIN = 1;
 
   // Snowflake connection and database config
-  private static final String SNOWFLAKE_LOGIN_INFO = "Snowflake Login Info";
-  static final String SNOWFLAKE_URL = Utils.SF_URL;
-  static final String SNOWFLAKE_USER = Utils.SF_USER;
-  static final String SNOWFLAKE_PRIVATE_KEY = Utils.SF_PRIVATE_KEY;
-  static final String SNOWFLAKE_DATABASE = Utils.SF_DATABASE;
-  static final String SNOWFLAKE_SCHEMA = Utils.SF_SCHEMA;
-  static final String SNOWFLAKE_PRIVATE_KEY_PASSPHRASE = Utils.PRIVATE_KEY_PASSPHRASE;
-  static final String AUTHENTICATOR_TYPE = Utils.SF_AUTHENTICATOR;
-  static final String OAUTH_CLIENT_ID = Utils.SF_OAUTH_CLIENT_ID;
-  static final String OAUTH_CLIENT_SECRET = Utils.SF_OAUTH_CLIENT_SECRET;
-  static final String OAUTH_REFRESH_TOKEN = Utils.SF_OAUTH_REFRESH_TOKEN;
+  public static final String SNOWFLAKE_URL = Utils.SF_URL;
+  public static final String SNOWFLAKE_USER = Utils.SF_USER;
+  public static final String SNOWFLAKE_PRIVATE_KEY = Utils.SF_PRIVATE_KEY;
+  public static final String SNOWFLAKE_DATABASE = Utils.SF_DATABASE;
+  public static final String SNOWFLAKE_SCHEMA = Utils.SF_SCHEMA;
+  public static final String SNOWFLAKE_PRIVATE_KEY_PASSPHRASE = Utils.PRIVATE_KEY_PASSPHRASE;
+  public static final String AUTHENTICATOR_TYPE = Utils.SF_AUTHENTICATOR;
+  public static final String OAUTH_CLIENT_ID = Utils.SF_OAUTH_CLIENT_ID;
+  public static final String OAUTH_CLIENT_SECRET = Utils.SF_OAUTH_CLIENT_SECRET;
+  public static final String OAUTH_REFRESH_TOKEN = Utils.SF_OAUTH_REFRESH_TOKEN;
 
   // For Snowpipe Streaming client
   public static final String SNOWFLAKE_ROLE = Utils.SF_ROLE;
@@ -85,7 +73,6 @@ public class SnowflakeSinkConnectorConfig {
   public static final String ENABLE_SCHEMATIZATION_DEFAULT = "false";
 
   // Proxy Info
-  private static final String PROXY_INFO = "Proxy Info";
   public static final String JVM_PROXY_HOST = "jvm.proxy.host";
   public static final String JVM_PROXY_PORT = "jvm.proxy.port";
   public static final String JVM_NON_PROXY_HOSTS = "jvm.nonProxy.hosts";
@@ -93,7 +80,7 @@ public class SnowflakeSinkConnectorConfig {
   public static final String JVM_PROXY_PASSWORD = "jvm.proxy.password";
 
   // JDBC logging directory Info (environment variable)
-  static final String SNOWFLAKE_JDBC_LOG_DIR = "JDBC_LOG_DIR";
+  public static final String SNOWFLAKE_JDBC_LOG_DIR = "JDBC_LOG_DIR";
 
   // JDBC trace Info (environment variable)
   public static final String SNOWFLAKE_JDBC_TRACE = "JDBC_TRACE";
@@ -102,7 +89,6 @@ public class SnowflakeSinkConnectorConfig {
   public static final String SNOWFLAKE_JDBC_MAP = "snowflake.jdbc.map";
 
   // Snowflake Metadata Flags
-  private static final String SNOWFLAKE_METADATA_FLAGS = "Snowflake Metadata Flags";
   public static final String SNOWFLAKE_METADATA_CREATETIME = "snowflake.metadata.createtime";
   public static final String SNOWFLAKE_METADATA_TOPIC = "snowflake.metadata.topic";
   public static final String SNOWFLAKE_METADATA_OFFSET_AND_PARTITION =
@@ -167,13 +153,6 @@ public class SnowflakeSinkConnectorConfig {
   public static final boolean REBALANCING_DEFAULT = false;
 
   private static final KCLogger LOGGER = new KCLogger(SnowflakeSinkConnectorConfig.class.getName());
-
-  private static final ConfigDef.Validator nonEmptyStringValidator = new ConfigDef.NonEmptyString();
-  private static final ConfigDef.Validator topicToTableValidator = new TopicToTableValidator();
-  private static final ConfigDef.Validator KAFKA_PROVIDER_VALIDATOR = new KafkaProviderValidator();
-
-  private static final ConfigDef.Validator STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP_VALIDATOR =
-      new CommaSeparatedKeyValueValidator();
 
   // For error handling
   public static final String ERROR_GROUP = "ERRORS";
@@ -288,7 +267,7 @@ public class SnowflakeSinkConnectorConfig {
    * @param key name of the key to be retrieved
    * @return property value or null
    */
-  static String getProperty(final Map<String, String> config, final String key) {
+  public static String getProperty(final Map<String, String> config, final String key) {
     if (config.containsKey(key) && !config.get(key).isEmpty()) {
       return config.get(key);
     } else {
@@ -961,45 +940,4 @@ public class SnowflakeSinkConnectorConfig {
           this.validator.ensureValid(name, value);
         }
       };
-
-  /**
-   * Class which validates key value pairs in the format <key-1>:<value-1>,<key-2>:<value-2>
-   *
-   * <p>It doesn't validate the type of values, only making sure the format is correct.
-   */
-  public static class CommaSeparatedKeyValueValidator implements ConfigDef.Validator {
-    public CommaSeparatedKeyValueValidator() {}
-
-    public void ensureValid(String name, Object value) {
-      String s = (String) value;
-      // Validate the comma-separated key-value pairs string
-      if (s != null && !s.isEmpty() && !isValidCommaSeparatedKeyValueString(s)) {
-        throw new ConfigException(name, value, "Format: <key-1>:<value-1>,<key-2>:<value-2>,...");
-      }
-    }
-
-    private boolean isValidCommaSeparatedKeyValueString(String input) {
-      // Split the input string by commas
-      String[] pairs = input.split(",");
-      for (String pair : pairs) {
-        // Trim the pair to remove leading and trailing whitespaces
-        pair = pair.trim();
-        // Split each pair by colon
-        String[] keyValue = pair.split(":");
-        // Check if the pair has exactly two elements after trimming
-        if (keyValue.length != 2) {
-          return false;
-        }
-        // Check if the key or value is empty after trimming
-        if (keyValue[0].trim().isEmpty() || keyValue[1].trim().isEmpty()) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    public String toString() {
-      return "Comma-separated key-value pairs format: <key-1>:<value-1>,<key-2>:<value-2>,...";
-    }
-  }
 }
