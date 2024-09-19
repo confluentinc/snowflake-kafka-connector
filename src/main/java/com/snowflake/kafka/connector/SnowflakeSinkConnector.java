@@ -19,6 +19,7 @@ package com.snowflake.kafka.connector;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 
 import com.snowflake.kafka.connector.config.ConnectorConfigDefinition;
+import com.snowflake.kafka.connector.config.IcebergConfigValidator;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
@@ -70,7 +71,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   private static final int VALIDATION_LOGIN_TIMEOUT_IN_SEC = 20;
   private final ConnectorConfigValidator connectorConfigValidator =
-      new DefaultConnectorConfigValidator(new DefaultStreamingConfigValidator());
+      new DefaultConnectorConfigValidator(
+          new DefaultStreamingConfigValidator(), new IcebergConfigValidator());
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
