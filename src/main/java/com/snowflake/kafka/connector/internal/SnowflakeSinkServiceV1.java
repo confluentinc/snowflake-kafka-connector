@@ -131,7 +131,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
               pipeName,
               conn,
               topicPartition.partition(),
-              cleanerServiceExecutor));
+              cleanerServiceExecutor,
+              nameIndex
+          )
+      );
     }
   }
 
@@ -376,6 +379,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private final String pipeName;
     private final SnowflakeConnectionService conn;
     private final SnowflakeIngestionService ingestionService;
+    private final String nameIndex;
     private List<String> fileNames;
 
     // Includes a list of files:
@@ -421,7 +425,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         String pipeName,
         SnowflakeConnectionService conn,
         int partition,
-        ScheduledExecutorService v2CleanerExecutor) {
+        ScheduledExecutorService v2CleanerExecutor,
+        String nameIndex
+    ) {
+      this.nameIndex = nameIndex;
       this.pipeName = pipeName;
       this.tableName = tableName;
       this.stageName = stageName;
@@ -470,7 +477,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
                 ingestionService,
                 pipeStatus,
                 telemetryService,
-                v2CleanerExecutor);
+                v2CleanerExecutor,
+                nameIndex
+            );
         this.stageFileProcessorClient = processor.trackFilesAsync();
         this.cleanerExecutor = null;
         this.reprocessCleanerExecutor = null;
