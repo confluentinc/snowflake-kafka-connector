@@ -84,7 +84,9 @@ class StageFilesProcessorTest {
             pipeTelemetry,
             telemetryService,
             createTestScheduler(ticks, currentTime, nextTickCallback, scheduledFuture),
-            currentTime::get);
+            currentTime::get,
+            "nameIndex"
+        );
     register = new StageFilesProcessor.ProgressRegisterImpl(victim);
   }
 
