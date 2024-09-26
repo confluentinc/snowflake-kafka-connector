@@ -16,6 +16,7 @@
  */
 package com.snowflake.kafka.connector;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ICEBERG_ENABLED;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.JMX_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP;
@@ -650,6 +651,22 @@ public class Utils {
         || config
             .get(INGESTION_METHOD_OPT)
             .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString());
+  }
+
+  /**
+   * @param config config with applied default values
+   * @return true when Iceberg mode is enabled.
+   */
+  public static boolean isIcebergEnabled(Map<String, String> config) {
+    return Boolean.parseBoolean(config.get(ICEBERG_ENABLED));
+  }
+
+  /**
+   * @param config config with applied default values
+   * @return role specified in rhe config
+   */
+  public static String role(Map<String, String> config) {
+    return config.get(SF_ROLE);
   }
 
   /**
