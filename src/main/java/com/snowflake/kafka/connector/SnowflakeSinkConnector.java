@@ -323,7 +323,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {
-        Utils.updateConfigErrorMessage(result,Utils.SF_SCHEMA, ": provided role does not have one of the required privileges "
+        Utils.updateConfigErrorMessage(result, Utils.SF_SCHEMA, ": provided role does not have one of the required privileges "
                 + "(CREATE TABLE, CREATE STAGE, CREATE PIPE) on the schema");
       }
     } catch (Exception e) {
