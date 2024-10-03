@@ -10,7 +10,7 @@ import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetTokenResponseDTO;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrationResponseCode;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import com.snowflake.kafka.connector.internal.streaming.SchematizationUtils;
+import com.snowflake.kafka.connector.internal.streaming.schemaevolution.ColumnInfos;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryServiceFactory;
 import java.io.ByteArrayInputStream;
@@ -21,6 +21,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -437,7 +438,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     ResultSet result = null;
     // whether the role has the privilege to do schema evolution (EVOLVE SCHEMA / ALL / OWNERSHIP)
     boolean hasRolePrivilege = false;
-    String myRole = SchematizationUtils.formatName(role);
+    String myRole = FormattingUtils.formatName(role);
     try {
       PreparedStatement stmt = conn.prepareStatement(query);
       stmt.setString(1, tableName);
@@ -493,10 +494,32 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
    */
   @Override
   public void appendColumnsToTable(String tableName, Map<String, ColumnInfos> columnInfosMap) {
+    LOGGER.debug("Appending columns to snowflake table");
+    appendColumnsToTable(tableName, columnInfosMap, false);
+  }
+
+  /**
+   * Alter iceberg table to add columns according to a map from columnNames to their types
+   *
+   * @param tableName the name of the table
+   * @param columnInfosMap the mapping from the columnNames to their infos
+   */
+  @Override
+  public void appendColumnsToIcebergTable(
+      String tableName, Map<String, ColumnInfos> columnInfosMap) {
+    LOGGER.debug("Appending columns to iceberg table");
+    appendColumnsToTable(tableName, columnInfosMap, true);
+  }
+
+  private void appendColumnsToTable(
+      String tableName, Map<String, ColumnInfos> columnInfosMap, boolean isIcebergTable) {
     checkConnection();
     InternalUtils.assertNotEmpty("tableName", tableName);
-    StringBuilder appendColumnQuery =
-        new StringBuilder("alter table identifier(?) add column if not exists ");
+    StringBuilder appendColumnQuery = new StringBuilder("alter ");
+    if (isIcebergTable) {
+      appendColumnQuery.append("iceberg ");
+    }
+    appendColumnQuery.append("table identifier(?) add column if not exists ");
     boolean first = true;
     StringBuilder logColumn = new StringBuilder("[");
 
@@ -1285,5 +1308,21 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     }
 
     return currentRole;
+
+  public static class FormattingUtils {
+    /**
+     * Transform the objectName to uppercase unless it is enclosed in double quotes
+     *
+     * <p>In that case, drop the quotes and leave it as it is.
+     *
+     * @param objectName name of the snowflake object, could be tableName, columnName, roleName,
+     *     etc.
+     * @return Transformed objectName
+     */
+    public static String formatName(String objectName) {
+      return (objectName.charAt(0) == '"' && objectName.charAt(objectName.length() - 1) == '"')
+          ? objectName.substring(1, objectName.length() - 1)
+          : objectName.toUpperCase();
+    }
   }
 }
