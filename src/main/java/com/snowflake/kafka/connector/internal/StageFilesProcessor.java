@@ -1,6 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeCreation;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeStatus;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.snowflake.ingest.connection.HistoryResponse;
@@ -61,6 +63,8 @@ class StageFilesProcessor {
   private final String tableName;
   private final String stageName;
   private final String prefix;
+  private final String topic;
+  private final int partition;
   private final SnowflakeConnectionService conn;
   private final AtomicReference<ScheduledFuture<?>> cleanerTaskHolder = new AtomicReference<>();
   private final TimeSupplier currentTimeSupplier;
@@ -99,6 +103,8 @@ class StageFilesProcessor {
       String tableName,
       String stageName,
       String prefix,
+      String topic,
+      int partition,
       SnowflakeConnectionService conn,
       SnowflakeIngestionService ingestionService,
       SnowflakeTelemetryPipeStatus pipeTelemetry,
@@ -109,6 +115,8 @@ class StageFilesProcessor {
         tableName,
         stageName,
         prefix,
+        topic,
+        partition,
         conn,
         ingestionService,
         pipeTelemetry,
@@ -123,6 +131,8 @@ class StageFilesProcessor {
       String tableName,
       String stageName,
       String prefix,
+      String topic,
+      int partition,
       SnowflakeConnectionService conn,
       SnowflakeIngestionService ingestionService,
       SnowflakeTelemetryPipeStatus pipeTelemetry,
@@ -133,6 +143,8 @@ class StageFilesProcessor {
     this.tableName = tableName;
     this.stageName = stageName;
     this.prefix = prefix;
+    this.topic = topic;
+    this.partition = partition;
     this.conn = conn;
     this.currentTimeSupplier = currentTimeSupplier;
     this.ingestionService = ingestionService;
@@ -154,7 +166,7 @@ class StageFilesProcessor {
     close();
 
     SnowflakeTelemetryPipeCreation pipeCreation =
-        new SnowflakeTelemetryPipeCreation(tableName, stageName, pipeName);
+        preparePipeStartTelemetryEvent(tableName, stageName, pipeName);
     ProgressRegisterImpl register = new ProgressRegisterImpl(this);
 
     PipeProgressRegistryTelemetry telemetry =
@@ -172,7 +184,10 @@ class StageFilesProcessor {
    */
   @VisibleForTesting
   void trackFiles(ProgressRegisterImpl register, PipeProgressRegistryTelemetry progressTelemetry) {
-    LOGGER.info("Starting file cleaner for pipe {} ...", pipeName);
+    LOGGER.info(
+        "Starting file cleaner for pipe {} ... [matching stage files with prefix: {}]",
+        pipeName,
+        prefix);
 
     AtomicBoolean shouldFetchInitialStageFiles = new AtomicBoolean(true);
     AtomicBoolean isFirstRun = new AtomicBoolean(true);
@@ -183,12 +198,30 @@ class StageFilesProcessor {
     // required for testing purposes
     register.currentProcessorContext = ctx;
 
+    final String threadName =
+        String.format("file-processor-[%s/%d:%s]", topic, partition, tableName);
+
+    progressTelemetry.reportKafkaPartitionStart();
+
     cleanerTaskHolder.set(
         schedulingExecutor.scheduleWithFixedDelay(
             () -> {
+              Thread.currentThread().setName(threadName);
               try {
-                // update metrics
-                progressTelemetry.reportKafkaPartitionUsage(false);
+                // cleaner starts along with the partition task, but until table, stage and pipe
+                // aren't created - there is no point in querying the stage.
+                if (isFirstRun.get()
+                    && checkPreRequisites() != CleanerPrerequisites.PIPE_COMPATIBLE) {
+                  LOGGER.debug(
+                      "neither table {} nor stage {} nor pipe {} have been initialized yet,"
+                          + " skipping cycle...",
+                      tableName,
+                      stageName,
+                      pipeName);
+                  return;
+                }
+
+                progressTelemetry.reportKafkaPartitionUsage();
 
                 // add all files which might have been collected during the last cycle for
                 // processing
@@ -263,7 +296,8 @@ class StageFilesProcessor {
   private void nextCheck(ProcessorContext ctx, ProgressRegisterImpl register, boolean hadErrors) {
 
     // make first categorization - split files into these with start offset higher than current
-    FileCategorizer fileCategories = FileCategorizer.build(ctx.files, register.offset.get());
+    FileCategorizer fileCategories =
+        FileCategorizer.build(ctx.files, register.offset.get(), filters);
 
     if (hadErrors) {
       ctx.progressTelemetry.updateStatsAfterError(
@@ -401,7 +435,29 @@ class StageFilesProcessor {
           pipeName,
           failedFiles.size(),
           String.join(", ", failedFiles));
-      conn.moveToTableStage(tableName, stageName, failedFiles);
+      // underlying code moves files one by one, so this is not going to impact performance.
+      // we have been observing scenarios, when the file listed at the start of the process was
+      // removed, or process didn't have access to it - this would cause cleaner to fail - so
+      // instead we process file one by one to
+      // ensure all the ones which are still present will be actually moved
+      failedFiles.stream()
+          .map(Lists::newArrayList)
+          .forEach(
+              failedFile -> {
+                try {
+                  conn.moveToTableStage(tableName, stageName, failedFile);
+                } catch (SnowflakeKafkaConnectorException e) {
+                  telemetryService.reportKafkaConnectFatalError(
+                      String.format("[cleaner for pipe %s]: %s", pipeName, e.getMessage()));
+                  LOGGER.warn(
+                      "Could not move file {} for pipe {} to table stage due to {} <{}>\n"
+                          + "File won't be tracked.",
+                      failedFile.get(0),
+                      pipeName,
+                      e.getMessage(),
+                      e.getClass().getName());
+                }
+              });
       stopTrackingFiles(failedFiles, fileCategorizer, ctx);
       onMoveFiles.accept(failedFiles.size());
     }
@@ -455,25 +511,96 @@ class StageFilesProcessor {
     }
   }
 
+  enum CleanerPrerequisites {
+    NONE,
+    TABLE_COMPATIBLE,
+    STAGE_COMPATIBLE,
+    PIPE_COMPATIBLE,
+  }
+
+  private SnowflakeTelemetryPipeCreation preparePipeStartTelemetryEvent(
+      String tableName, String stageName, String pipeName) {
+    SnowflakeTelemetryPipeCreation result =
+        new SnowflakeTelemetryPipeCreation(tableName, stageName, pipeName);
+    boolean canListFiles = false;
+
+    switch (checkPreRequisites()) {
+      case PIPE_COMPATIBLE:
+        result.setReusePipe(true);
+      case STAGE_COMPATIBLE:
+        result.setReuseStage(true);
+        canListFiles = true;
+      case TABLE_COMPATIBLE:
+        result.setReuseTable(true);
+      default:
+        break;
+    }
+
+    if (canListFiles) {
+      try {
+        List<String> stageFiles = conn.listStage(stageName, prefix);
+        result.setFileCountRestart(stageFiles.size());
+      } catch (Exception err) {
+        LOGGER.warn(
+            "could not list remote stage {} - {}<{}>\n{}",
+            stageName,
+            err.getMessage(),
+            err.getClass(),
+            err.getStackTrace());
+      }
+      // at this moment, file processor does not know how many files should be reprocessed...
+      result.setFileCountReprocessPurge(0);
+    }
+
+    return result;
+  }
+
+  private CleanerPrerequisites checkPreRequisites() {
+    CleanerPrerequisites result = CleanerPrerequisites.NONE;
+    Supplier<Boolean> tableCompatible =
+        () -> conn.tableExist(tableName) && conn.isTableCompatible(tableName);
+    Supplier<Boolean> stageCompatible =
+        () -> conn.stageExist(stageName) && conn.isStageCompatible(stageName);
+    Supplier<Boolean> pipeCompatible =
+        () -> conn.pipeExist(pipeName) && conn.isPipeCompatible(tableName, stageName, pipeName);
+
+    if (tableCompatible.get()) {
+      result = CleanerPrerequisites.TABLE_COMPATIBLE;
+      if (stageCompatible.get()) {
+        result = CleanerPrerequisites.STAGE_COMPATIBLE;
+        if (pipeCompatible.get()) {
+          result = CleanerPrerequisites.PIPE_COMPATIBLE;
+        }
+      }
+    }
+    return result;
+  }
+
   public static class FileCategorizer {
     private final Set<String> dirtyFiles = new HashSet<>();
     private final Map<String, IngestEntry> stageFiles = new HashMap<>();
     private final long currentOffset;
+    private final FilteringPredicates predicates;
 
-    static FileCategorizer build(Collection<String> files, long currentOffset) {
-      FileCategorizer categorizer = new FileCategorizer(currentOffset);
+    static FileCategorizer build(
+        Collection<String> files, long currentOffset, FilteringPredicates predicates) {
+      FileCategorizer categorizer = new FileCategorizer(currentOffset, predicates);
       files.forEach(categorizer::categorizeFile);
       return categorizer;
     }
 
-    private FileCategorizer(long startOffset) {
+    private FileCategorizer(long startOffset, FilteringPredicates predicates) {
       this.currentOffset = startOffset;
+      this.predicates = predicates;
     }
 
     private void categorizeFile(String file) {
       long fileOffset = FileNameUtils.fileNameToStartOffset(file);
       long timestamp = FileNameUtils.fileNameToTimeIngested(file);
-      if (fileOffset > currentOffset) {
+      // if the file is stale (fileOffset > currentOffset) but file hasn't matured yet - give it a
+      // chance to wait on stage. worst case - it will become stale and will be deleted slightly
+      // later...
+      if (fileOffset > currentOffset && predicates.matureTimestampPredicate.test(timestamp)) {
         dirtyFiles.add(file);
       } else {
         IngestEntry entry = new IngestEntry(InternalUtils.IngestedFileStatus.NOT_FOUND, timestamp);
@@ -575,6 +702,7 @@ class StageFilesProcessor {
   }
 
   static class FilteringPredicates {
+    @VisibleForTesting final Predicate<Long> matureTimestampPredicate;
     @VisibleForTesting final Predicate<Map.Entry<String, IngestEntry>> loadedFilesPredicate;
     @VisibleForTesting final Predicate<Map.Entry<String, IngestEntry>> matureFilePredicate;
     @VisibleForTesting final Predicate<Map.Entry<String, IngestEntry>> failedFilesPredicate;
@@ -592,8 +720,8 @@ class StageFilesProcessor {
       // do not purge or delete files 'younger' than one minute - they may not have been processed
       // yet
       long oneMinute = Duration.ofSeconds(60).toMillis();
-      matureFilePredicate =
-          entry -> entry.getValue().timestamp + oneMinute <= timeSupplier.currentTime();
+      matureTimestampPredicate = timestamp -> timestamp + oneMinute <= timeSupplier.currentTime();
+      matureFilePredicate = entry -> matureTimestampPredicate.test(entry.getValue().timestamp);
 
       // loaded files - simple case - their ingest status is LOADED
       loadedFilesPredicate =
