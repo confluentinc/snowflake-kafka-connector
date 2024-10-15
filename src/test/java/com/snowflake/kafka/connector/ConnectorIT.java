@@ -2,7 +2,9 @@ package com.snowflake.kafka.connector;
 
 import static com.snowflake.kafka.connector.Utils.NAME;
 import static com.snowflake.kafka.connector.Utils.TASK_ID;
-import static com.snowflake.kafka.connector.internal.TestUtils.*;
+import static com.snowflake.kafka.connector.internal.TestUtils.TEST_CONNECTOR_NAME;
+import static com.snowflake.kafka.connector.internal.TestUtils.getConf;
+import static com.snowflake.kafka.connector.internal.TestUtils.getConfWithOAuth;
 import static org.junit.Assert.assertEquals;
 
 import java.util.*;
@@ -90,7 +92,7 @@ public class ConnectorIT {
   }
 
   static Map<String, String> getCorrectConfig() {
-    Map<String, String> config = getConfForStreaming();
+    Map<String, String> config = getConf();
     config.remove(Utils.SF_WAREHOUSE);
     config.remove(Utils.NAME);
     config.remove(TASK_ID);
