@@ -22,6 +22,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.ResultSetMetaData;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -691,8 +692,11 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
 
       stmt = conn.prepareStatement(queryCheckPrivileges);
       ResultSet rs = stmt.executeQuery();
+      ResultSetMetaData rsmd = rs.getMetaData();
+      int columnsNumber = rsmd.getColumnCount();
       while (rs.next()) {
-        if (!rs.getString("grantee_name").equals(currentRole)) {
+        printRow(rs, rsmd, columnsNumber);
+        if (!rs.getString("grantee_name").equalsIgnoreCase(currentRole)) {
           continue;
         }
         String privilege = rs.getString("privilege");
@@ -758,7 +762,12 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     try {
       PreparedStatement stmt = conn.prepareStatement(queryCheckTablePrivileges);
       ResultSet rs = stmt.executeQuery();
+      ResultSetMetaData rsmd = rs.getMetaData();
+      int columnsNumber = rsmd.getColumnCount();
+
+      LOGGER.info("Getting grants on the table");
       while (rs.next()) {
+        printRow(rs, rsmd, columnsNumber);
         if (!rs.getString("grantee_name").equals(currentRole)) {
           continue;
         }
@@ -791,6 +800,16 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     } catch (SQLException e) {
       throw SnowflakeErrors.ERROR_2001.getException(e);
     }
+  }
+
+  private void printRow(ResultSet rs, ResultSetMetaData rsmd, int columnsNumber) throws SQLException {
+    StringBuilder row = new StringBuilder();
+    for (int i = 1; i <= columnsNumber; i++) {
+      if (i > 1) row.append(",  ");
+      String columnValue = rs.getString(i);
+      row.append(rsmd.getColumnName(i)).append(": ").append(columnValue);
+    }
+    LOGGER.info(row.toString());
   }
 
   @Override
@@ -1227,6 +1246,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     if (currentRole == null) {
       throw SnowflakeErrors.ERROR_2001.getException("Got current role as null");
     }
+
+    LOGGER.info("Got current role: {}", currentRole);
 
     return currentRole;
   }
