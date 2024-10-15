@@ -725,29 +725,29 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       rs.close();
       stmt.close();
       if (roleNotEncountered) {
-        LOGGER.info("Role {} not found in the grants", currentRole);
+        LOGGER.debug("Role {} not found in the grants", currentRole);
       }
 
       if (hasOwnershipPrivilege || hasAllPrivilege) {
-        LOGGER.info("Schema {} has required privileges", schemaName);
+        LOGGER.debug("Schema {} has required privileges", schemaName);
         return;
       }
 
       if (!hasCreateTablePrivilege) {
-        LOGGER.info("Schema {} doesn't have CREATE TABLE privilege", schemaName);
+        LOGGER.debug("Schema {} doesn't have CREATE TABLE privilege", schemaName);
       }
 
       if(ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
-        LOGGER.info("Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
+        LOGGER.debug("Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
         return;
       }
 
       // For SNOWPIPE ingestion, we need CREATE STAGE and CREATE PIPE privileges as well
       if (!hasCreateStagePrivilege) {
-        LOGGER.info("Schema {} doesn't have CREATE STAGE privilege", schemaName);
+        LOGGER.debug("Schema {} doesn't have CREATE STAGE privilege", schemaName);
       }
       if (!hasCreatePipePrivilege) {
-        LOGGER.info("Schema {} doesn't have CREATE PIPE privilege", schemaName);
+        LOGGER.debug("Schema {} doesn't have CREATE PIPE privilege", schemaName);
       }
 
       if (!hasCreateTablePrivilege || !hasCreateStagePrivilege || !hasCreatePipePrivilege) {
@@ -777,7 +777,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       int columnsNumber = rsmd.getColumnCount();
       boolean roleNotEncountered = true;
 
-      LOGGER.info("Getting grants on the table");
+      LOGGER.debug("Getting grants on the table");
       while (rs.next()) {
         printRow(rs, rsmd, columnsNumber);
         if (!rs.getString("grantee_name").equals(currentRole)) {
@@ -800,16 +800,16 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       stmt.close();
 
       if (roleNotEncountered) {
-        LOGGER.info("Role {} not found in the grants", currentRole);
+        LOGGER.debug("Role {} not found in the grants", currentRole);
       }
 
       if (hasOwnershipPrivilege || hasAllPrivileges) {
-        LOGGER.info("Table {} has either OWNERSHIP or ALL privileges", tableName);
+        LOGGER.debug("Table {} has either OWNERSHIP or ALL privileges", tableName);
         return;
       }
 
       if (!hasInsertPrivilege) { // only checking the bare minimum privilege we need
-        LOGGER.info("Table {} doesn't have INSERT privilege", tableName);
+        LOGGER.debug("Table {} doesn't have INSERT privilege", tableName);
         throw SnowflakeErrors.ERROR_2001.getException("Missing INSERT privilege on table " + tableName);
       }
 
@@ -827,7 +827,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       String columnValue = rs.getString(i);
       row.append(rsmd.getColumnName(i)).append(": ").append(columnValue);
     }
-    LOGGER.info(row.toString());
+    LOGGER.debug(row.toString());
   }
 
   @Override
@@ -1265,7 +1265,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       throw SnowflakeErrors.ERROR_2001.getException("Got current role as null");
     }
 
-    LOGGER.info("Got current role: {}", currentRole);
+    LOGGER.debug("Got current role: {}", currentRole);
 
     return currentRole;
   }
