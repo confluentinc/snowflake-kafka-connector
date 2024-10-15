@@ -694,11 +694,15 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       ResultSet rs = stmt.executeQuery();
       ResultSetMetaData rsmd = rs.getMetaData();
       int columnsNumber = rsmd.getColumnCount();
+
+      boolean roleNotEncountered = true;
+
       while (rs.next()) {
         printRow(rs, rsmd, columnsNumber);
         if (!rs.getString("grantee_name").equalsIgnoreCase(currentRole)) {
           continue;
         }
+        roleNotEncountered = false;
         String privilege = rs.getString("privilege");
         if (privilege.equalsIgnoreCase("OWNERSHIP")) {
           hasOwnershipPrivilege = true;
@@ -720,6 +724,9 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
       rs.close();
       stmt.close();
+      if (roleNotEncountered) {
+        LOGGER.info("Role {} not found in the grants", currentRole);
+      }
 
       if (hasOwnershipPrivilege || hasAllPrivilege) {
         LOGGER.info("Schema {} has required privileges", schemaName);
@@ -727,7 +734,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
 
       if (!hasCreateTablePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE TABLE privilege on schema " + schemaName);
+        LOGGER.info("Schema {} doesn't have CREATE TABLE privilege", schemaName);
       }
 
       if(ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
@@ -737,10 +744,14 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
 
       // For SNOWPIPE ingestion, we need CREATE STAGE and CREATE PIPE privileges as well
       if (!hasCreateStagePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE STAGE privilege on schema " + schemaName);
+        LOGGER.info("Schema {} doesn't have CREATE STAGE privilege", schemaName);
       }
       if (!hasCreatePipePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE PIPE privilege on schema " + schemaName);
+        LOGGER.info("Schema {} doesn't have CREATE PIPE privilege", schemaName);
+      }
+
+      if (!hasCreateTablePrivilege || !hasCreateStagePrivilege || !hasCreatePipePrivilege) {
+        throw SnowflakeErrors.ERROR_2001.getException("Missing required privileges on schema " + schemaName);
       }
 
       LOGGER.info("Schema {} has required privileges", schemaName);
@@ -798,6 +809,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
 
       if (!hasInsertPrivilege) { // only checking the bare minimum privilege we need
+        LOGGER.info("Table {} doesn't have INSERT privilege", tableName);
         throw SnowflakeErrors.ERROR_2001.getException("Missing INSERT privilege on table " + tableName);
       }
 
