@@ -764,6 +764,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       ResultSet rs = stmt.executeQuery();
       ResultSetMetaData rsmd = rs.getMetaData();
       int columnsNumber = rsmd.getColumnCount();
+      boolean roleNotEncountered = true;
 
       LOGGER.info("Getting grants on the table");
       while (rs.next()) {
@@ -771,6 +772,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
         if (!rs.getString("grantee_name").equals(currentRole)) {
           continue;
         }
+        roleNotEncountered = false;
         String privilege = rs.getString("privilege");
         if (privilege.equalsIgnoreCase("OWNERSHIP")) {
           hasOwnershipPrivilege = true;
@@ -785,6 +787,10 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
       rs.close();
       stmt.close();
+
+      if (roleNotEncountered) {
+        LOGGER.info("Role {} not found in the grants", currentRole);
+      }
 
       if (hasOwnershipPrivilege || hasAllPrivileges) {
         LOGGER.info("Table {} has either OWNERSHIP or ALL privileges", tableName);
