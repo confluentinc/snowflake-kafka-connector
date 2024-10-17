@@ -1,5 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
+import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SIZE_BYTES;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SUB_DOMAIN;
@@ -8,8 +10,10 @@ import static org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
+import com.snowflake.kafka.connector.config.TopicToTableModeExtractor;
 import com.snowflake.kafka.connector.internal.metrics.MetricsJmxReporter;
 import com.snowflake.kafka.connector.internal.metrics.MetricsUtil;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeCreation;
@@ -25,16 +29,22 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -78,6 +88,18 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   // If this is true, we will enable Mbean for required classes and emit JMX metrics for monitoring
   private boolean enableCustomJMXMonitoring = SnowflakeSinkConnectorConfig.JMX_OPT_DEFAULT;
 
+  // default is false, unless the configuration provided true
+  // if this is true, the service will use new file cleaner module
+  private boolean useStageFilesProcessor = false;
+  @Nullable private ScheduledExecutorService cleanerServiceExecutor;
+
+  // if enabled, the prefix for stage files for a given table will contain information about source
+  // topic hashcode. This is required in scenarios when multiple topics are configured to ingest
+  // data into a single table.
+  private boolean enableStageFilePrefixExtension = false;
+
+  private final Set<String> perTableWarningNotifications = new HashSet<>();
+
   SnowflakeSinkServiceV1(SnowflakeConnectionService conn) {
     if (conn == null || conn.isClosed()) {
       throw SnowflakeErrors.ERROR_5010.getException();
@@ -90,7 +112,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     this.conn = conn;
     isStopped = false;
     this.telemetryService = conn.getTelemetryClient();
-    this.recordService = new RecordService(this.telemetryService);
+    this.recordService = new RecordService();
     this.topic2TableMap = new HashMap<>();
 
     // Setting the default value in constructor
@@ -117,7 +139,36 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       pipes.put(
           nameIndex,
-          new ServiceContext(tableName, stageName, pipeName, conn, topicPartition.partition()));
+          new ServiceContext(
+              tableName,
+              stageName,
+              pipeName,
+              topicPartition.topic(),
+              conn,
+              topicPartition.partition(),
+              cleanerServiceExecutor));
+
+      if (enableStageFilePrefixExtension
+          && TopicToTableModeExtractor.determineTopic2TableMode(
+                  topic2TableMap, topicPartition.topic())
+              == TopicToTableModeExtractor.Topic2TableMode.MANY_TOPICS_SINGLE_TABLE) {
+        // if snowflake.snowpipe.stageFileNameExtensionEnabled is enabled and table is used by
+        // multiple topics, we may end up in a situation, when data from different topics may have
+        // ended up in the same bucket - after enabling this fix, that data will stay on stage
+        // forever - we want to give user information about such situation and we will list all
+        // files, which wouldn't be processed by connector anymore.
+        String key = String.format("%s-%d", tableName, topicPartition.partition());
+        synchronized (perTableWarningNotifications) {
+          if (!perTableWarningNotifications.contains(key)) {
+            perTableWarningNotifications.add(key);
+            ForkJoinPool.commonPool()
+                .submit(
+                    () ->
+                        checkTableStageForObsoleteFiles(
+                            stageName, tableName, topicPartition.partition()));
+          }
+        }
+      }
     }
   }
 
@@ -131,7 +182,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   public void insert(final Collection<SinkRecord> records) {
     // note that records can be empty
     for (SinkRecord record : records) {
-      // check if need to handle null value records
+      // check if it needs to handle null value records
       if (recordService.shouldSkipNullValue(record, behaviorOnNullValues)) {
         continue;
       }
@@ -230,7 +281,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   }
 
   @Override
-  public void setIsStoppedToTrue() {
+  public void stop() {
+    if (cleanerServiceExecutor != null) {
+      cleanerServiceExecutor.shutdown();
+      cleanerServiceExecutor = null;
+    }
     this.isStopped = true; // release all cleaner and flusher threads
   }
 
@@ -311,6 +366,15 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     this.behaviorOnNullValues = behavior;
   }
 
+  // enable use of new stage files processor
+  void enableStageFilesProcessor(int threadCount) {
+    this.useStageFilesProcessor = true;
+    if (cleanerServiceExecutor != null) {
+      cleanerServiceExecutor.shutdown();
+    }
+    cleanerServiceExecutor = new ScheduledThreadPoolExecutor(Math.max(1, threadCount));
+  }
+
   @Override
   public void setCustomJMXMetrics(boolean enableJMX) {
     this.enableCustomJMXMonitoring = enableJMX;
@@ -343,6 +407,37 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     return topic + "_" + partition;
   }
 
+  public void configureSingleTableLoadFromMultipleTopics(boolean fixEnabled) {
+    enableStageFilePrefixExtension = fixEnabled;
+  }
+
+  /**
+   * util method, checks if there are stage files present matching "appName/table/partition/" file
+   * name format, if they are - lists them and asks user to manually delete them. The file format
+   * for tables used by multiple topics is "appName/table/{hashOf(tableName) << 16 | 0x8000 |
+   * partition}/"
+   */
+  private void checkTableStageForObsoleteFiles(String stageName, String tableName, int partition) {
+    try {
+      String prefix = FileNameUtils.filePrefix(conn.getConnectorName(), tableName, null, partition);
+      List<String> stageFiles = conn.listStage(stageName, prefix);
+      if (!stageFiles.isEmpty()) {
+        LOGGER.warn(
+            "NOTE: For table {} there are {} files matching {} prefix.",
+            tableName,
+            stageFiles.size(),
+            prefix);
+        stageFiles.sort(String::compareToIgnoreCase);
+        LOGGER.warn("Please consider manually deleting these files:");
+        for (List<String> names : Lists.partition(stageFiles, 10)) {
+          LOGGER.warn(String.join(", ", names));
+        }
+      }
+    } catch (Exception err) {
+      LOGGER.warn("could not query stage - {}<{}>", err.getMessage(), err.getClass().getName());
+    }
+  }
+
   private class ServiceContext {
     private final String tableName;
     private final String stageName;
@@ -364,10 +459,13 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private long previousFlushTimeStamp;
 
     // threads
-    private final ExecutorService cleanerExecutor;
-    private final ExecutorService reprocessCleanerExecutor;
+    @Nullable private final ExecutorService cleanerExecutor;
+    @Nullable private final ExecutorService reprocessCleanerExecutor;
     private final Lock bufferLock;
     private final Lock fileListLock;
+    // v2 file cleaner logic - either cleaner executors or stageFileProcessorClient is used
+    private final boolean useStageFilesProcessor;
+    @Nullable private final StageFilesProcessor.ProgressRegister stageFileProcessorClient;
 
     // telemetry
     private final SnowflakeTelemetryPipeStatus pipeStatus;
@@ -389,8 +487,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         String tableName,
         String stageName,
         String pipeName,
+        String topicName,
         SnowflakeConnectionService conn,
-        int partition) {
+        int partition,
+        ScheduledExecutorService v2CleanerExecutor) {
       this.pipeName = pipeName;
       this.tableName = tableName;
       this.stageName = stageName;
@@ -399,7 +499,30 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       this.cleanerFileNames = new LinkedList<>();
       this.buffer = new SnowpipeBuffer();
       this.ingestionService = conn.buildIngestService(stageName, pipeName);
-      this.prefix = FileNameUtils.filePrefix(conn.getConnectorName(), tableName, partition);
+      // SNOW-1642799 = if multiple topics load data into single table, we need to ensure prefix is
+      // unique per table - otherwise, file cleaners for different channels may run into race
+      // condition
+      TopicToTableModeExtractor.Topic2TableMode mode =
+          determineTopic2TableMode(topic2TableMap, topicName);
+      if (mode == TopicToTableModeExtractor.Topic2TableMode.MANY_TOPICS_SINGLE_TABLE
+          && !enableStageFilePrefixExtension) {
+        LOGGER.warn(
+            "The table {} is used as ingestion target by multiple topics - including this one"
+                + " '{}'.\n"
+                + "To prevent potential data loss consider setting"
+                + " '"
+                + SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED
+                + "' to true",
+            topicName,
+            tableName);
+      }
+      if (mode == TopicToTableModeExtractor.Topic2TableMode.MANY_TOPICS_SINGLE_TABLE
+          && enableStageFilePrefixExtension) {
+        this.prefix =
+            FileNameUtils.filePrefix(conn.getConnectorName(), tableName, topicName, partition);
+      } else {
+        this.prefix = FileNameUtils.filePrefix(conn.getConnectorName(), tableName, "", partition);
+      }
       this.processedOffset = new AtomicLong(-1);
       this.flushedOffset = new AtomicLong(-1);
       this.committedOffset = new AtomicLong(0);
@@ -413,10 +536,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       this.pipeStatus =
           new SnowflakeTelemetryPipeStatus(
-              tableName, stageName, pipeName, enableCustomJMXMonitoring, this.metricsJmxReporter);
-
-      this.cleanerExecutor = Executors.newSingleThreadExecutor();
-      this.reprocessCleanerExecutor = Executors.newSingleThreadExecutor();
+              tableName,
+              stageName,
+              pipeName,
+              partition,
+              enableCustomJMXMonitoring,
+              this.metricsJmxReporter);
 
       if (enableCustomJMXMonitoring) {
         partitionBufferCountHistogram =
@@ -427,6 +552,31 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
                 MetricsUtil.constructMetricName(pipeName, BUFFER_SUB_DOMAIN, BUFFER_SIZE_BYTES));
         LOGGER.info(
             "Registered {} metrics for pipeName:{}", metricRegistry.getMetrics().size(), pipeName);
+      }
+
+      this.useStageFilesProcessor = v2CleanerExecutor != null;
+      if (useStageFilesProcessor) {
+
+        StageFilesProcessor processor =
+            new StageFilesProcessor(
+                pipeName,
+                tableName,
+                stageName,
+                prefix,
+                topicName,
+                partition,
+                conn,
+                ingestionService,
+                pipeStatus,
+                telemetryService,
+                v2CleanerExecutor);
+        this.stageFileProcessorClient = processor.trackFilesAsync();
+        this.cleanerExecutor = null;
+        this.reprocessCleanerExecutor = null;
+      } else {
+        this.cleanerExecutor = Executors.newSingleThreadExecutor();
+        this.reprocessCleanerExecutor = Executors.newSingleThreadExecutor();
+        this.stageFileProcessorClient = null;
       }
 
       LOGGER.info("pipe: {} - service started", pipeName);
@@ -442,11 +592,14 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       // recover will only check pipe status and create pipe if it does not exist.
       recover(pipeCreation);
 
-      try {
-        startCleaner(recordOffset, pipeCreation);
+      if (!useStageFilesProcessor) {
+        try {
+          startCleaner(recordOffset, pipeCreation);
+        } catch (Exception e) {
+          LOGGER.warn("Cleaner and Flusher threads shut down before initialization");
+        }
+        // with v2 cleaner enabled, this event is raised by the cleaner itself
         telemetryService.reportKafkaPartitionStart(pipeCreation);
-      } catch (Exception e) {
-        LOGGER.warn("Cleaner and Flusher threads shut down before initialization");
       }
     }
 
@@ -638,6 +791,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
             bufferLock.unlock();
           }
 
+          if (useStageFilesProcessor) {
+            stageFileProcessorClient.newOffset(record.kafkaOffset());
+          }
+
           if (tmpBuff != null) {
             flush(tmpBuff);
           }
@@ -799,7 +956,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       fileListLock.lock();
       try {
         fileNames.add(fileName);
-        cleanerFileNames.add(fileName);
+        if (useStageFilesProcessor) {
+          stageFileProcessorClient.registerNewStageFile(fileName);
+        } else {
+          cleanerFileNames.add(fileName);
+        }
       } finally {
         fileListLock.unlock();
       }
@@ -957,10 +1118,14 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     }
 
     private void close() {
-      try {
-        stopCleaner();
-      } catch (Exception e) {
-        LOGGER.warn("Failed to terminate Cleaner or Flusher");
+      if (stageFileProcessorClient != null) {
+        stageFileProcessorClient.close();
+      } else {
+        try {
+          stopCleaner();
+        } catch (Exception e) {
+          LOGGER.warn("Failed to terminate Cleaner or Flusher");
+        }
       }
       ingestionService.close();
       telemetryService.reportKafkaPartitionUsage(pipeStatus, true);

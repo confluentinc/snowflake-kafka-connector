@@ -5,18 +5,20 @@ import static com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceV
 import static com.snowflake.kafka.connector.internal.TestUtils.TEST_CONNECTOR_NAME;
 import static com.snowflake.kafka.connector.internal.streaming.ChannelMigrationResponseCode.OFFSET_MIGRATION_SOURCE_CHANNEL_DOES_NOT_EXIST;
 import static com.snowflake.kafka.connector.internal.streaming.ChannelMigrationResponseCode.isChannelMigrationResponseSuccessful;
-import static com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel.generateChannelNameFormatV2;
 
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.dlq.InMemoryKafkaRecordErrorReporter;
+import com.snowflake.kafka.connector.internal.streaming.BufferedTopicPartitionChannel;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetTokenResponseDTO;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrationResponseCode;
 import com.snowflake.kafka.connector.internal.streaming.InMemorySinkTaskContext;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.SnowflakeSinkServiceV2;
 import com.snowflake.kafka.connector.internal.streaming.StreamingBufferThreshold;
-import com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel;
+import com.snowflake.kafka.connector.internal.streaming.channel.TopicPartitionChannel;
+import com.snowflake.kafka.connector.internal.streaming.schemaevolution.InsertErrorMapper;
+import com.snowflake.kafka.connector.internal.streaming.schemaevolution.snowflake.SnowflakeSchemaEvolutionService;
 import com.snowflake.kafka.connector.internal.streaming.telemetry.SnowflakeTelemetryServiceV2;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryServiceV1;
 import java.sql.ResultSet;
@@ -32,9 +34,12 @@ import net.snowflake.client.jdbc.internal.apache.http.HttpHeaders;
 import net.snowflake.client.jdbc.internal.apache.http.client.methods.HttpPost;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class ConnectionServiceIT {
   private final SnowflakeConnectionService conn = TestUtils.getConnectionService();
@@ -44,6 +49,7 @@ public class ConnectionServiceIT {
   private final String pipeName = TestUtils.randomPipeName();
   private final String tableName1 = TestUtils.randomTableName();
   private final String stageName1 = TestUtils.randomStageName();
+  private final String topicName = TestUtils.randomTopicName();
 
   @Test
   public void testEncryptedKey() {
@@ -54,6 +60,7 @@ public class ConnectionServiceIT {
   }
 
   @Test
+  @Disabled("OAuth tests are temporary disabled")
   public void testOAuthAZ() {
     Map<String, String> confWithOAuth = TestUtils.getConfWithOAuth();
     assert confWithOAuth.containsKey(Utils.SF_OAUTH_CLIENT_ID);
@@ -103,12 +110,12 @@ public class ConnectionServiceIT {
       for (Header h : httpPostInsertRequest.getAllHeaders()) {
         if (h.getName().equalsIgnoreCase(HttpHeaders.USER_AGENT)) {
           System.out.println(h);
-          Assert.assertTrue(h.getValue().contains(userAgentExpectedSuffixInHttpHeader));
-          Assert.assertTrue(h.getValue().endsWith(userAgentExpectedSuffixInHttpHeader));
+          Assertions.assertTrue(h.getValue().contains(userAgentExpectedSuffixInHttpHeader));
+          Assertions.assertTrue(h.getValue().endsWith(userAgentExpectedSuffixInHttpHeader));
         }
       }
     } catch (Exception e) {
-      Assert.fail("Should not throw an exception:" + e.getMessage());
+      Assertions.fail("Should not throw an exception:" + e.getMessage());
     }
   }
 
@@ -191,7 +198,7 @@ public class ConnectionServiceIT {
         .equals("1");
   }
 
-  @After
+  @AfterEach
   public void afterEach() {
     TestUtils.dropTable(tableName);
     conn.dropPipe(pipeName);
@@ -243,7 +250,8 @@ public class ConnectionServiceIT {
     // stage exists
     assert conn.stageExist(stageName);
     // put a file to stage
-    String fileName = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 123, 456);
+    String fileName =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, "topic", 1, 123, 456);
     conn.put(stageName, fileName, "test");
     // list stage with prefix
     List<String> files = conn.listStage(stageName, TEST_CONNECTOR_NAME);
@@ -332,17 +340,23 @@ public class ConnectionServiceIT {
     // stage exists
     assert conn.stageExist(stageName);
     // put two files to stage
-    String fileName1 = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 1, 3);
+    String fileName1 =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, topicName, 1, 1, 3);
     conn.put(stageName, fileName1, "test");
-    String fileName2 = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 4, 6);
+    String fileName2 =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, topicName, 1, 4, 6);
     conn.put(stageName, fileName2, "test");
-    String fileName3 = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 14, 16);
+    String fileName3 =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, topicName, 1, 14, 16);
     conn.put(stageName, fileName3, "test");
-    String fileName4 = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 24, 26);
+    String fileName4 =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, topicName, 1, 24, 26);
     conn.put(stageName, fileName4, "test");
-    String fileName5 = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 34, 36);
+    String fileName5 =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, topicName, 1, 34, 36);
     conn.put(stageName, fileName5, "test");
-    String fileName6 = FileNameUtils.fileName(TEST_CONNECTOR_NAME, tableName, 1, 44, 46);
+    String fileName6 =
+        FileNameTestUtils.fileName(TEST_CONNECTOR_NAME, tableName, topicName, 1, 44, 46);
     conn.put(stageName, fileName6, "test");
     // list stage with prefix
     List<String> files = conn.listStage(stageName, TEST_CONNECTOR_NAME);
@@ -425,24 +439,26 @@ public class ConnectionServiceIT {
     assert service.isClosed();
   }
 
-  @Test
-  public void testStreamingChannelOffsetMigration() {
-    Map<String, String> testConfig = TestUtils.getConfForStreaming();
+  @ParameterizedTest(name = "useSingleBuffer: {0}")
+  @ValueSource(booleans = {false, true})
+  public void testStreamingChannelOffsetMigration(boolean useSingleBuffer) {
+    Map<String, String> testConfig = TestUtils.getConfForStreaming(useSingleBuffer);
     SnowflakeConnectionService conn =
         SnowflakeConnectionServiceFactory.builder().setProperties(testConfig).build();
     conn.createTable(tableName);
     final String channelNameFormatV1 = SnowflakeSinkServiceV2.partitionChannelKey(tableName, 0);
 
     final String sourceChannelName =
-        generateChannelNameFormatV2(channelNameFormatV1, TEST_CONNECTOR_NAME);
+        TopicPartitionChannel.generateChannelNameFormatV2(channelNameFormatV1, TEST_CONNECTOR_NAME);
     final String destinationChannelName = channelNameFormatV1;
 
     // ### TEST 1 - Both channels doesnt exist
     ChannelMigrateOffsetTokenResponseDTO channelMigrateOffsetTokenResponseDTO =
         conn.migrateStreamingChannelOffsetToken(
             tableName, sourceChannelName, destinationChannelName);
-    Assert.assertTrue(isChannelMigrationResponseSuccessful(channelMigrateOffsetTokenResponseDTO));
-    Assert.assertEquals(
+    Assertions.assertTrue(
+        isChannelMigrationResponseSuccessful(channelMigrateOffsetTokenResponseDTO));
+    Assertions.assertEquals(
         OFFSET_MIGRATION_SOURCE_CHANNEL_DOES_NOT_EXIST.getStatusCode(),
         channelMigrateOffsetTokenResponseDTO.getResponseCode());
 
@@ -459,7 +475,7 @@ public class ConnectionServiceIT {
 
     try {
       // ### TEST 3 - Source Channel (v2 channel doesnt exist)
-      Map<String, String> config = TestUtils.getConfForStreaming();
+      Map<String, String> config = TestUtils.getConfForStreaming(useSingleBuffer);
       SnowflakeSinkConnectorConfig.setDefaultValues(config);
       TopicPartition topicPartition = new TopicPartition(tableName, 0);
 
@@ -489,8 +505,9 @@ public class ConnectionServiceIT {
       channelMigrateOffsetTokenResponseDTO =
           conn.migrateStreamingChannelOffsetToken(
               tableName, sourceChannelName, destinationChannelName);
-      Assert.assertTrue(isChannelMigrationResponseSuccessful(channelMigrateOffsetTokenResponseDTO));
-      Assert.assertEquals(
+      Assertions.assertTrue(
+          isChannelMigrationResponseSuccessful(channelMigrateOffsetTokenResponseDTO));
+      Assertions.assertEquals(
           OFFSET_MIGRATION_SOURCE_CHANNEL_DOES_NOT_EXIST.getStatusCode(),
           channelMigrateOffsetTokenResponseDTO.getResponseCode());
 
@@ -506,7 +523,7 @@ public class ConnectionServiceIT {
       // Ctor of TopicPartitionChannel tries to open the channel.
       SnowflakeSinkServiceV2 snowflakeSinkServiceV2 = (SnowflakeSinkServiceV2) service;
       TopicPartitionChannel newChannelFormatV2 =
-          new TopicPartitionChannel(
+          new BufferedTopicPartitionChannel(
               snowflakeSinkServiceV2.getStreamingIngestClient(),
               topicPartition,
               sourceChannelName,
@@ -516,11 +533,15 @@ public class ConnectionServiceIT {
               new InMemoryKafkaRecordErrorReporter(),
               new InMemorySinkTaskContext(Collections.singleton(topicPartition)),
               conn,
-              conn.getTelemetryClient());
+              conn.getTelemetryClient(),
+              new SnowflakeSchemaEvolutionService(conn),
+              new InsertErrorMapper());
 
       List<SinkRecord> recordsInChannelFormatV2 =
           TestUtils.createJsonStringSinkRecords(0, noOfRecords * 2, tableName, 0);
-      recordsInChannelFormatV2.forEach(newChannelFormatV2::insertRecordToBuffer);
+      for (int idx = 0; idx < recordsInChannelFormatV2.size(); idx++) {
+        newChannelFormatV2.insertRecord(recordsInChannelFormatV2.get(idx), idx == 0);
+      }
 
       TestUtils.assertWithRetry(
           () -> newChannelFormatV2.getOffsetSafeToCommitToKafka() == (noOfRecords * 2), 5, 5);
@@ -529,7 +550,7 @@ public class ConnectionServiceIT {
       TestUtils.assertWithRetry(
           () -> service.getOffset(new TopicPartition(tableName, 0)) == (noOfRecords * 2), 5, 5);
     } catch (Exception e) {
-      Assert.fail("Should not throw an exception:" + e.getMessage());
+      Assertions.fail("Should not throw an exception:" + e.getMessage());
     } finally {
       TestUtils.dropTable(tableName);
     }

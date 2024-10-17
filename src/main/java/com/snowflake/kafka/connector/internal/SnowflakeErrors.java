@@ -128,6 +128,22 @@ public enum SnowflakeErrors {
           + " parameter when using oauth as authenticator"),
   ERROR_0029(
       "0029", "Invalid authenticator", "Authenticator should be either oauth or snowflake_jwt"),
+  ERROR_0030(
+      "0030",
+      String.format(
+          "Invalid %s map",
+          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP),
+      String.format(
+          "Failed to parse %s map",
+          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP)),
+  ERROR_0031(
+      "0031",
+      "Failed to combine JDBC properties",
+      "One of snowflake.jdbc.map property overrides other jdbc property"),
+  ERROR_0032(
+      "0032",
+      "Iceberg table does not exist or is in invalid format",
+      "Check Snowflake Kafka Connector docs for details"),
   // Snowflake connection issues 1---
   ERROR_1001(
       "1001",
@@ -143,6 +159,10 @@ public enum SnowflakeErrors {
       "Either the current connection is closed or hasn't connect to snowflake" + " server"),
   ERROR_1004(
       "1004", "Fetching OAuth token fail", "Fail to get OAuth token from authorization server"),
+  ERROR_1005(
+      "1005",
+      "Task failed due to authorization error",
+      "Set `enable.task.fail.on.authorization.errors=false` to avoid this behavior"),
   // SQL issues 2---
   ERROR_2001(
       "2001", "Failed to prepare SQL statement", "SQL Exception, reported by Snowflake JDBC"),
@@ -196,6 +216,16 @@ public enum SnowflakeErrors {
       "2017",
       "Failed to check schema evolution permission",
       "Failed to check schema evolution permission"),
+
+  ERROR_2018(
+      "2018",
+      "Failed to alter RECORD_METADATA column type for iceberg",
+      "Failed to alter RECORD_METADATA column type to required format for iceberg."),
+  ERROR_2019(
+      "2019",
+      "Failed to add RECORD_METADATA column for iceberg",
+      "Failed to add RECORD_METADATA column with required format for iceberg."),
+
   // Snowpipe related issues 3---
   ERROR_3001("3001", "Failed to ingest file", "Exception reported by Ingest SDK"),
 
@@ -303,7 +333,13 @@ public enum SnowflakeErrors {
       "5023",
       "Failure in Streaming Channel Offset Migration Response",
       "Streaming Channel Offset Migration from Source to Destination Channel has no/invalid"
-          + " response, please contact Snowflake Support");
+          + " response, please contact Snowflake Support"),
+  ERROR_5024(
+      "5024",
+      "Timeout while waiting for file cleaner to start",
+      "Could not allocate thread for file cleaner to start processing in given time. If problem"
+          + " persists, please try setting snowflake.snowpipe.use_new_cleaner to false"),
+  ;
 
   // properties
 

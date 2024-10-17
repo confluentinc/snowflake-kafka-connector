@@ -47,7 +47,44 @@ public class SnowflakeSinkServiceFactory {
         IngestionMethodConfig ingestionType,
         Map<String, String> connectorConfig) {
       if (ingestionType == IngestionMethodConfig.SNOWPIPE) {
-        this.service = new SnowflakeSinkServiceV1(conn);
+        SnowflakeSinkServiceV1 svc = new SnowflakeSinkServiceV1(conn);
+        this.service = svc;
+        boolean useStageFilesProcessor =
+            SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_FIX_ENABLED_DEFAULT;
+        int threadCount = SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT;
+
+        if (connectorConfig != null
+            && connectorConfig.containsKey(
+                SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_FIX_ENABLED)) {
+          useStageFilesProcessor =
+              Boolean.parseBoolean(
+                  connectorConfig.get(
+                      SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_FIX_ENABLED));
+        }
+        if (connectorConfig != null
+            && connectorConfig.containsKey(
+                SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_THREADS)) {
+          threadCount =
+              Integer.parseInt(
+                  connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWPIPE_FILE_CLEANER_THREADS));
+        }
+
+        if (useStageFilesProcessor) {
+          svc.enableStageFilesProcessor(threadCount);
+        }
+
+        boolean extendedStageFileNameFix =
+            SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED_DEFAULT;
+        if (connectorConfig != null
+            && connectorConfig.containsKey(
+                SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED)) {
+          extendedStageFileNameFix =
+              Boolean.parseBoolean(
+                  connectorConfig.get(
+                      SnowflakeSinkConnectorConfig
+                          .SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED));
+        }
+        svc.configureSingleTableLoadFromMultipleTopics(extendedStageFileNameFix);
       } else {
         this.service = new SnowflakeSinkServiceV2(conn, connectorConfig);
       }

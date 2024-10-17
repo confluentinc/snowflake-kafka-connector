@@ -16,7 +16,7 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+import static com.snowflake.kafka.connector.internal.streaming.channel.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
@@ -89,6 +89,9 @@ public class SnowflakeSinkTask extends SinkTask {
 
   private IngestionMethodConfig ingestionMethodConfig;
 
+  private final SnowflakeSinkTaskAuthorizationExceptionTracker authorizationExceptionTracker =
+      new SnowflakeSinkTaskAuthorizationExceptionTracker();
+
   /** default constructor, invoked by kafka connect framework */
   public SnowflakeSinkTask() {
     DYNAMIC_LOGGER = new KCLogger(this.getClass().getName());
@@ -155,6 +158,8 @@ public class SnowflakeSinkTask extends SinkTask {
 
     // generate topic to table map
     this.topic2table = getTopicToTableMap(parsedConfig);
+
+    this.authorizationExceptionTracker.updateStateOnTaskStart(parsedConfig);
 
     // generate metadataConfig table
     SnowflakeMetadataConfig metadataConfig = new SnowflakeMetadataConfig(parsedConfig);
@@ -236,11 +241,14 @@ public class SnowflakeSinkTask extends SinkTask {
   /**
    * stop method is invoked only once outstanding calls to other methods have completed. e.g. after
    * current put, and a final preCommit has completed.
+   *
+   * <p>Note that calling this method does not perform synchronous cleanup in Snowpipe based
+   * implementation
    */
   @Override
   public void stop() {
     if (this.sink != null) {
-      this.sink.setIsStoppedToTrue(); // close cleaner thread
+      this.sink.stop();
     }
 
     this.DYNAMIC_LOGGER.info(
@@ -291,6 +299,8 @@ public class SnowflakeSinkTask extends SinkTask {
    */
   @Override
   public void put(final Collection<SinkRecord> records) {
+    this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
+
     final long recordSize = records.size();
     if (enableRebalancing && recordSize > 0) {
       processRebalancingTest();
@@ -342,6 +352,7 @@ public class SnowflakeSinkTask extends SinkTask {
             }
           });
     } catch (Exception e) {
+      this.authorizationExceptionTracker.reportPrecommitException(e);
       this.DYNAMIC_LOGGER.error("PreCommit error: {} ", e.getMessage());
     }
 
