@@ -63,8 +63,10 @@ public class MetricsJmxReporter {
   @VisibleForTesting
   static ObjectName getObjectName(String connectorName, String jmxDomain, String metricName) {
     try {
+      LOGGER.info("Connector Name : {}", connectorName);
       StringBuilder sb =
           new StringBuilder(jmxDomain).append(":connector=").append(connectorName).append(',');
+
 
       // each metric name will be in a form pipeName/subDomain/metricName
       Iterator<String> tokens = Splitter.on("/").split(metricName).iterator();
@@ -76,6 +78,9 @@ public class MetricsJmxReporter {
 
       // append metric name
       sb.append(",name=").append(tokens.next());
+
+      LOGGER.info("Object Name: {}", sb.toString());
+      LOGGER.warn("Created Object name {} for MetricName : {}", sb.toString(), metricName);
 
       return new ObjectName(sb.toString());
     } catch (MalformedObjectNameException e) {

@@ -1077,6 +1077,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
      */
     private void computeBufferMetrics(final SnowpipeBuffer buffer) {
       if (enableCustomJMXMonitoring) {
+        LOGGER.info("Updating buffer size and record count metrics for pipe:{}", pipeName);
+        LOGGER.info(
+            "New Buffer size in bytes : {}, Record count : {}",
+            buffer.getBufferSizeBytes(),
+            buffer.getNumOfRecords());
         partitionBufferSizeBytesHistogram.update(buffer.getBufferSizeBytes());
         partitionBufferCountHistogram.update(buffer.getNumOfRecords());
       }
