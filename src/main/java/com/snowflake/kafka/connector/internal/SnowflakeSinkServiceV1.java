@@ -1,21 +1,20 @@
 package com.snowflake.kafka.connector.internal;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
-import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
-import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
-import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SIZE_BYTES;
-import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SUB_DOMAIN;
-import static org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE;
-
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.config.TopicToTableModeExtractor;
+import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
+import static com.snowflake.kafka.connector.internal.FileNameUtils.prepareFilesOffsetsLogString;
 import com.snowflake.kafka.connector.internal.metrics.MetricsJmxReporter;
 import com.snowflake.kafka.connector.internal.metrics.MetricsUtil;
+import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
+import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SIZE_BYTES;
+import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SUB_DOMAIN;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeCreation;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeStatus;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
@@ -28,7 +27,6 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -47,6 +45,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.kafka.common.TopicPartition;
+import static org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 
@@ -1077,44 +1076,15 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
           });
     }
 
-    protected String prepareFilesLogString(List<String> files, String fileType) {
-      StringBuilder logString = new StringBuilder();
-      logString.append(", ").append(fileType).append(" offset range: [");
-      long[][] offsetArray = new long[files.size()][2];
-      String file;
-      for (int i =0; i < files.size(); i++) {
-        file = files.get(i);
-        offsetArray[i][0] = FileNameUtils.fileNameToStartOffset(file);
-        offsetArray[i][1] = FileNameUtils.fileNameToEndOffset(file);
-      }
-      Arrays.sort(offsetArray, Comparator.comparing(a -> a[0]));
-      StringBuilder missingRangeString = new StringBuilder().append("[");
-      long nextExpectedStartOffset = offsetArray[0][0];
-      for (long[] offsetRange : offsetArray) {
-        logString.append("[").append(offsetRange[0]).append(",").append(offsetRange[1]).append("]");
-        if (offsetRange[0] != nextExpectedStartOffset) {
-          missingRangeString.append("[").append(nextExpectedStartOffset)
-              .append(",").append(offsetRange[0] -1).append("]");
-        }
-        nextExpectedStartOffset = offsetRange[1] + 1;
-      }
-      logString.append("]");
-      missingRangeString.append("]");
-      if (LOGGER.isDebugOrTraceEnabled()) {
-        logString.append(",").append(fileType).append(":").append(Arrays.toString(files.toArray()));
-      }
-      if (missingRangeString.length() > 2) {
-        logString.append(", missing offset ranges :").append(missingRangeString);
-      }
-      return logString.toString();
-    }
-
     private void purge(List<String> files) {
       if (!files.isEmpty()) {
         String logString = String.format(
             "Purging loaded files for pipe: %s, loadedFileCount: %d", pipeName, files.size()
         );
-        LOGGER.info(logString + prepareFilesLogString(files, "loadedFiles"));
+        LOGGER.info(logString + prepareFilesOffsetsLogString(
+            files, "loadedFiles", LOGGER.isDebugOrTraceEnabled()
+            )
+        );
         conn.purgeStage(stageName, files);
       }
     }
@@ -1125,7 +1095,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
             "Moving failed files for pipe: %s to tableStage failedFileCount: %d",
             pipeName, failedFiles.size()
         );
-        LOGGER.info(logString + prepareFilesLogString(failedFiles, "failedFiles"));
+        LOGGER.info(logString + prepareFilesOffsetsLogString(
+            failedFiles, "failedFiles", LOGGER.isDebugOrTraceEnabled()
+            )
+        );
         conn.moveToTableStage(tableName, stageName, failedFiles);
       }
     }
