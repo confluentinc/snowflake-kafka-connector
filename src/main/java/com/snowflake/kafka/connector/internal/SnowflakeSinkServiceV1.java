@@ -28,6 +28,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -1076,24 +1077,55 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
           });
     }
 
+    protected String prepareFilesLogString(List<String> files, String fileType) {
+      StringBuilder logString = new StringBuilder();
+      logString.append(", ").append(fileType).append(" offset range: [");
+      long[][] offsetArray = new long[files.size()][2];
+      String file;
+      for (int i =0; i < files.size(); i++) {
+        file = files.get(i);
+        offsetArray[i][0] = FileNameUtils.fileNameToStartOffset(file);
+        offsetArray[i][1] = FileNameUtils.fileNameToEndOffset(file);
+      }
+      Arrays.sort(offsetArray, Comparator.comparing(a -> a[0]));
+      StringBuilder missingRangeString = new StringBuilder().append("[");
+      long nextExpectedStartOffset = offsetArray[0][0];
+      for (long[] offsetRange : offsetArray) {
+        logString.append("[").append(offsetRange[0]).append(",").append(offsetRange[1]).append("]");
+        if (offsetRange[0] != nextExpectedStartOffset) {
+          missingRangeString.append("[").append(nextExpectedStartOffset)
+              .append(",").append(offsetRange[0] -1).append("]");
+        }
+        nextExpectedStartOffset = offsetRange[1] + 1;
+      }
+      logString.append("]");
+      missingRangeString.append("]");
+      if (LOGGER.isDebugOrTraceEnabled()) {
+        logString.append(",").append(fileType).append(":").append(Arrays.toString(files.toArray()));
+      }
+      if (missingRangeString.length() > 2) {
+        logString.append(", missing offset ranges :").append(missingRangeString);
+      }
+      return logString.toString();
+    }
+
     private void purge(List<String> files) {
       if (!files.isEmpty()) {
-        LOGGER.debug(
-            "Purging loaded files for pipe:{}, loadedFileCount:{}, loadedFiles:{}",
-            pipeName,
-            files.size(),
-            Arrays.toString(files.toArray()));
+        String logString = String.format(
+            "Purging loaded files for pipe: %s, loadedFileCount: %d", pipeName, files.size()
+        );
+        LOGGER.info(logString + prepareFilesLogString(files, "loadedFiles"));
         conn.purgeStage(stageName, files);
       }
     }
 
     private void moveToTableStage(List<String> failedFiles) {
       if (!failedFiles.isEmpty()) {
-        LOGGER.debug(
-            "Moving failed files for pipe:{} to tableStage failedFileCount:{}, failedFiles:{}",
-            pipeName,
-            failedFiles.size(),
-            Arrays.toString(failedFiles.toArray()));
+        String logString = String.format(
+            "Moving failed files for pipe: %s to tableStage failedFileCount: %d",
+            pipeName, failedFiles.size()
+        );
+        LOGGER.info(logString + prepareFilesLogString(failedFiles, "failedFiles"));
         conn.moveToTableStage(tableName, stageName, failedFiles);
       }
     }

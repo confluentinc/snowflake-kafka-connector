@@ -72,6 +72,13 @@ public class KCLogger {
   }
 
   /**
+   * Check if DEBUG or TRACE logging is enabled
+   */
+  public boolean isDebugOrTraceEnabled() {
+    return this.logger.isDebugEnabled() || this.logger.isTraceEnabled();
+  }
+
+  /**
    * Logs an warn level message
    *
    * @param format The message format without variables

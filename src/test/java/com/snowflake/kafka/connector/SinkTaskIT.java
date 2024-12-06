@@ -119,7 +119,6 @@ public class SinkTaskIT {
     // commit offset
     offsetMap.put(topicPartitions.get(0), new OffsetAndMetadata(0));
     offsetMap = sinkTask.preCommit(offsetMap);
-
     sinkTask.close(topicPartitions);
     sinkTask.stop();
     assert offsetMap.get(topicPartitions.get(0)).offset() == BUFFER_COUNT_RECORDS_DEFAULT;

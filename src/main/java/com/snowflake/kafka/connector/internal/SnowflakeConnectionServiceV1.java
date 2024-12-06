@@ -1126,7 +1126,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_2001.getException(e, this.telemetry);
     }
-    LOGGER.debug("deleted {} from stage {}", fileName, stageName);
+    LOGGER.info("deleted {} from stage {}", fileName, stageName);
   }
 
   @Override
