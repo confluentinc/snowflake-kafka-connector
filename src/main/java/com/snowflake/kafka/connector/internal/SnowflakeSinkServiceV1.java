@@ -1112,12 +1112,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         OffsetContinuityRanges offsets = searchForMissingOffsets(files);
         LOGGER.info(
             "Purging loaded files for pipe: {}, loadedFileCount: {}, continuousOffsets: {},"
-                + " missingOffsets: {}, files: {}",
+                + " missingOffsets: {}",
             pipeName,
             files.size(),
             offsets.getContinuousOffsets(),
-            offsets.getMissingOffsets(),
-            files);
+            offsets.getMissingOffsets());
+        LOGGER.debug("Purging files: {}", files);
         conn.purgeStage(stageName, files);
       }
     }
@@ -1125,14 +1125,19 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private void moveToTableStage(List<String> failedFiles) {
       if (!failedFiles.isEmpty()) {
         OffsetContinuityRanges offsets = searchForMissingOffsets(failedFiles);
-        LOGGER.error(
-                "Moving failed files for pipe: {} to tableStage failedFileCount: {},"
-                    + " continuousOffsets: {}, missingOffsets: {}, failedFiles: {}",
+        String baseLog =
+            String.format(
+                "Moving failed files for pipe: %s to tableStage failedFileCount: %d,"
+                    + " continuousOffsets: %s, missingOffsets: %s",
                 pipeName,
                 failedFiles.size(),
                 offsets.getContinuousOffsets(),
-                offsets.getMissingOffsets(),
-                failedFiles);
+                offsets.getMissingOffsets());
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.info("{}, failedFiles: {}", baseLog, failedFiles);
+        } else {
+          LOGGER.info(baseLog);
+        }
         conn.moveToTableStage(tableName, stageName, failedFiles);
       }
     }
