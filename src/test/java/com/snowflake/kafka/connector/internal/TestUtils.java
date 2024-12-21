@@ -649,17 +649,41 @@ public class TestUtils {
       final long startOffset,
       final long noOfRecords,
       final String topicName,
-      final int partitionNo) {
-    ArrayList<SinkRecord> records = new ArrayList<>();
+      final int partitionNo
+  ) {
+    return createJsonRecords(
+        startOffset, noOfRecords, topicName, partitionNo,
+        TestUtils.JSON_WITH_SCHEMA.getBytes(StandardCharsets.UTF_8),
+        Collections.singletonMap("schemas.enable", Boolean.toString(true))
+    );
+  }
 
+  /* Generate (noOfRecords - startOffset) blank records for a given topic and partition. */
+  public static List<SinkRecord> createBlankJsonSinkRecords(
+      final long startOffset,
+      final long noOfRecords,
+      final String topicName,
+      final int partitionNo
+  ) {
+    return createJsonRecords(
+        startOffset, noOfRecords, topicName, partitionNo, null,
+        Collections.singletonMap("schemas.enable", Boolean.toString(false))
+    );
+  }
+
+  private static List<SinkRecord> createJsonRecords(
+      final long startOffset,
+      final long noOfRecords,
+      final String topicName,
+      final int partitionNo,
+      byte[] value,
+      Map<String, String> converterConfig
+  ) {
     JsonConverter converter = new JsonConverter();
-    HashMap<String, String> converterConfig = new HashMap<>();
-    converterConfig.put("schemas.enable", "true");
     converter.configure(converterConfig, false);
-    SchemaAndValue schemaInputValue =
-        converter.toConnectData(
-            "test", TestUtils.JSON_WITH_SCHEMA.getBytes(StandardCharsets.UTF_8));
+    SchemaAndValue schemaInputValue = converter.toConnectData("test", value);
 
+    ArrayList<SinkRecord> records = new ArrayList<>();
     for (long i = startOffset; i < startOffset + noOfRecords; ++i) {
       records.add(
           new SinkRecord(

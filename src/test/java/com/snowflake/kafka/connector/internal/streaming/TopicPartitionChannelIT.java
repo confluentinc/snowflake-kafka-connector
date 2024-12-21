@@ -710,6 +710,30 @@ public class TopicPartitionChannelIT {
   }
 
   @Test
+  public void testInsertRowsWithGaps_schematization_largeBufferSize_largeGap() throws Exception {
+    SnowflakeSinkService service = setupSnowflakeService(true, 4);
+
+    // insert blank records that do not evolve schema: 0, 1
+    List<SinkRecord> records = TestUtils.createBlankJsonSinkRecords(0, 2, topic, PARTITION);
+
+    // add records with change in schema with extreme gap in offsets.
+    records.addAll(TestUtils.createNativeJsonSinkRecords(300, 2, topic, PARTITION));
+
+    // records' offsets  -> [0, 1, 300, 301]
+    service.insert(records);
+    // With schematization, we need to resend a new batch should succeed even if there is an offset
+    // gap from the previous committed offset
+    service.insert(records);
+
+    TestUtils.assertWithRetry(
+        () -> service.getOffset(new TopicPartition(topic, PARTITION)) == 302, 10, 10);
+
+    assert TestUtils.tableSize(testTableName) == 4
+        : "expected: " + 4 + " actual: " + TestUtils.tableSize(testTableName);
+    service.closeAll();
+  }
+
+  @Test
   public void testInsertRowsWithGaps_schematization() throws Exception {
     testInsertRowsWithGaps(true);
   }
@@ -720,41 +744,10 @@ public class TopicPartitionChannelIT {
   }
 
   private void testInsertRowsWithGaps(boolean withSchematization) throws Exception {
-    // setup
-    Map<String, String> config = TestUtils.getConfForStreaming();
-    SnowflakeSinkConnectorConfig.setDefaultValues(config);
-    config.put(
-        SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG,
-        Boolean.toString(withSchematization));
-
-    // create tpChannel
-    SnowflakeSinkService service =
-        SnowflakeSinkServiceFactory.builder(conn, IngestionMethodConfig.SNOWPIPE_STREAMING, config)
-            .setRecordNumber(1)
-            .setErrorReporter(new InMemoryKafkaRecordErrorReporter())
-            .setSinkTaskContext(new InMemorySinkTaskContext(Collections.singleton(topicPartition)))
-            .addTask(testTableName, topicPartition)
-            .build();
+    SnowflakeSinkService service = setupSnowflakeService(withSchematization, 1);
 
     // insert blank records that do not evolve schema: 0, 1
-    JsonConverter converter = new JsonConverter();
-    HashMap<String, String> converterConfig = new HashMap<>();
-    converterConfig.put("schemas.enable", "false");
-    converter.configure(converterConfig, false);
-    SchemaAndValue schemaInputValue = converter.toConnectData("test", null);
-    List<SinkRecord> blankRecords = new ArrayList<>();
-    for (int i = 0; i < 2; i++) {
-      blankRecords.add(
-          new SinkRecord(
-              topic,
-              PARTITION,
-              Schema.STRING_SCHEMA,
-              "test",
-              schemaInputValue.schema(),
-              schemaInputValue.value(),
-              i));
-    }
-
+    List<SinkRecord> blankRecords = TestUtils.createBlankJsonSinkRecords(0, 2, topic, PARTITION);
     service.insert(blankRecords);
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, PARTITION)) == 2, 20, 5);
@@ -776,5 +769,24 @@ public class TopicPartitionChannelIT {
     assert TestUtils.tableSize(testTableName) == 4
         : "expected: " + 4 + " actual: " + TestUtils.tableSize(testTableName);
     service.closeAll();
+  }
+
+  private SnowflakeSinkService setupSnowflakeService(boolean withSchematization, int recordNumber) {
+    // setup
+    Map<String, String> config = TestUtils.getConfForStreaming();
+    SnowflakeSinkConnectorConfig.setDefaultValues(config);
+    config.put(
+        SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG,
+        Boolean.toString(withSchematization)
+    );
+
+    // create tpChannel
+    return SnowflakeSinkServiceFactory
+        .builder(conn, IngestionMethodConfig.SNOWPIPE_STREAMING, config)
+        .setRecordNumber(recordNumber)
+        .setErrorReporter(new InMemoryKafkaRecordErrorReporter())
+        .setSinkTaskContext(new InMemorySinkTaskContext(Collections.singleton(topicPartition)))
+        .addTask(testTableName, topicPartition)
+        .build();
   }
 }
