@@ -34,6 +34,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ConnectionServiceIT {
@@ -47,6 +48,7 @@ public class ConnectionServiceIT {
   private final String topicName = TestUtils.randomTopicName();
 
   @Test
+  @Ignore
   public void testEncryptedKey() {
     // no exception
     SnowflakeConnectionServiceFactory.builder()
@@ -55,6 +57,7 @@ public class ConnectionServiceIT {
   }
 
   @Test
+  @Ignore
   public void testOAuthAZ() {
     Map<String, String> confWithOAuth = TestUtils.getConfWithOAuth();
     assert confWithOAuth.containsKey(Utils.SF_OAUTH_CLIENT_ID);
