@@ -93,7 +93,7 @@ services:
       # CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
       JMX_PORT: 9876
       #KAFKA_JMX_OPTS: "-javaagent:/opt/jmx-exporter/jmx_prometheus_javaagent-0.16.0.jar=8085:/opt/jmx-exporter/kafka-connect-pattern.yml -Djava.rmi.server.hostname=0.0.0.0 -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=9876 -Dcom.sun.management.jmxremote.rmi.port=9876 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR,com.snowflake=DEBUG
+      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR,com.snowflake=INFO
       KAFKA_DEBUG: true
       JAVA_DEBUG_PORT: 0.0.0.0:5060
     command:
