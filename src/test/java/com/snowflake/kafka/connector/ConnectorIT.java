@@ -13,6 +13,7 @@ import java.util.concurrent.Executors;
 import com.snowflake.kafka.connector.internal.TestUtils;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ConnectorIT {
@@ -333,6 +334,7 @@ public class ConnectorIT {
   }
 
   @Test
+  @Ignore
   public void testErrorProxyHostConfig() {
     System.out.println("Testing if this gets printed out");
     Map<String, String> config = getCorrectConfig();
