@@ -334,6 +334,7 @@ public class ConnectorIT {
 
   @Test
   public void testErrorProxyHostConfig() {
+    System.out.println("Testing if this gets printed out");
     Map<String, String> config = getCorrectConfig();
     config.put(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST, "localhost");
     Map<String, ConfigValue> validateMap = toValidateMap(config);
