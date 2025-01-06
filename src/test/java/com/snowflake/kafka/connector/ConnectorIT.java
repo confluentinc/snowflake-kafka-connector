@@ -304,6 +304,7 @@ public class ConnectorIT {
   }
 
   @Test
+  @Ignore("Ignore because of bc-fips dependency misalignment")
   public void testValidateErrorPassphraseConfig() {
     Map<String, String> config = getCorrectConfig();
     config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE, "wrongPassphrase");
