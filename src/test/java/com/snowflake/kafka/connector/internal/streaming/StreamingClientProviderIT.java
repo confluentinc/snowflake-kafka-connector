@@ -23,9 +23,12 @@ import java.util.Map;
 import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+@Execution(ExecutionMode.SAME_THREAD)
 public class StreamingClientProviderIT {
 
   @Test
