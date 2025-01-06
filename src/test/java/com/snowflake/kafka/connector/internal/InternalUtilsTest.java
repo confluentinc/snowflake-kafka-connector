@@ -9,7 +9,10 @@ import java.util.Map;
 import java.util.Properties;
 import net.snowflake.ingest.connection.IngestStatus;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
+@Execution(ExecutionMode.CONCURRENT)
 public class InternalUtilsTest {
   @Test
   public void testPrivateKey() {

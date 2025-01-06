@@ -52,8 +52,9 @@
 
         <junit.jupiter.parallel.enabled>true</junit.jupiter.parallel.enabled>
         <junit.jupiter.parallel.mode.default>concurrent</junit.jupiter.parallel.mode.default>
-        <surefire.parallel.threads>4</surefire.parallel.threads>
-        <failsafe.parallel.threads>2</failsafe.parallel.threads>
+        <surefire.parallel.threads>8</surefire.parallel.threads>
+        <failsafe.parallel.threads>8</failsafe.parallel.threads>
+        <fork.count>1C</fork.count>
 
         <license.processing.dependencyJarsDir>${project.build.directory}/dependency-jars
         </license.processing.dependencyJarsDir>
@@ -324,7 +325,7 @@
                     <skipTests>${skipUnitTests}</skipTests>
                     <parallel>classes</parallel>
                     <threadCount>${surefire.parallel.threads}</threadCount>
-                    <forkCount>${surefire.parallel.threads}</forkCount>
+                    <forkCount>${fork.count}</forkCount>
                     <reuseForks>true</reuseForks>
                     <systemPropertyVariables>
                         <junit.jupiter.execution.parallel.enabled>${junit.jupiter.parallel.enabled}</junit.jupiter.execution.parallel.enabled>
@@ -347,7 +348,7 @@
                     <skipTests>${skipIntegrationTests}</skipTests>
                     <parallel>classes</parallel>
                     <threadCount>${failsafe.parallel.threads}</threadCount>
-                    <forkCount>${failsafe.parallel.threads}</forkCount>
+                    <forkCount>${fork.count}</forkCount>
                     <reuseForks>true</reuseForks>
                     <systemPropertyVariables>
                         <junit.jupiter.execution.parallel.enabled>${junit.jupiter.parallel.enabled}</junit.jupiter.execution.parallel.enabled>

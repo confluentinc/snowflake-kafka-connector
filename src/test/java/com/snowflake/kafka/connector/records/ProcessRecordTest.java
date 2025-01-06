@@ -15,9 +15,12 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+@Execution(ExecutionMode.CONCURRENT)
 @RunWith(Parameterized.class)
 public class ProcessRecordTest {
   private static String topic = "test";

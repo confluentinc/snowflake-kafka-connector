@@ -7,7 +7,12 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetTokenResponseDTO;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock("snowflake-connection")
 public class SnowflakeConnectionServiceV1Test {
   @Test
   public void testChannelMigrationResponse_validResponse() throws Exception {

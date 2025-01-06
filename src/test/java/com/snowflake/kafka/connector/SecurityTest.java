@@ -12,7 +12,10 @@ import java.io.IOException;
 import java.util.Map;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
+@Execution(ExecutionMode.CONCURRENT)
 public class SecurityTest {
 
   @Test

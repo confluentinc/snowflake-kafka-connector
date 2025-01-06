@@ -25,7 +25,10 @@ import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.storage.Converter;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
+@Execution(ExecutionMode.CONCURRENT)
 public class ConnectorConfigTest {
   // subset of valid community converters
   public static final List<Converter> COMMUNITY_CONVERTER_SUBSET =

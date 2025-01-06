@@ -11,8 +11,13 @@ import net.snowflake.ingest.connection.HistoryResponse;
 import net.snowflake.ingest.connection.IngestStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.mockito.Mockito;
 
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock("snowflake-connection")
 class SnowflakeIngestionServiceV1Test {
 
   private SimpleIngestManager manager;

@@ -2,7 +2,10 @@ package com.snowflake.kafka.connector.records;
 
 import org.apache.kafka.connect.data.Schema;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
+@Execution(ExecutionMode.CONCURRENT)
 public class ValueSchemaTest {
   @Test
   public void testSnowflakeJsonSchema() {

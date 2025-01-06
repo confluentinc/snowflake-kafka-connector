@@ -26,8 +26,13 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.mockito.Mockito;
 
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock("streaming-client")
 public class DirectStreamingClientHandlerTest {
   private StreamingClientHandler streamingClientHandler;
   private Map<String, String> connectorConfig;
