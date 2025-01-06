@@ -49,6 +49,12 @@
         <skipTests>false</skipTests>
         <skipUnitTests>${skipTests}</skipUnitTests>
         <skipIntegrationTests>${skipTests}</skipIntegrationTests>
+
+        <junit.jupiter.parallel.enabled>true</junit.jupiter.parallel.enabled>
+        <junit.jupiter.parallel.mode.default>concurrent</junit.jupiter.parallel.mode.default>
+        <surefire.parallel.threads>4</surefire.parallel.threads>
+        <failsafe.parallel.threads>2</failsafe.parallel.threads>
+
         <license.processing.dependencyJarsDir>${project.build.directory}/dependency-jars
         </license.processing.dependencyJarsDir>
         <license.processing.dependencyListFile>${project.build.directory}/dependency-list.txt
@@ -316,6 +322,14 @@
                 <version>2.22.0</version>
                 <configuration>
                     <skipTests>${skipUnitTests}</skipTests>
+                    <parallel>classes</parallel>
+                    <threadCount>${surefire.parallel.threads}</threadCount>
+                    <forkCount>${surefire.parallel.threads}</forkCount>
+                    <reuseForks>true</reuseForks>
+                    <systemPropertyVariables>
+                        <junit.jupiter.execution.parallel.enabled>${junit.jupiter.parallel.enabled}</junit.jupiter.execution.parallel.enabled>
+                        <junit.jupiter.execution.parallel.mode.default>${junit.jupiter.parallel.mode.default}</junit.jupiter.execution.parallel.mode.default>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 
@@ -331,6 +345,14 @@
                         <exclude>none</exclude>
                     </excludes>
                     <skipTests>${skipIntegrationTests}</skipTests>
+                    <parallel>classes</parallel>
+                    <threadCount>${failsafe.parallel.threads}</threadCount>
+                    <forkCount>${failsafe.parallel.threads}</forkCount>
+                    <reuseForks>true</reuseForks>
+                    <systemPropertyVariables>
+                        <junit.jupiter.execution.parallel.enabled>${junit.jupiter.parallel.enabled}</junit.jupiter.execution.parallel.enabled>
+                        <junit.jupiter.execution.parallel.mode.default>${junit.jupiter.parallel.mode.default}</junit.jupiter.execution.parallel.mode.default>
+                    </systemPropertyVariables>
                 </configuration>
                 <executions>
                     <execution>
