@@ -99,6 +99,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   // data into a single table.
   private boolean enableStageFilePrefixExtension = false;
 
+  // CC-30278 if disabled cleaner can delete files that are not loaded into Snowflake yet
+  private boolean cleanFilesOnlyIfStatusLoaded = true;
+
   private final Set<String> perTableWarningNotifications = new HashSet<>();
 
   SnowflakeSinkServiceV1(SnowflakeConnectionService conn) {
@@ -439,6 +442,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     }
   }
 
+  public void configureCleanFilesOnlyIfStatusLoaded(boolean enable) {
+    cleanFilesOnlyIfStatusLoaded = enable;
+  }
+
   private class ServiceContext {
     private final String tableName;
     private final String stageName;
@@ -675,8 +682,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
             }
           });
 
-      if (reprocessFiles.size() > 0) {
+
+      if (!cleanFilesOnlyIfStatusLoaded && reprocessFiles.size() > 0) {
         // After we start the cleaner thread, delay a while and start deleting files.
+
+        // cleanFilesOnlyIfStatusLoaded check is added to avoid purging files that are not loaded
+        // into Snowflake. Since the below code purges reprocessFiles without checking the status.
         reprocessCleanerExecutor.submit(
             () -> {
               try {
