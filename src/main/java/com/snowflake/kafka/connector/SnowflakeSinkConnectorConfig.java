@@ -591,7 +591,7 @@ public class SnowflakeSinkConnectorConfig {
             Type.BOOLEAN,
             SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
             Importance.LOW,
-            "Whether to clean files only after they are loaded into Snowflake")
+            "Whether to disable cleanup of reprocess files in Snowpipe")
         .define(
             SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED,
             ConfigDef.Type.BOOLEAN,
