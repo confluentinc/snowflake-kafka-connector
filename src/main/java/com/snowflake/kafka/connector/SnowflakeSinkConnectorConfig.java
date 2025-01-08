@@ -129,7 +129,7 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED =
           "snowflake.snowpipe.v1Cleaner.cleanFilesOnlyIfStatusLoaded";
-  public static final boolean SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED_DEFAULT = true;
+  public static final boolean SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED_DEFAULT = false;
 
   public static final String SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED =
       "snowflake.snowpipe.stageFileNameExtensionEnabled";
