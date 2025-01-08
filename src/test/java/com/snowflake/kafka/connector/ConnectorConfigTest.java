@@ -189,6 +189,17 @@ public class ConnectorConfigTest {
   }
 
   @Test
+  public void testEmptyCleanFileIfStatusLoadedCheck() {
+    try {
+      Map<String, String> config = getConfig();
+      config.remove(SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED);
+      Utils.validateConfig(config);
+    } catch (SnowflakeKafkaConnectorException exception) {
+      assert exception.getMessage().contains(SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED);
+    }
+  }
+
+  @Test
   public void testNonProxyHosts() {
     String oldNonProxyHosts =
         (System.getProperty(HTTP_NON_PROXY_HOSTS) != null)
