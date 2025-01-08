@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
+import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.records.SnowflakeConverter;
 import com.snowflake.kafka.connector.records.SnowflakeJsonConverter;
 import io.confluent.connect.avro.AvroConverter;
@@ -26,6 +27,7 @@ import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class SinkServiceIT {
@@ -744,8 +746,12 @@ public class SinkServiceIT {
     service.startPartition(table, new TopicPartition(topic, partition));
   }
 
-  @Test
-  public void testRecoverReprocessFiles() throws Exception {
+  @ParameterizedTest
+  @CsvSource({
+          "false, 0", // Scenario 1: Snowpipe Clean Files Only If Status Loaded = false, Stage size 0
+          "true, 1"   // Scenario 2: Snowpipe Clean Files Only If Status Loaded = true, Stage size 1
+  })
+  public void testRecoverReprocessFiles(String cleanFilesOnlyIfStatusLoaded, int expectedStageSize) throws Exception {
     String data =
         "{\"content\":{\"name\":\"test\"},\"meta\":{\"offset\":0,"
             + "\"topic\":\"test\",\"partition\":0}}";
@@ -781,8 +787,11 @@ public class SinkServiceIT {
 
     assert getStageSize(stage, table, 0) == 4;
 
+    Map<String, String> connectorConfig = new HashMap<>();
+    connectorConfig.put(SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED, cleanFilesOnlyIfStatusLoaded);
+
     SnowflakeSinkService service =
-        SnowflakeSinkServiceFactory.builder(conn)
+        SnowflakeSinkServiceFactory.builder(conn, IngestionMethodConfig.SNOWPIPE, connectorConfig)
             .addTask(table, new TopicPartition(topic, partition))
             .setRecordNumber(1) // immediate flush
             .build();
@@ -801,10 +810,15 @@ public class SinkServiceIT {
     // call snow pipe
     service.callAllGetOffset();
     // cleaner will remove previous files and ingested new file
-    TestUtils.assertWithRetry(() -> getStageSize(stage, table, 0) == 0, 30, 10);
+    TestUtils.assertWithRetry(() -> getStageSize(stage, table, 0) == expectedStageSize, 30, 10);
+
+    // verify the file on stage is fileName4 if cleanFilesOnlyIfStatusLoaded is true and expectedStageSize is 1
+    List<String> files = conn.listStage(stage, FileNameUtils.filePrefix(TestUtils.TEST_CONNECTOR_NAME, table, null, partition));
+    assert expectedStageSize != 1 || files.get(0).startsWith(
+            FileNameUtils.filePrefix(TestUtils.TEST_CONNECTOR_NAME, table, null, partition) + "4_5");
 
     // verify that filename2 appears in table stage
-    List<String> files = conn.listStage(table, "", true);
+    files = conn.listStage(table, "", true);
     assert files.size() == 2;
 
     service.closeAll();
