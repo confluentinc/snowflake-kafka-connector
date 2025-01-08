@@ -86,17 +86,17 @@ public class SnowflakeSinkServiceFactory {
         }
         svc.configureSingleTableLoadFromMultipleTopics(extendedStageFileNameFix);
 
-        boolean cleanFilesOnlyIfStatusLoaded =
-            SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED_DEFAULT;
+        boolean disableReprocessFilesCleanup =
+            SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT;
         if (connectorConfig != null
             && connectorConfig.containsKey(
-                SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED)) {
-          cleanFilesOnlyIfStatusLoaded =
+                SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
+          disableReprocessFilesCleanup =
               Boolean.parseBoolean(
                   connectorConfig.get(
-                      SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED));
+                      SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
         }
-        svc.configureCleanFilesOnlyIfStatusLoaded(cleanFilesOnlyIfStatusLoaded);
+        svc.configureDisableReprocessFilesCleanup(disableReprocessFilesCleanup);
       } else {
         this.service = new SnowflakeSinkServiceV2(conn, connectorConfig);
       }

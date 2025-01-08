@@ -748,10 +748,10 @@ public class SinkServiceIT {
 
   @ParameterizedTest
   @CsvSource({
-          "false, 0", // Scenario 1: Snowpipe Clean Files Only If Status Loaded = false, Stage size 0
-          "true, 1"   // Scenario 2: Snowpipe Clean Files Only If Status Loaded = true, Stage size 1
+          "false, 2", // Scenario 1: SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP = false, TableStage size 2
+          "true, 3"   // Scenario 2: SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP = true, TableStage size 3
   })
-  public void testRecoverReprocessFiles(String cleanFilesOnlyIfStatusLoaded, int expectedStageSize) throws Exception {
+  public void testRecoverReprocessFiles(String disableReprocessFilesCleanup, int expectedTableStageSize) throws Exception {
     String data =
         "{\"content\":{\"name\":\"test\"},\"meta\":{\"offset\":0,"
             + "\"topic\":\"test\",\"partition\":0}}";
@@ -788,7 +788,7 @@ public class SinkServiceIT {
     assert getStageSize(stage, table, 0) == 4;
 
     Map<String, String> connectorConfig = new HashMap<>();
-    connectorConfig.put(SnowflakeSinkConnectorConfig.SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED, cleanFilesOnlyIfStatusLoaded);
+    connectorConfig.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, disableReprocessFilesCleanup);
 
     SnowflakeSinkService service =
         SnowflakeSinkServiceFactory.builder(conn, IngestionMethodConfig.SNOWPIPE, connectorConfig)
@@ -810,16 +810,13 @@ public class SinkServiceIT {
     // call snow pipe
     service.callAllGetOffset();
     // cleaner will remove previous files and ingested new file
-    TestUtils.assertWithRetry(() -> getStageSize(stage, table, 0) == expectedStageSize, 30, 10);
+    TestUtils.assertWithRetry(() -> getStageSize(stage, table, 0) == 0, 30, 10);
 
-    // verify the file on stage is fileName4 if cleanFilesOnlyIfStatusLoaded is true and expectedStageSize is 1
-    List<String> files = conn.listStage(stage, FileNameUtils.filePrefix(TestUtils.TEST_CONNECTOR_NAME, table, null, partition));
-    assert expectedStageSize != 1 || files.get(0).startsWith(
-            FileNameUtils.filePrefix(TestUtils.TEST_CONNECTOR_NAME, table, null, partition) + "4_5");
-
-    // verify that filename2 appears in table stage
-    files = conn.listStage(table, "", true);
-    assert files.size() == 2;
+    // Verify that filename2 appears in the table stage
+    // When SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP is set to True, files will not be removed from currentStage.
+    // As a result, fileName4 will eventually be added to the table stage, bringing the total count to 3.
+    List<String> files = conn.listStage(table, "", true);
+    assert files.size() == expectedTableStageSize;
 
     service.closeAll();
   }

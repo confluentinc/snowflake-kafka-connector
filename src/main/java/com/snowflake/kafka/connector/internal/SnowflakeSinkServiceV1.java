@@ -100,7 +100,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   private boolean enableStageFilePrefixExtension = false;
 
   // CC-30278 if enabled cleaner won't delete files that are not loaded into Snowflake yet
-  private boolean cleanFilesOnlyIfStatusLoaded = false;
+  private boolean disableReprocessFilesCleanup = true;
 
   private final Set<String> perTableWarningNotifications = new HashSet<>();
 
@@ -442,8 +442,8 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     }
   }
 
-  public void configureCleanFilesOnlyIfStatusLoaded(boolean enable) {
-    cleanFilesOnlyIfStatusLoaded = enable;
+  public void configureDisableReprocessFilesCleanup(boolean disable) {
+    disableReprocessFilesCleanup = disable;
   }
 
   private class ServiceContext {
@@ -636,8 +636,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       // If we know that we are going to reprocess the file, then safely delete the file.
       List<String> currentFilesOnStage = conn.listStage(stageName, prefix);
       List<String> reprocessFiles = new ArrayList<>();
-
-      filterFileReprocess(currentFilesOnStage, reprocessFiles, recordOffset);
+      if (!disableReprocessFilesCleanup) {
+        filterFileReprocess(currentFilesOnStage, reprocessFiles, recordOffset);
+      }
 
       // Telemetry
       pipeCreation.setFileCountRestart(currentFilesOnStage.size());
@@ -683,11 +684,8 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
           });
 
 
-      if (!cleanFilesOnlyIfStatusLoaded && reprocessFiles.size() > 0) {
+      if (!disableReprocessFilesCleanup && reprocessFiles.size() > 0) {
         // After we start the cleaner thread, delay a while and start deleting files.
-
-        // cleanFilesOnlyIfStatusLoaded check is added to avoid purging files that are not loaded
-        // into Snowflake. Since the below code purges reprocessFiles without checking the status.
         reprocessCleanerExecutor.submit(
             () -> {
               try {

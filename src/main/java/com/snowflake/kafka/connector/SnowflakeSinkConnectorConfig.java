@@ -127,9 +127,9 @@ public class SnowflakeSinkConnectorConfig {
   public static final boolean SNOWPIPE_FILE_CLEANER_FIX_ENABLED_DEFAULT = false;
   public static final int SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT = 1;
 
-  public static final String SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED =
-          "snowflake.snowpipe.v1Cleaner.cleanFilesOnlyIfStatusLoaded";
-  public static final boolean SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED_DEFAULT = false;
+  public static final String SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP =
+          "snowflake.snowpipe.v1Cleaner.disable.reprocessFiles.cleanup";
+  public static final boolean SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT = true;
 
   public static final String SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED =
       "snowflake.snowpipe.stageFileNameExtensionEnabled";
@@ -587,9 +587,9 @@ public class SnowflakeSinkConnectorConfig {
             "Defines number of worker threads to associate with the cleaner task. By default there"
                 + " is one cleaner per topic's partition and they all share one worker thread")
         .define(
-            SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED,
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
             Type.BOOLEAN,
-            SNOWPIPE_CLEAN_FILES_ONLY_IF_STATUS_LOADED_DEFAULT,
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
             Importance.LOW,
             "Whether to clean files only after they are loaded into Snowflake")
         .define(
