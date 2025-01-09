@@ -1114,9 +1114,23 @@ public class ConnectorConfigTest {
   }
 
   @Test
-  public void testDisableReprocessFilesCleanup() {
+  public void testDISABLE_REPROCESS_FILES_CLEANUP_valid_value() {
     Map<String, String> config = getConfig();
     config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, "true");
     Utils.validateConfig(config);
+
+    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, "False");
+    Utils.validateConfig(config);
+  }
+
+  @Test
+  public void testDISABLE_REPROCESS_FILES_CLEANUP_invalid_value() {
+    try {
+      Map<String, String> config = getConfig();
+      config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, "INVALID");
+      Utils.validateConfig(config);
+    } catch (SnowflakeKafkaConnectorException exception) {
+      assert exception.getMessage().contains(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP);
+    }
   }
 }
