@@ -129,7 +129,7 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP =
           "snowflake.snowpipe.v1Cleaner.disable.reprocessFiles.cleanup";
-  public static final boolean SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT = true;
+  public static final boolean SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT = false;
 
   public static final String SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED =
       "snowflake.snowpipe.stageFileNameExtensionEnabled";

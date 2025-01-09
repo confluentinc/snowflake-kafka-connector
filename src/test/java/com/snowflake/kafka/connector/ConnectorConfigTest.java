@@ -1112,4 +1112,11 @@ public class ConnectorConfigTest {
     config.put(SnowflakeSinkConnectorConfig.TOPICS, "");
     Utils.validateConfig(config);
   }
+
+  @Test
+  public void testDisableReprocessFilesCleanup() {
+    Map<String, String> config = getConfig();
+    config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, "true");
+    Utils.validateConfig(config);
+  }
 }
