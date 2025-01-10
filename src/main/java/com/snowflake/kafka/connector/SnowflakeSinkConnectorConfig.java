@@ -127,6 +127,10 @@ public class SnowflakeSinkConnectorConfig {
   public static final boolean SNOWPIPE_FILE_CLEANER_FIX_ENABLED_DEFAULT = false;
   public static final int SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT = 1;
 
+  public static final String SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP =
+          "snowflake.snowpipe.v1Cleaner.disable.reprocessFiles.cleanup";
+  public static final boolean SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT = false;
+
   public static final String SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED =
       "snowflake.snowpipe.stageFileNameExtensionEnabled";
   public static final boolean SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED_DEFAULT = true;
@@ -582,6 +586,14 @@ public class SnowflakeSinkConnectorConfig {
             Importance.LOW,
             "Defines number of worker threads to associate with the cleaner task. By default there"
                 + " is one cleaner per topic's partition and they all share one worker thread")
+        .define(
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
+            Type.BOOLEAN,
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
+            Importance.LOW,
+            "Whether to disable cleanup of reprocess files in Snowpipe used with v1Cleaner. "
+                + "Note: This configuration will not take effect if `snowflake.snowpipe.v2CleanerEnabled` is"
+                + " `true`.")
         .define(
             SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED,
             ConfigDef.Type.BOOLEAN,

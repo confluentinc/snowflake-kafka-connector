@@ -20,6 +20,7 @@ import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BEHAVIO
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BehaviorOnNullValues.VALIDATOR;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.JMX_OPT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP;
 
 import com.google.common.collect.ImmutableMap;
 import com.snowflake.kafka.connector.internal.BufferThreshold;
@@ -600,6 +601,16 @@ public class Utils {
           || config.get(JMX_OPT).equalsIgnoreCase("false"))) {
         invalidConfigParams.put(
             JMX_OPT, Utils.formatString("Kafka config:{} should either be true or false", JMX_OPT));
+      }
+    }
+
+    if (config.containsKey(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
+      if (!(config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("true")
+              || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
+        invalidConfigParams.put(
+                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
+                Utils.formatString(
+                "Kafka config:{} should either be true or false", SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
       }
     }
 
