@@ -1123,7 +1123,7 @@ public class ConnectorConfigTest {
     Utils.validateConfig(config);
   }
 
-  @Test
+  @Test(expected = SnowflakeKafkaConnectorException.class)
   public void testDISABLE_REPROCESS_FILES_CLEANUP_invalid_value() {
     try {
       Map<String, String> config = getConfig();
@@ -1131,6 +1131,7 @@ public class ConnectorConfigTest {
       Utils.validateConfig(config);
     } catch (SnowflakeKafkaConnectorException exception) {
       assert exception.getMessage().contains(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP);
+      throw exception;
     }
   }
 }
