@@ -591,7 +591,9 @@ public class SnowflakeSinkConnectorConfig {
             Type.BOOLEAN,
             SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
             Importance.LOW,
-            "Whether to disable cleanup of reprocess files in Snowpipe")
+            "Whether to disable cleanup of reprocess files in Snowpipe used with v1Cleaner. "
+                + "Note: This configuration will not take effect if `snowflake.snowpipe.v2CleanerEnabled` is"
+                + " `true`.")
         .define(
             SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED,
             ConfigDef.Type.BOOLEAN,
