@@ -27,7 +27,6 @@ import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.OAuthConstants;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeInternalOperations;
-import com.snowflake.kafka.connector.internal.SnowflakeURL;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import java.io.BufferedReader;
 import java.io.File;
@@ -87,6 +86,7 @@ public class Utils {
   public static final String SF_OAUTH_CLIENT_ID = "snowflake.oauth.client.id";
   public static final String SF_OAUTH_CLIENT_SECRET = "snowflake.oauth.client.secret";
   public static final String SF_OAUTH_REFRESH_TOKEN = "snowflake.oauth.refresh.token";
+  public static final String SF_OAUTH_TOKEN_ENDPOINT = "snowflake.oauth.token.endpoint";
 
   // authenticator type
   public static final String SNOWFLAKE_JWT = "snowflake_jwt";
@@ -970,7 +970,10 @@ public class Utils {
    * @return OAuth access token
    */
   public static String getSnowflakeOAuthAccessToken(
-      SnowflakeURL url, String clientId, String clientSecret, String refreshToken) {
+      com.snowflake.kafka.connector.internal.URL url,
+      String clientId,
+      String clientSecret,
+      String refreshToken) {
     return getSnowflakeOAuthToken(
         url,
         clientId,
@@ -997,7 +1000,7 @@ public class Utils {
    */
   // TODO: SNOW-895296 Integrate OAuth utils with streaming ingest SDK
   public static String getSnowflakeOAuthToken(
-      SnowflakeURL url,
+      com.snowflake.kafka.connector.internal.URL url,
       String clientId,
       String clientSecret,
       String credential,
@@ -1031,8 +1034,7 @@ public class Utils {
     final StringEntity entity =
         new StringEntity(payloadString, ContentType.APPLICATION_FORM_URLENCODED);
 
-    HttpPost post =
-        buildOAuthHttpPostRequest(url, OAuthConstants.TOKEN_REQUEST_ENDPOINT, headers, entity);
+    HttpPost post = buildOAuthHttpPostRequest(url, url.path(), headers, entity);
 
     // Request access token
     CloseableHttpClient client = HttpClientBuilder.create().build();
@@ -1047,8 +1049,7 @@ public class Utils {
                   // Trim surrounding quotation marks
                   return respBody.get(tokenType).toString().replaceAll("^\"|\"$", "");
                 } catch (Exception e) {
-                  throw SnowflakeErrors.ERROR_1004.getException(
-                      "Failed to get Oauth access token after retries");
+                  throw SnowflakeErrors.ERROR_1004.getException(e);
                 }
               })
           .toString();
@@ -1066,12 +1067,19 @@ public class Utils {
    * @return HttpPost request for OAuth
    */
   public static HttpPost buildOAuthHttpPostRequest(
-      SnowflakeURL url, String path, Map<String, String> headers, StringEntity entity) {
+      com.snowflake.kafka.connector.internal.URL url,
+      String path,
+      Map<String, String> headers,
+      StringEntity entity) {
     // Build post request
     URI uri;
     try {
       uri =
-          new URIBuilder().setHost(url.toString()).setScheme(url.getScheme()).setPath(path).build();
+          new URIBuilder()
+              .setHost(url.hostWithPort())
+              .setScheme(url.getScheme())
+              .setPath(path)
+              .build();
     } catch (URISyntaxException e) {
       throw SnowflakeErrors.ERROR_1004.getException(e);
     }
