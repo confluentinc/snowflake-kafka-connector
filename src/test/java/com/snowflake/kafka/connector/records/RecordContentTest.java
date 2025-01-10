@@ -240,7 +240,7 @@ public class RecordContentTest {
     SnowflakeJsonConverter jsonConverter = new SnowflakeJsonConverter();
 
     service.setEnableSchematization(true);
-    String value = "{\"name\":\"sf\",\"answer\":42}";
+    String value = "[{\"name\":\"sf\",\"answer\":42}]";
     byte[] valueContents = (value).getBytes(StandardCharsets.UTF_8);
     SchemaAndValue sv = jsonConverter.toConnectData(topic, valueContents);
 
