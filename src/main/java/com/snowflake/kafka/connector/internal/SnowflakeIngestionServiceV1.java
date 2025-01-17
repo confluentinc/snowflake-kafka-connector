@@ -119,6 +119,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
           SnowflakeInternalOperations.INSERT_FILES_SNOWPIPE_API,
           () -> ingestManager.ingestFile(new StagedFileWrapper(fileName), null));
     } catch (Exception e) {
+      ingestManager.close();
       throw SnowflakeErrors.ERROR_3001.getException(e, this.telemetry);
     }
     LOGGER.debug("ingest file: {}", fileName);
@@ -147,6 +148,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
             return true;
           });
     } catch (Exception e) {
+      ingestManager.close();
       throw SnowflakeErrors.ERROR_3001.getException(e, this.telemetry);
     }
   }
