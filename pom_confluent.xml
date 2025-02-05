@@ -69,6 +69,7 @@
         <iceberg.version>1.6.1</iceberg.version>
         <jackson.version>2.18.2</jackson.version>
         <commons-compress.version>1.27.1</commons-compress.version>
+        <snowflake-jdbc.version>3.22.0</snowflake-jdbc.version>
     </properties>
 
 
