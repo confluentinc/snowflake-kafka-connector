@@ -351,7 +351,7 @@
         <dependency>
             <groupId>net.snowflake</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>3.14.5</version>
+            <version>3.22.0</version>
         </dependency>
 
         <!-- Ingest SDK for copy staged file into snowflake table -->
