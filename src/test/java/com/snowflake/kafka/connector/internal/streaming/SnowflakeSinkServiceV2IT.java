@@ -160,7 +160,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == 1, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   // Two partitions, insert Record, one partition gets rebalanced (closed).
@@ -288,7 +288,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == 1, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -352,7 +352,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == 3, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -556,7 +556,7 @@ public class SnowflakeSinkServiceV2IT {
       }
     }
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -609,7 +609,7 @@ public class SnowflakeSinkServiceV2IT {
           5);
     }
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -646,7 +646,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == noOfRecords, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -745,7 +745,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == endOffset + 1, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -906,7 +906,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == endOffset + 1, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -1026,7 +1026,7 @@ public class SnowflakeSinkServiceV2IT {
     assert TestUtils.tableSize(table) == 1
         : "expected: " + 1 + " actual: " + TestUtils.tableSize(table);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   /**
@@ -1085,7 +1085,7 @@ public class SnowflakeSinkServiceV2IT {
 
     assert reportedData.size() == 2;
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   /* Service start -> Insert -> Close. service start -> fetch the offsetToken, compare and ingest check data */
@@ -1121,7 +1121,7 @@ public class SnowflakeSinkServiceV2IT {
     // wait for ingest
     TestUtils.assertWithRetry(() -> TestUtils.tableSize(table) == 1, 30, 20);
 
-    service.closeAll();
+//    service.closeAll();
 
     // initialize a new sink service
     SnowflakeSinkService service2 =
@@ -1144,7 +1144,7 @@ public class SnowflakeSinkServiceV2IT {
 
     assert service2.getOffset(new TopicPartition(topic, partition)) == offset + 1;
 
-    service2.closeAll();
+//    service2.closeAll();
   }
 
   /* Service start -> Insert -> Close. service start -> fetch the offsetToken, compare and ingest check data */
@@ -1180,7 +1180,7 @@ public class SnowflakeSinkServiceV2IT {
     // wait for ingest
     TestUtils.assertWithRetry(() -> TestUtils.tableSize(table) == 10, 30, 20);
 
-    service.closeAll();
+//    service.closeAll();
 
     // initialize a new sink service
     SnowflakeSinkService service2 =
@@ -1205,7 +1205,7 @@ public class SnowflakeSinkServiceV2IT {
 
     assert service2.getOffset(new TopicPartition(topic, partition)) == totalRecordsExpected;
 
-    service2.closeAll();
+//    service2.closeAll();
   }
 
   @Test
@@ -1301,7 +1301,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.checkTableContentOneRow(
         table, SchematizationTestUtils.CONTENT_FOR_AVRO_TABLE_CREATION);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -1389,7 +1389,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.checkTableContentOneRow(
         table, SchematizationTestUtils.CONTENT_FOR_JSON_TABLE_CREATION);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -1459,7 +1459,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == startOffset + 1, 20, 5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -1499,7 +1499,7 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.assertWithRetry(
         () -> service.getOffset(new TopicPartition(topic, partition)) == noOfRecords, 30, 30);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -1559,7 +1559,7 @@ public class SnowflakeSinkServiceV2IT {
     } catch (Exception e) {
       // do nothing
     }
-    service.closeAll();
+//    service.closeAll();
   }
 
   /**
@@ -1597,7 +1597,7 @@ public class SnowflakeSinkServiceV2IT {
     } catch (Exception e) {
       // do nothing
     }
-    service.closeAll();
+//    service.closeAll();
   }
 
   private void createNonNullableColumn(String tableName, String colName) {
