@@ -156,7 +156,7 @@ public class SinkServiceIT {
 
     assert service.getOffset(new TopicPartition(topic, partition)) == offset + 1;
 
-    service.closeAll();
+//    service.closeAll();
     // don't drop pipe in current version
     //    assert !conn.pipeExist(pipe);
   }
@@ -281,7 +281,7 @@ public class SinkServiceIT {
 
     assert service.getOffset(new TopicPartition(topic, partition)) == recordCount;
 
-    service.closeAll();
+//    service.closeAll();
     // don't drop pipe in current version
     // assert !conn.pipeExist(pipe);
   }
@@ -468,7 +468,7 @@ public class SinkServiceIT {
 
     assert service.getOffset(new TopicPartition(topic, partition)) == recordCount;
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -597,7 +597,7 @@ public class SinkServiceIT {
 
     assert service.getOffset(new TopicPartition(topic, partition)) == 3;
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -616,7 +616,7 @@ public class SinkServiceIT {
     service.callAllGetOffset();
     TestUtils.assertWithRetry(() -> TestUtils.tableSize(table) == recordCount, 30, 20);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -652,7 +652,7 @@ public class SinkServiceIT {
         30,
         20);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   private void insert(SnowflakeSinkService sink, int partition, int numOfRecord) {
@@ -696,7 +696,7 @@ public class SinkServiceIT {
         10,
         10);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -724,7 +724,7 @@ public class SinkServiceIT {
         15,
         4);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -818,7 +818,7 @@ public class SinkServiceIT {
     List<String> files = conn.listStage(table, "", true);
     assert files.size() == expectedTableStageSize;
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -854,7 +854,7 @@ public class SinkServiceIT {
     assert TestUtils.getPartitionFromBrokenFileName(name) == partition;
     assert TestUtils.getOffsetFromBrokenFileName(name) == offset;
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   int getStageSize(String stage, String table, int partition) {
