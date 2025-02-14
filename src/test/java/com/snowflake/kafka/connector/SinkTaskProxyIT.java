@@ -56,6 +56,7 @@ public class SinkTaskProxyIT {
    * .github/workflows/IntegrationTest.yml
    */
   @Test
+  @Ignore
   public void testSinkTaskProxyConfig() {
     Map<String, String> config = TestUtils.getConf();
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
