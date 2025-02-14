@@ -91,6 +91,6 @@ public class MetaColumnIT {
         30,
         15);
 
-    service.closeAll();
+//    service.closeAll();
   }
 }

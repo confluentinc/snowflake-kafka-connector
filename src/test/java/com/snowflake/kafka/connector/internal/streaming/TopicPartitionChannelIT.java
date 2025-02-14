@@ -108,7 +108,7 @@ public class TopicPartitionChannelIT {
     assert inMemorySinkTaskContext.offsets().get(topicPartition) == 1;
     assert TestUtils.tableSize(testTableName) == noOfRecords
         : "expected: " + noOfRecords + " actual: " + TestUtils.tableSize(testTableName);
-    service.closeAll();
+//    service.closeAll();
   }
 
   /* This will automatically open the channel. */
@@ -165,7 +165,7 @@ public class TopicPartitionChannelIT {
             + (noOfRecords + noOfRecords)
             + " actual: "
             + TestUtils.tableSize(testTableName);
-    service.closeAll();
+//    service.closeAll();
   }
 
   /**
@@ -379,7 +379,7 @@ public class TopicPartitionChannelIT {
                 + anotherSetOfRecords)
             + " actual: "
             + TestUtils.tableSize(testTableName);
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -454,7 +454,7 @@ public class TopicPartitionChannelIT {
             + (recordsInPartition1 + anotherSetOfRecords)
             + " actual: "
             + TestUtils.tableSize(testTableName);
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -535,7 +535,7 @@ public class TopicPartitionChannelIT {
         5,
         5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -592,7 +592,7 @@ public class TopicPartitionChannelIT {
         + " actual: "
         + TestUtils.tableSize(testTableName);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -686,7 +686,7 @@ public class TopicPartitionChannelIT {
         5,
         5);
 
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -736,6 +736,6 @@ public class TopicPartitionChannelIT {
 
     assert TestUtils.tableSize(testTableName) == 4
         : "expected: " + 4 + " actual: " + TestUtils.tableSize(testTableName);
-    service.closeAll();
+//    service.closeAll();
   }
 }

@@ -85,7 +85,7 @@ public class TombstoneRecordIngestionIT {
     this.testIngestTombstoneRunner(normalRecord, COMMUNITY_CONVERTER_SUBSET, service);
 
     // cleanup
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -116,7 +116,7 @@ public class TombstoneRecordIngestionIT {
     this.testIngestTombstoneRunner(normalRecord, COMMUNITY_CONVERTER_SUBSET, service);
 
     // cleanup
-    service.closeAll();
+//    service.closeAll();
   }
 
   @Test
@@ -147,7 +147,7 @@ public class TombstoneRecordIngestionIT {
     this.testIngestTombstoneRunner(normalRecord, converters, service);
 
     // cleanup
-    service.closeAll();
+//    service.closeAll();
     conn.dropStage(stage);
     conn.dropPipe(pipe);
   }
