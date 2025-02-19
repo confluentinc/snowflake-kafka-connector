@@ -116,7 +116,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   private final String V1ReprocessCleanerThreadType = "v1-reprocess-cleaner";
   private final String V2CleanerThreadType = "v2-cleaner";
 
-  SnowflakeSinkServiceV1(SnowflakeConnectionService conn) {
+  private final long v2CleanerIntervalSeconds;
+
+  SnowflakeSinkServiceV1(SnowflakeConnectionService conn, long v2CleanerIntervalSeconds) {
     if (conn == null || conn.isClosed()) {
       throw SnowflakeErrors.ERROR_5010.getException();
     }
@@ -130,6 +132,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     this.telemetryService = conn.getTelemetryClient();
     this.recordService = RecordServiceFactory.createRecordService(false, false);
     this.topic2TableMap = new HashMap<>();
+    this.v2CleanerIntervalSeconds = v2CleanerIntervalSeconds;
 
     // Setting the default value in constructor
     // meaning it will not ignore the null values (Tombstone records wont be ignored/filtered)
@@ -173,7 +176,8 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
               topicPartition.topic(),
               conn,
               topicPartition.partition(),
-              cleanerServiceExecutor));
+              cleanerServiceExecutor,
+              v2CleanerIntervalSeconds));
 
       if (enableStageFilePrefixExtension
           && TopicToTableModeExtractor.determineTopic2TableMode(
@@ -624,7 +628,8 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         String topicName,
         SnowflakeConnectionService conn,
         int partition,
-        ScheduledExecutorService v2CleanerExecutor) {
+        ScheduledExecutorService v2CleanerExecutor,
+        long v2CleanerIntervalSeconds) {
       this.pipeName = pipeName;
       this.tableName = generatedTableName.getName();
       this.stageName = stageName;
@@ -698,7 +703,8 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
                 ingestionService,
                 pipeStatus,
                 telemetryService,
-                v2CleanerExecutor);
+                v2CleanerExecutor,
+                v2CleanerIntervalSeconds);
         this.stageFileProcessorClient = processor.trackFilesAsync();
         this.cleanerExecutor = null;
         this.reprocessCleanerExecutor = null;
