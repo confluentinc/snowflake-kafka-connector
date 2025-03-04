@@ -12,10 +12,5 @@ test/rest_request_generated/
 .vscode/
 docker-setup/connector-examples/*.json
 docker-setup/snowflake-kafka-docker
-
-cc-docker-connect-snowflake/confluent-cloud-plugins/
-cc-docker-connect-snowflake/kafka-connect-snowflake/
-.cache/
-licenses/
 .cache/
 licenses/
