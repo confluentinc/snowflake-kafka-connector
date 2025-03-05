@@ -1,8 +1,9 @@
 from test_suit.test_utils import RetryableError, NonRetryableError
 from confluent_kafka import avro
+from test_suit.base_e2e import BaseE2eTest
 
 
-class TestAvrosrAvrosr:
+class TestAvrosrAvrosr(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_avrosr_avrosr"
@@ -25,7 +26,9 @@ class TestAvrosrAvrosr:
             "fields":[
                 {"name":"id","type":"int"},
                 {"name":"firstName","type":"string"},
-                {"name":"time","type":"int"}
+                {"name":"time","type":"int"},
+                {"name":"someFloat","type":"float"},
+                {"name":"someFloatNaN","type":"float"}
             ]
         }
         """
@@ -41,13 +44,12 @@ class TestAvrosrAvrosr:
         for e in range(100):
             # avro data must follow the schema defined in ValueSchemaStr
             key.append({"id": e})
-            value.append({"id": e, "firstName": "abc0", "time": 1835})
+            value.append({"id": e, "firstName": "abc0", "time": 1835, "someFloat": 21.37, "someFloatNaN": "NaN"})
         self.driver.sendAvroSRData(
             self.topic, value, self.valueSchema, key, self.keySchema)
 
     def verify(self, round):
-        res = self.driver.snowflake_conn.cursor().execute(
-            "SELECT count(*) FROM {}".format(self.topic)).fetchone()[0]
+        res = self.driver.select_number_of_records(self.topic)
         if res == 0:
             raise RetryableError()
         elif res != 100:
@@ -57,8 +59,8 @@ class TestAvrosrAvrosr:
         res = self.driver.snowflake_conn.cursor().execute(
             "Select * from {} limit 1".format(self.topic)).fetchone()
         goldMeta = r'{"CreateTime":\d*,"key":{"id":0},"key_schema_id":\d*,"offset":0,"partition":0,"schema_id":\d*,' \
-                   r'"topic":"travis_correct_avrosr_avrosr....."}'
-        goldContent = r'{"firstName":"abc0","id":0,"time":1835}'
+                   r'"topic":"travis_correct_avrosr_avrosr_\w*"}'
+        goldContent = r'{"firstName":"abc0","id":0,"someFloat":21.37,"someFloatNaN":"NaN","time":1835}'
         self.driver.regexMatchOneLine(res, goldMeta, goldContent)
 
         self.driver.verifyStageIsCleaned(self.topic)

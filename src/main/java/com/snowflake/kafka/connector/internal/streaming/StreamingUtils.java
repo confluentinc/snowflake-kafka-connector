@@ -1,30 +1,16 @@
 package com.snowflake.kafka.connector.internal.streaming;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BOOLEAN_VALIDATOR;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.CUSTOM_SNOWFLAKE_CONVERTERS;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_LOG_ENABLE_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_TOLERANCE_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ErrorTolerance;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.KEY_CONVERTER_CONFIG_FIELD;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
-import com.snowflake.kafka.connector.internal.BufferThreshold;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import net.snowflake.ingest.streaming.OffsetTokenVerificationFunction;
 import net.snowflake.ingest.utils.Constants;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.record.DefaultRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,10 +44,6 @@ public class StreamingUtils {
    */
   protected static final long STREAMING_BUFFER_BYTES_DEFAULT = 20_000_000;
 
-  private static final Set<String> DISALLOWED_CONVERTERS_STREAMING = CUSTOM_SNOWFLAKE_CONVERTERS;
-  private static final String STRING_CONVERTER_KEYWORD = "StringConverter";
-  private static final String BYTE_ARRAY_CONVERTER_KEYWORD = "ByteArrayConverter";
-
   // excluding key, value and headers: 5 bytes length + 10 bytes timestamp + 5 bytes offset + 1
   // byte attributes. (This is not for record metadata, this is before we transform to snowflake
   // understood JSON)
@@ -75,17 +57,16 @@ public class StreamingUtils {
   public static final String STREAMING_CONSTANT_OAUTH_CLIENT_ID = "oauth_client_id";
   public static final String STREAMING_CONSTANT_OAUTH_CLIENT_SECRET = "oauth_client_secret";
   public static final String STREAMING_CONSTANT_OAUTH_REFRESH_TOKEN = "oauth_refresh_token";
+  public static final String STREAMING_CONSTANT_OAUTH_TOKEN_ENDPOINT = "oauth_token_endpoint";
 
-  // Offset verification function to verify that the current start offset has to be the previous end
-  // offset + 1, note that there are some false positives when SMT is used.
+  // Offset verification function to verify that the current start offset has to incremental,
+  // note that there are some false positives when SMT is used.
   public static final OffsetTokenVerificationFunction offsetTokenVerificationFunction =
       (prevBatchEndOffset, curBatchStartOffset, curBatchEndOffset, rowCount) -> {
         if (prevBatchEndOffset != null && curBatchStartOffset != null) {
           long curStart = Long.parseLong(curBatchStartOffset);
           long prevEnd = Long.parseLong(prevBatchEndOffset);
-          if (curStart != prevEnd + 1) {
-            return false;
-          }
+          return curStart > prevEnd;
         }
         return true;
       };
@@ -165,6 +146,13 @@ public class StreamingUtils {
           return value;
         });
 
+    connectorConfig.computeIfPresent(
+        Utils.SF_OAUTH_TOKEN_ENDPOINT,
+        (key, value) -> {
+          streamingProperties.put(STREAMING_CONSTANT_OAUTH_TOKEN_ENDPOINT, value);
+          return value;
+        });
+
     return streamingProperties;
   }
 
@@ -184,142 +172,5 @@ public class StreamingUtils {
   /* Returns dlq topic name if connector config has errors.deadletterqueue.topic.name set */
   public static String getDlqTopicName(Map<String, String> sfConnectorConfig) {
     return sfConnectorConfig.getOrDefault(ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG, "");
-  }
-
-  /**
-   * Validate Streaming snowpipe related config provided by config(customer's config)
-   *
-   * @param inputConfig given in connector json file
-   * @return map of invalid parameters
-   */
-  public static ImmutableMap<String, String> validateStreamingSnowpipeConfig(
-      final Map<String, String> inputConfig) {
-    Map<String, String> invalidParams = new HashMap<>();
-
-    // For snowpipe_streaming, role should be non empty
-    if (inputConfig.containsKey(INGESTION_METHOD_OPT)) {
-      try {
-        // This throws an exception if config value is invalid.
-        IngestionMethodConfig.VALIDATOR.ensureValid(
-            INGESTION_METHOD_OPT, inputConfig.get(INGESTION_METHOD_OPT));
-        if (inputConfig
-            .get(INGESTION_METHOD_OPT)
-            .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
-
-          // check if buffer thresholds are within permissible range
-          invalidParams.putAll(
-              BufferThreshold.validateBufferThreshold(
-                  inputConfig, IngestionMethodConfig.SNOWPIPE_STREAMING));
-
-          invalidParams.putAll(validateConfigConverters(KEY_CONVERTER_CONFIG_FIELD, inputConfig));
-          invalidParams.putAll(validateConfigConverters(VALUE_CONVERTER_CONFIG_FIELD, inputConfig));
-
-          // Validate if snowflake role is present
-          if (!inputConfig.containsKey(Utils.SF_ROLE)
-              || Strings.isNullOrEmpty(inputConfig.get(Utils.SF_ROLE))) {
-            invalidParams.put(
-                Utils.SF_ROLE,
-                Utils.formatString(
-                    "Config:{} should be present if ingestionMethod is:{}",
-                    Utils.SF_ROLE,
-                    inputConfig.get(INGESTION_METHOD_OPT)));
-          }
-
-          /**
-           * Only checking in streaming since we are utilizing the values before we send it to
-           * DLQ/output to log file
-           */
-          if (inputConfig.containsKey(ERRORS_TOLERANCE_CONFIG)) {
-            SnowflakeSinkConnectorConfig.ErrorTolerance.VALIDATOR.ensureValid(
-                ERRORS_TOLERANCE_CONFIG, inputConfig.get(ERRORS_TOLERANCE_CONFIG));
-          }
-          if (inputConfig.containsKey(ERRORS_LOG_ENABLE_CONFIG)) {
-            BOOLEAN_VALIDATOR.ensureValid(
-                ERRORS_LOG_ENABLE_CONFIG, inputConfig.get(ERRORS_LOG_ENABLE_CONFIG));
-          }
-
-          if (inputConfig.containsKey(SNOWPIPE_STREAMING_MAX_CLIENT_LAG)) {
-            try {
-              Long.parseLong(inputConfig.get(SNOWPIPE_STREAMING_MAX_CLIENT_LAG));
-            } catch (NumberFormatException exception) {
-              invalidParams.put(
-                  SNOWPIPE_STREAMING_MAX_CLIENT_LAG,
-                  Utils.formatString(
-                      "Max client lag configuration must be a parsable long. Given configuration"
-                          + " was: {}",
-                      inputConfig.get(SNOWPIPE_STREAMING_MAX_CLIENT_LAG)));
-            }
-          }
-
-          // Valid schematization for Snowpipe Streaming
-          invalidParams.putAll(validateSchematizationConfig(inputConfig));
-        }
-      } catch (ConfigException exception) {
-        invalidParams.put(
-            INGESTION_METHOD_OPT,
-            Utils.formatString(
-                "Kafka config:{} error:{}", INGESTION_METHOD_OPT, exception.getMessage()));
-      }
-    }
-
-    return ImmutableMap.copyOf(invalidParams);
-  }
-
-  /**
-   * Validates if key and value converters are allowed values if {@link
-   * IngestionMethodConfig#SNOWPIPE_STREAMING} is used.
-   *
-   * <p>Map if invalid parameters
-   */
-  private static Map<String, String> validateConfigConverters(
-      final String inputConfigConverterField, Map<String, String> inputConfig) {
-    Map<String, String> invalidParams = new HashMap<>();
-
-    if (inputConfig.containsKey(inputConfigConverterField)
-        && DISALLOWED_CONVERTERS_STREAMING.contains(inputConfig.get(inputConfigConverterField))) {
-      invalidParams.put(
-          inputConfigConverterField,
-          Utils.formatString(
-              "Config:{} has provided value:{}. If ingestionMethod is:{}, Snowflake Custom"
-                  + " Converters are not allowed. \n"
-                  + "Invalid Converters:{}",
-              inputConfigConverterField,
-              inputConfig.get(inputConfigConverterField),
-              IngestionMethodConfig.SNOWPIPE_STREAMING,
-              Iterables.toString(DISALLOWED_CONVERTERS_STREAMING)));
-    }
-
-    return invalidParams;
-  }
-
-  /**
-   * Validates if the configs are allowed values when schematization is enabled.
-   *
-   * <p>return a map of invalid params
-   */
-  private static Map<String, String> validateSchematizationConfig(Map<String, String> inputConfig) {
-    Map<String, String> invalidParams = new HashMap<>();
-
-    if (inputConfig.containsKey(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG)) {
-      BOOLEAN_VALIDATOR.ensureValid(
-          SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG,
-          inputConfig.get(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG));
-
-      if (Boolean.parseBoolean(
-              inputConfig.get(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG))
-          && inputConfig.get(VALUE_CONVERTER_CONFIG_FIELD) != null
-          && (inputConfig.get(VALUE_CONVERTER_CONFIG_FIELD).contains(STRING_CONVERTER_KEYWORD)
-              || inputConfig
-                  .get(VALUE_CONVERTER_CONFIG_FIELD)
-                  .contains(BYTE_ARRAY_CONVERTER_KEYWORD))) {
-        invalidParams.put(
-            inputConfig.get(VALUE_CONVERTER_CONFIG_FIELD),
-            Utils.formatString(
-                "The value converter:{} is not supported with schematization.",
-                inputConfig.get(VALUE_CONVERTER_CONFIG_FIELD)));
-      }
-    }
-
-    return invalidParams;
   }
 }

@@ -1,7 +1,8 @@
 from test_suit.test_utils import RetryableError, NonRetryableError
 import test_data.sensor_pb2 as sensor_pb2
+from test_suit.base_e2e import BaseE2eTest
 
-class TestNativeStringProtobuf:
+class TestNativeStringProtobuf(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_native_string_protobuf"
@@ -33,8 +34,7 @@ class TestNativeStringProtobuf:
         self.driver.sendBytesData(self.topic, value)
 
     def verify(self, round):
-        res = self.driver.snowflake_conn.cursor().execute(
-            "SELECT count(*) FROM {}".format(self.topic)).fetchone()[0]
+        res = self.driver.select_number_of_records(self.topic)
         if res == 0:
             raise RetryableError()
         elif res != 100:
@@ -46,7 +46,7 @@ class TestNativeStringProtobuf:
 
         # "schema_id" is lost since they are using native avro converter
         goldMeta = r'{"CreateTime":\d*,"offset":0,"partition":0,' \
-                   r'"topic":"travis_correct_native_string_protobuf....."}'
+                   r'"topic":"travis_correct_native_string_protobuf_\w*"}'
         goldContent = r'{"bytes_val":"3q0=","dateTime":1234,"device":{"deviceID":"555-4321","enabled":true},' \
                       r'"double_array_val":[0.3333333333333333,32.21,4.343243210000000e+08],' \
                       r'"float_val":4321.432,"int32_val":2147483647,"reading":321.321,"sint32_val":2147483647,' \

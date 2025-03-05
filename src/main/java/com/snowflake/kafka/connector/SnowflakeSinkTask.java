@@ -16,7 +16,7 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.internal.streaming.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+import static com.snowflake.kafka.connector.internal.streaming.channel.TopicPartitionChannel.NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
@@ -30,7 +30,6 @@ import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -187,8 +186,7 @@ public class SnowflakeSinkTask extends SinkTask {
       // connector would never start or reach the sink task stage
       behavior =
           SnowflakeSinkConnectorConfig.BehaviorOnNullValues.valueOf(
-              parsedConfig.get(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG)
-                  .toUpperCase(Locale.ROOT));
+              parsedConfig.get(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG));
     }
 
     // we would have already validated the config inside SFConnector start()
@@ -380,9 +378,7 @@ public class SnowflakeSinkTask extends SinkTask {
    * @return result map
    */
   static Map<String, String> getTopicToTableMap(Map<String, String> config) {
-    if (config.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)
-            && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()
-    ) {
+    if (config.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)) {
       Map<String, String> result =
           Utils.parseTopicToTableMap(config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
       if (result != null) {

@@ -1,8 +1,9 @@
 from test_suit.test_utils import RetryableError, NonRetryableError
 import json
+from test_suit.base_e2e import BaseE2eTest
 
 
-class TestStringJson:
+class TestStringJson(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_string_json"
@@ -32,8 +33,7 @@ class TestStringJson:
         self.driver.sendBytesData(self.topic, value, [], 0, header)
 
     def verify(self, round):
-        res = self.driver.snowflake_conn.cursor().execute(
-            "SELECT count(*) FROM {}".format(self.topic)).fetchone()[0]
+        res = self.driver.select_number_of_records(self.topic)
 
         if res == 0:
             raise RetryableError()
@@ -43,9 +43,9 @@ class TestStringJson:
         # validate content of line 1
         oldVersions = ["5.4.0", "5.3.0", "5.2.0", "2.4.0", "2.3.0", "2.2.0"]
         if self.driver.testVersion in oldVersions:
-            goldMeta = r'{"CreateTime":\d*,"headers":{"header1":"value1","header2":{}},"offset":0,"partition":0,"topic":"travis_correct_string_json....."}'
+            goldMeta = r'{"CreateTime":\d*,"headers":{"header1":"value1","header2":{}},"offset":0,"partition":0,"topic":"travis_correct_string_json_\w*"}'
         else:
-            goldMeta = r'{"CreateTime":\d*,"headers":{"header1":"value1","header2":[]},"offset":0,"partition":0,"topic":"travis_correct_string_json....."}'
+            goldMeta = r'{"CreateTime":\d*,"headers":{"header1":"value1","header2":[]},"offset":0,"partition":0,"topic":"travis_correct_string_json_\w*"}'
 
         res = self.driver.snowflake_conn.cursor().execute(
             "Select * from {} limit 1".format(self.topic)).fetchone()

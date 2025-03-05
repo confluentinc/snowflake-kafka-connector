@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.snowflake.ingest.connection.HistoryResponse;
@@ -165,7 +166,7 @@ class StageFilesProcessor {
     close();
 
     SnowflakeTelemetryPipeCreation pipeCreation =
-        new SnowflakeTelemetryPipeCreation(tableName, stageName, pipeName);
+        preparePipeStartTelemetryEvent(tableName, stageName, pipeName);
     ProgressRegisterImpl register = new ProgressRegisterImpl(this);
 
     PipeProgressRegistryTelemetry telemetry =
@@ -189,7 +190,8 @@ class StageFilesProcessor {
         prefix);
 
     AtomicBoolean shouldFetchInitialStageFiles = new AtomicBoolean(true);
-    AtomicBoolean firstRun = new AtomicBoolean(true);
+    AtomicBoolean isFirstRun = new AtomicBoolean(true);
+    AtomicBoolean hadError = new AtomicBoolean(false);
 
     ProcessorContext ctx =
         new ProcessorContext(progressTelemetry, currentTimeSupplier.currentTime());
@@ -199,13 +201,27 @@ class StageFilesProcessor {
     final String threadName =
         String.format("file-processor-[%s/%d:%s]", topic, partition, tableName);
 
+    progressTelemetry.reportKafkaPartitionStart();
+
     cleanerTaskHolder.set(
         schedulingExecutor.scheduleWithFixedDelay(
             () -> {
               Thread.currentThread().setName(threadName);
               try {
-                // update metrics
-                progressTelemetry.reportKafkaPartitionUsage(false);
+                // cleaner starts along with the partition task, but until table, stage and pipe
+                // aren't created - there is no point in querying the stage.
+                if (isFirstRun.get()
+                    && checkPreRequisites() != CleanerPrerequisites.PIPE_COMPATIBLE) {
+                  LOGGER.debug(
+                      "neither table {} nor stage {} nor pipe {} have been initialized yet,"
+                          + " skipping cycle...",
+                      tableName,
+                      stageName,
+                      pipeName);
+                  return;
+                }
+
+                progressTelemetry.reportKafkaPartitionUsage();
 
                 // add all files which might have been collected during the last cycle for
                 // processing
@@ -214,7 +230,8 @@ class StageFilesProcessor {
                 // initialize state based on the remote stage state (do it on first call or after
                 // error)
                 if (shouldFetchInitialStageFiles.getAndSet(false)) {
-                  initializeCleanStartState(ctx);
+                  initializeCleanStartState(ctx, isFirstRun.get());
+                  isFirstRun.set(false);
                 }
 
                 LOGGER.debug(
@@ -229,7 +246,7 @@ class StageFilesProcessor {
                 // will retry processing with the current file set in next iteration (with
                 // potentially newly
                 // added files)
-                nextCheck(ctx, register, firstRun.getAndSet(false));
+                nextCheck(ctx, register, hadError.getAndSet(false));
               } catch (Exception e) {
                 progressTelemetry.reportKafkaConnectFatalError(e.getMessage());
                 LOGGER.warn(
@@ -240,6 +257,7 @@ class StageFilesProcessor {
                     e.getStackTrace());
 
                 shouldFetchInitialStageFiles.set(true);
+                hadError.set(true);
                 // as the next cycle will load files from remote due to an error, we can reset
                 // tracking
                 // history timestamp to now
@@ -259,8 +277,14 @@ class StageFilesProcessor {
     }
   }
 
-  private void initializeCleanStartState(ProcessorContext ctx) {
+  private void initializeCleanStartState(ProcessorContext ctx, boolean firstRun) {
     Collection<String> remoteStageFiles = fetchCurrentStage();
+    if (firstRun) {
+      HashSet<String> remoteFiles = new HashSet<>(remoteStageFiles);
+      long remoteFileCount =
+          ctx.files.stream().filter(localFile -> !remoteFiles.contains(localFile)).count();
+      ctx.progressTelemetry.setupInitialState(remoteFileCount);
+    }
     ctx.files.addAll(remoteStageFiles);
     // since we will load completely fresh history from remote, we can reset the history tracking
     // state
@@ -269,14 +293,14 @@ class StageFilesProcessor {
     LOGGER.debug("for pipe {} found {} file(s) on remote stage", pipeName, remoteStageFiles.size());
   }
 
-  private void nextCheck(ProcessorContext ctx, ProgressRegisterImpl register, boolean firstRun) {
+  private void nextCheck(ProcessorContext ctx, ProgressRegisterImpl register, boolean hadErrors) {
 
     // make first categorization - split files into these with start offset higher than current
     FileCategorizer fileCategories =
         FileCategorizer.build(ctx.files, register.offset.get(), filters);
 
-    if (firstRun) {
-      ctx.progressTelemetry.initializeStats(
+    if (hadErrors) {
+      ctx.progressTelemetry.updateStatsAfterError(
           fileCategories.dirtyFiles.size(), fileCategories.stageFiles.size());
     }
 
@@ -316,6 +340,7 @@ class StageFilesProcessor {
         pipeName);
     ctx.files.clear();
     ctx.files.addAll(filesToTrack);
+    ctx.files.addAll(fileCategories.dirtyFiles);
   }
 
   private void loadIngestReport(FileCategorizer fileCategories, ProcessorContext ctx) {
@@ -412,7 +437,8 @@ class StageFilesProcessor {
           String.join(", ", failedFiles));
       // underlying code moves files one by one, so this is not going to impact performance.
       // we have been observing scenarios, when the file listed at the start of the process was
-      // removed - this would cause cleaner to fail - so instead we process file one by one to
+      // removed, or process didn't have access to it - this would cause cleaner to fail - so
+      // instead we process file one by one to
       // ensure all the ones which are still present will be actually moved
       failedFiles.stream()
           .map(Lists::newArrayList)
@@ -421,8 +447,11 @@ class StageFilesProcessor {
                 try {
                   conn.moveToTableStage(tableName, stageName, failedFile);
                 } catch (SnowflakeKafkaConnectorException e) {
+                  telemetryService.reportKafkaConnectFatalError(
+                      String.format("[cleaner for pipe %s]: %s", pipeName, e.getMessage()));
                   LOGGER.warn(
-                      "Could not move file {} for pipe {} to table stage due to {} <{}>",
+                      "Could not move file {} for pipe {} to table stage due to {} <{}>\n"
+                          + "File won't be tracked.",
                       failedFile.get(0),
                       pipeName,
                       e.getMessage(),
@@ -472,6 +501,7 @@ class StageFilesProcessor {
           files.size(),
           String.join(", ", files));
       conn.purgeStage(stageName, new ArrayList<>(files));
+      files.clear();
     } catch (Exception e) {
       LOGGER.error(
           "Reprocess cleaner encountered an exception {}:\n{}\n{}",
@@ -479,6 +509,71 @@ class StageFilesProcessor {
           e.getMessage(),
           e.getStackTrace());
     }
+  }
+
+  enum CleanerPrerequisites {
+    NONE,
+    TABLE_COMPATIBLE,
+    STAGE_COMPATIBLE,
+    PIPE_COMPATIBLE,
+  }
+
+  private SnowflakeTelemetryPipeCreation preparePipeStartTelemetryEvent(
+      String tableName, String stageName, String pipeName) {
+    SnowflakeTelemetryPipeCreation result =
+        new SnowflakeTelemetryPipeCreation(tableName, stageName, pipeName);
+    boolean canListFiles = false;
+
+    switch (checkPreRequisites()) {
+      case PIPE_COMPATIBLE:
+        result.setReusePipe(true);
+      case STAGE_COMPATIBLE:
+        result.setReuseStage(true);
+        canListFiles = true;
+      case TABLE_COMPATIBLE:
+        result.setReuseTable(true);
+      default:
+        break;
+    }
+
+    if (canListFiles) {
+      try {
+        List<String> stageFiles = conn.listStage(stageName, prefix);
+        result.setFileCountRestart(stageFiles.size());
+      } catch (Exception err) {
+        LOGGER.warn(
+            "could not list remote stage {} - {}<{}>\n{}",
+            stageName,
+            err.getMessage(),
+            err.getClass(),
+            err.getStackTrace());
+      }
+      // at this moment, file processor does not know how many files should be reprocessed...
+      result.setFileCountReprocessPurge(0);
+    }
+
+    return result;
+  }
+
+  private CleanerPrerequisites checkPreRequisites() {
+    CleanerPrerequisites result = CleanerPrerequisites.NONE;
+    Supplier<Boolean> tableCompatible =
+        () -> conn.tableExist(tableName) && conn.isTableCompatible(tableName);
+    Supplier<Boolean> stageCompatible =
+        () -> conn.stageExist(stageName) && conn.isStageCompatible(stageName);
+    Supplier<Boolean> pipeCompatible =
+        () -> conn.pipeExist(pipeName) && conn.isPipeCompatible(tableName, stageName, pipeName);
+
+    if (tableCompatible.get()) {
+      result = CleanerPrerequisites.TABLE_COMPATIBLE;
+      if (stageCompatible.get()) {
+        result = CleanerPrerequisites.STAGE_COMPATIBLE;
+        if (pipeCompatible.get()) {
+          result = CleanerPrerequisites.PIPE_COMPATIBLE;
+        }
+      }
+    }
+    return result;
   }
 
   public static class FileCategorizer {
@@ -680,7 +775,7 @@ class StageFilesProcessor {
   // parameters
   @VisibleForTesting
   static class ProcessorContext {
-    final List<String> files = new ArrayList<>();
+    final Set<String> files = new HashSet<>();
     final Map<String, IngestEntry> ingestHistory = new HashMap<>();
     final AtomicReference<String> historyMarker = new AtomicReference<>();
     final PipeProgressRegistryTelemetry progressTelemetry;

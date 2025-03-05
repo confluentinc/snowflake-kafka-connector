@@ -3,8 +3,10 @@ import os
 import re
 import sys
 import traceback
+from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
+from typing import Callable
 
 import requests, uuid
 import snowflake.connector
@@ -12,10 +14,30 @@ from confluent_kafka import Producer, Consumer, KafkaError
 from confluent_kafka.admin import AdminClient, NewTopic, ConfigResource, NewPartitions
 from confluent_kafka.avro import AvroProducer
 from test_suites import create_end_to_end_test_suites
+from test_executor import TestExecutor
+from test_selector import TestSelector
 import time
 
 import test_suit
 from test_suit.test_utils import parsePrivateKey, RetryableError
+
+from cloud_platform import CloudPlatform
+
+
+@dataclass
+class ConnectorParameters:
+    snowflake_streaming_enable_single_buffer: str
+
+
+class ConnectorParametersList:
+    def __init__(self, connectorParametersList: list[ConnectorParameters]):
+        self.connectorParametersList = connectorParametersList
+
+    def for_each(self, func: Callable[[int, ConnectorParameters], None]) -> None:
+        for idx, connector_parameters in enumerate(self.connectorParametersList):
+            print(datetime.now().strftime("%H:%M:%S "), f'=== Using parameters {idx}: {connector_parameters} ===')
+
+            func(idx, connector_parameters)
 
 
 def errorExit(message):
@@ -24,14 +46,10 @@ def errorExit(message):
 
 
 class KafkaTest:
-    def __init__(self, kafkaAddress, schemaRegistryAddress, kafkaConnectAddress, credentialPath, testVersion, enableSSL,
-                 snowflakeCloudPlatform, enableDeliveryGuaranteeTests=False):
+    def __init__(self, kafkaAddress, schemaRegistryAddress, kafkaConnectAddress, credentialPath,
+                 connectorParameters: ConnectorParameters, testVersion, enableSSL):
         self.testVersion = testVersion
         self.credentialPath = credentialPath
-        # can be None or one of AWS, AZURE, GCS
-        self.snowflakeCloudPlatform = snowflakeCloudPlatform
-        # default is false or set to true as env variable
-        self.enableDeliveryGuaranteeTests = enableDeliveryGuaranteeTests
         with open(self.credentialPath) as f:
             credentialJson = json.load(f)
             testHost = credentialJson["host"]
@@ -94,6 +112,8 @@ class KafkaTest:
             database=testDatabase,
             schema=testSchema
         )
+
+        self.connectorParameters = connectorParameters
 
     def msgSendInterval(self):
         # sleep self.SEND_INTERVAL before send the second message
@@ -185,17 +205,17 @@ class KafkaTest:
                     self.producer.flush()
         self.producer.flush()
 
-    def sendAvroSRData(self, topic, value, value_schema, key=[], key_schema="", partition=0):
+    def sendAvroSRData(self, topic, value, value_schema, key=[], key_schema="", partition=0, headers=[]):
         if len(key) == 0:
             for i, v in enumerate(value):
                 self.avroProducer.produce(
-                    topic=topic, value=v, value_schema=value_schema, partition=partition)
+                    topic=topic, value=v, value_schema=value_schema, partition=partition, headers=headers)
                 if (i + 1) % self.MAX_FLUSH_BUFFER_SIZE == 0:
                     self.producer.flush()
         else:
             for i, (k, v) in enumerate(zip(key, value)):
                 self.avroProducer.produce(
-                    topic=topic, value=v, value_schema=value_schema, key=k, key_schema=key_schema, partition=partition)
+                    topic=topic, value=v, value_schema=value_schema, key=k, key_schema=key_schema, partition=partition, headers=headers)
                 if (i + 1) % self.MAX_FLUSH_BUFFER_SIZE == 0:
                     self.producer.flush()
         self.avroProducer.flush()
@@ -257,7 +277,6 @@ class KafkaTest:
     def get_kafka_version(self):
         return self.testVersion
 
-
     def cleanTableStagePipe(self, connectorName, topicName="", partitionNumber=1):
         if topicName == "":
             topicName = connectorName
@@ -276,6 +295,45 @@ class KafkaTest:
             self.snowflake_conn.cursor().execute("DROP pipe IF EXISTS {}".format(pipeName))
 
         print(datetime.now().strftime("%H:%M:%S "), "=== Done ===", flush=True)
+
+    def enable_schema_evolution_for_iceberg(self, table: str):
+        self.snowflake_conn.cursor().execute("alter iceberg table {} set ENABLE_SCHEMA_EVOLUTION = true".format(table))
+
+    def create_empty_iceberg_table(self, table_name: str, external_volume: str):
+        sql = """
+            CREATE ICEBERG TABLE IF NOT EXISTS {} (
+                record_metadata OBJECT()
+            )
+            EXTERNAL_VOLUME = '{}'
+            CATALOG = 'SNOWFLAKE'
+            BASE_LOCATION = '{}'
+            ;
+        """.format(table_name, external_volume, table_name)
+        self.snowflake_conn.cursor().execute(sql)
+
+    def create_iceberg_table_with_sample_content(self, table_name: str, external_volume: str):
+        sql = """
+            CREATE ICEBERG TABLE IF NOT EXISTS {} (
+                record_content OBJECT(
+                    id INT,
+                    body_temperature FLOAT,
+                    name STRING,
+                    approved_coffee_types ARRAY(STRING),
+                    animals_possessed OBJECT(dogs BOOLEAN, cats BOOLEAN)
+                )
+            )
+            EXTERNAL_VOLUME = '{}'
+            CATALOG = 'SNOWFLAKE'
+            BASE_LOCATION = '{}'
+            ;
+        """.format(table_name, external_volume, table_name)
+        self.snowflake_conn.cursor().execute(sql)
+
+    def drop_iceberg_table(self, table_name: str):
+        self.snowflake_conn.cursor().execute("DROP ICEBERG TABLE IF EXISTS {}".format(table_name))
+
+    def select_number_of_records(self, table_name: str) -> str:
+        return self.snowflake_conn.cursor().execute("SELECT count(*) FROM {}".format(table_name)).fetchone()[0]
 
     def verifyStageIsCleaned(self, connectorName, topicName=""):
         if topicName == "":
@@ -360,7 +418,7 @@ class KafkaTest:
             pkEncrypted = credentialJson["encrypted_private_key"]
 
         print(datetime.now().strftime("\n%H:%M:%S "),
-              "=== generate sink connector rest reqeuest from {} ===".format(rest_template_path))
+              "=== generate sink connector rest request from {} ===".format(rest_template_path))
         if not os.path.exists(rest_generate_path):
             os.makedirs(rest_generate_path)
         snowflake_connector_name = fileName.split(".")[0] + nameSalt
@@ -383,7 +441,8 @@ class KafkaTest:
                 .replace("CONFLUENT_SCHEMA_REGISTRY", self.schemaRegistryAddress) \
                 .replace("SNOWFLAKE_TEST_TOPIC", snowflake_topic_name) \
                 .replace("SNOWFLAKE_CONNECTOR_NAME", snowflake_connector_name) \
-                .replace("SNOWFLAKE_ROLE", testRole)
+                .replace("SNOWFLAKE_ROLE", testRole) \
+                .replace("$SNOWFLAKE_STREAMING_ENABLE_SINGLE_BUFFER", self.connectorParameters.snowflake_streaming_enable_single_buffer)
             with open("{}/{}".format(rest_generate_path, fileName), 'w') as fw:
                 fw.write(fileContent)
 
@@ -436,60 +495,26 @@ def runStressTests(driver, testSet, nameSalt):
     ############################ Stress Tests Round 1 ############################
     # TestPressure and TestPressureRestart will only run when Running StressTests
     print(datetime.now().strftime("\n%H:%M:%S "), "=== Stress Tests Round 1 ===")
-    testSuitList = [testPressureRestart]
-
-    testCleanEnableList = [True]
-    testSuitEnableList = []
-    if testSet == "confluent":
-        testSuitEnableList = [True]
-    elif testSet == "apache":
-        testSuitEnableList = [True]
-    elif testSet != "clean":
-        errorExit("Unknown testSet option {}, please input confluent, apache or clean".format(testSet))
-
-    execution(testSet, testSuitList, testCleanEnableList, testSuitEnableList, driver, nameSalt, round=1)
+    execution(testSet, [testPressureRestart], driver, nameSalt, round=1)
     ############################ Stress Tests Round 1 ############################
 
     ############################ Stress Tests Round 2 ############################
     print(datetime.now().strftime("\n%H:%M:%S "), "=== Stress Tests Round 2 ===")
-    testSuitList = [testPressure]
-
-    testCleanEnableList = [True]
-    testSuitEnableList = []
-    if testSet == "confluent":
-        testSuitEnableList = [True]
-    elif testSet == "apache":
-        testSuitEnableList = [True]
-    elif testSet != "clean":
-        errorExit("Unknown testSet option {}, please input confluent, apache or clean".format(testSet))
-
-    execution(testSet, testSuitList, testCleanEnableList, testSuitEnableList, driver, nameSalt, round=1)
+    execution(testSet, [testPressure], driver, nameSalt, round=1)
     ############################ Stress Tests Round 2 ############################
 
 
-def runTestSet(driver, testSet, nameSalt, enable_stress_test, skipProxy, allowedTestsCsv):
+def runTestSet(driver, testSet, nameSalt, enable_stress_test, skipProxy, cloud_platform, allowedTestsCsv):
     if enable_stress_test:
         runStressTests(driver, testSet, nameSalt)
     else:
-        test_suites = create_end_to_end_test_suites(driver, nameSalt, schemaRegistryAddress, testSet, allowedTestsCsv)
-
         ############################ round 1 ############################
         print(datetime.now().strftime("\n%H:%M:%S "), "=== Round 1 ===")
 
-        end_to_end_tests_suite = [single_end_to_end_test.test_instance for single_end_to_end_test in test_suites.values()]
+        testSelector = TestSelector()
+        end_to_end_tests_suite = testSelector.select_tests_to_be_run(driver, nameSalt, schemaRegistryAddress, testSet, cloud_platform, allowedTestsCsv)
 
-        end_to_end_tests_suite_cleaner = [single_end_to_end_test.clean for single_end_to_end_test in test_suites.values()]
-
-        end_to_end_tests_suite_runner = []
-
-        if testSet == "confluent":
-            end_to_end_tests_suite_runner = [single_end_to_end_test.run_in_confluent for single_end_to_end_test in test_suites.values()]
-        elif testSet == "apache":
-            end_to_end_tests_suite_runner = [single_end_to_end_test.run_in_apache for single_end_to_end_test in test_suites.values()]
-        elif testSet != "clean":
-            errorExit("Unknown testSet option {}, please input confluent, apache or clean".format(testSet))
-
-        execution(testSet, end_to_end_tests_suite, end_to_end_tests_suite_cleaner, end_to_end_tests_suite_runner, driver, nameSalt)
+        execution(testSet, end_to_end_tests_suite, driver, nameSalt)
 
         ############################ Always run Proxy tests in the end ############################
 
@@ -507,65 +532,36 @@ def runTestSet(driver, testSet, nameSalt, enable_stress_test, skipProxy, allowed
         print("Proxy Test should be the last test, since it modifies the JVM values")
 
         proxy_tests_suite = [EndToEndTestSuite(
-            test_instance=TestStringJsonProxy(driver, nameSalt), clean=True, run_in_confluent=True, run_in_apache=True
+            test_instance=TestStringJsonProxy(driver, nameSalt), run_in_confluent=True, run_in_apache=True, cloud_platform = CloudPlatform.ALL
         )]
 
         end_to_end_proxy_tests_suite = [single_end_to_end_test.test_instance for single_end_to_end_test in proxy_tests_suite]
 
-        proxy_suite_clean_enable_list = [single_end_to_end_test.clean for single_end_to_end_test in proxy_tests_suite]
-
-        proxy_suite_runner = []
-
-        if testSet == "confluent":
-            proxy_suite_runner = [single_end_to_end_test.run_in_confluent for single_end_to_end_test in proxy_tests_suite]
-        elif testSet == "apache":
-            proxy_suite_runner = [single_end_to_end_test.run_in_apache for single_end_to_end_test in proxy_tests_suite]
-        elif testSet != "clean":
-            errorExit("Unknown testSet option {}, please input confluent, apache or clean".format(testSet))
-
-        execution(testSet, end_to_end_proxy_tests_suite, proxy_suite_clean_enable_list, proxy_suite_runner, driver, nameSalt)
+        execution(testSet, end_to_end_proxy_tests_suite, driver, nameSalt)
         ############################ Proxy End To End Test End ############################
 
 
-def execution(testSet, testSuitList, testCleanEnableList, testSuitEnableList, driver, nameSalt, round=1):
+def execution(testSet, testSuitList, driver, nameSalt, round=1):
     if testSet == "clean":
-        for i, test in enumerate(testSuitList):
-            if testCleanEnableList[i]:
-                test.clean()
+        for test in testSuitList:
+            test.clean()
         print(datetime.now().strftime("\n%H:%M:%S "), "=== All clean done ===")
     else:
-        try:
-            for i, test in enumerate(testSuitList):
-                if testSuitEnableList[i]:
-                    driver.createConnector(test.getConfigFileName(), nameSalt)
+        testExecutor = TestExecutor()
+        testExecutor.execute(testSuitList, driver, nameSalt, round)
 
-            driver.startConnectorWaitTime()
 
-            for r in range(round):
-                print(datetime.now().strftime("\n%H:%M:%S "), "=== round {} ===".format(r))
-                for i, test in enumerate(testSuitList):
-                    if testSuitEnableList[i]:
-                        print(datetime.now().strftime("\n%H:%M:%S "),
-                              "=== Sending " + test.__class__.__name__ + " data ===")
-                        test.send()
-                        print(datetime.now().strftime("%H:%M:%S "), "=== Done " + test.__class__.__name__ + " ===",
-                              flush=True)
+def run_test_set_with_parameters(kafka_test: KafkaTest, testSet, nameSalt, pressure, skipProxy, cloud_platform, allowedTestsCsv):
+    runTestSet(kafka_test, testSet, nameSalt, pressure, skipProxy, cloud_platform, allowedTestsCsv)
 
-                driver.verifyWaitTime()
 
-                for i, test in enumerate(testSuitList):
-                    if testSuitEnableList[i]:
-                        print(datetime.now().strftime("\n%H:%M:%S "), "=== Verify " + test.__class__.__name__ + " ===")
-                        driver.verifyWithRetry(test.verify, r, test.getConfigFileName())
-                        print(datetime.now().strftime("%H:%M:%S "), "=== Passed " + test.__class__.__name__ + " ===",
-                              flush=True)
-
-            print(datetime.now().strftime("\n%H:%M:%S "), "=== All test passed ===")
-        except Exception as e:
-            print(datetime.now().strftime("%H:%M:%S "), e)
-            traceback.print_tb(e.__traceback__)
-            print(datetime.now().strftime("%H:%M:%S "), "Error: ", sys.exc_info()[0])
-            exit(1)
+def __parseCloudPlatform() -> CloudPlatform:
+    if "SF_CLOUD_PLATFORM" in os.environ:
+        rawCloudPlatform = os.environ['SF_CLOUD_PLATFORM']
+        return CloudPlatform[rawCloudPlatform]
+    else:
+        print("No SF_CLOUD_PLATFORM defined. Fallback to ALL.")
+        return CloudPlatform.ALL
 
 
 if __name__ == "__main__":
@@ -596,24 +592,27 @@ if __name__ == "__main__":
         errorExit("\n=== Provided SNOWFLAKE_CREDENTIAL_FILE {} does not exist.  Aborting. ===".format(
             credentialPath))
 
-    # This will either be AWS, AZURE or GCS
-    snowflakeCloudPlatform = None
+    snowflakeCloudPlatform: CloudPlatform = __parseCloudPlatform()
+    print("Running tests for platform {} and distribution {}".format(snowflakeCloudPlatform, testSet))
 
-    # If it is not set, we will not run delivery guarantee tests
-    enableDeliveryGuaranteeTests = False
-    if "SF_CLOUD_PLATFORM" in os.environ:
-        snowflakeCloudPlatform = os.environ['SF_CLOUD_PLATFORM']
+    parametersList = ConnectorParametersList([
+        ConnectorParameters(snowflake_streaming_enable_single_buffer='false'),
+        ConnectorParameters(snowflake_streaming_enable_single_buffer='true'),
+    ])
 
-    if "ENABLE_DELIVERY_GUARANTEE_TESTS" in os.environ:
-        enableDeliveryGuaranteeTests = (os.environ['ENABLE_DELIVERY_GUARANTEE_TESTS'] == 'True')
-
-    kafkaTest = KafkaTest(kafkaAddress,
-                          schemaRegistryAddress,
-                          kafkaConnectAddress,
-                          credentialPath,
-                          testVersion,
-                          enableSSL,
-                          snowflakeCloudPlatform,
-                          False)
-
-    runTestSet(kafkaTest, testSet, nameSalt, pressure, skipProxy, allowedTestsCsv)
+    parametersList.for_each(
+        lambda idx, parameters: runTestSet(
+            KafkaTest(kafkaAddress,
+                      schemaRegistryAddress,
+                      kafkaConnectAddress,
+                      credentialPath,
+                      parameters,
+                      testVersion,
+                      enableSSL),
+            testSet,
+            nameSalt + str(idx),
+            pressure,
+            skipProxy,
+            snowflakeCloudPlatform,
+            allowedTestsCsv)
+    )

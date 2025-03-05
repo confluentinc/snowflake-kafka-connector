@@ -1,10 +1,12 @@
 package com.snowflake.kafka.connector.internal;
 
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetTokenResponseDTO;
+import com.snowflake.kafka.connector.internal.streaming.schemaevolution.ColumnInfos;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface SnowflakeConnectionService {
   /**
@@ -106,9 +108,25 @@ public interface SnowflakeConnectionService {
    * Alter table to add columns according to a map from columnNames to their types
    *
    * @param tableName the name of the table
-   * @param columnToType the mapping from the columnNames to their types
+   * @param columnInfosMap the mapping from the columnNames to their columnInfos
    */
-  void appendColumnsToTable(String tableName, Map<String, String> columnToType);
+  void appendColumnsToTable(String tableName, Map<String, ColumnInfos> columnInfosMap);
+
+  /**
+   * Alter iceberg table to modify columns datatype
+   *
+   * @param tableName the name of the table
+   * @param columnInfosMap the mapping from the columnNames to their columnInfos
+   */
+  void alterColumnsDataTypeIcebergTable(String tableName, Map<String, ColumnInfos> columnInfosMap);
+
+  /**
+   * Alter iceberg table to add columns according to a map from columnNames to their types
+   *
+   * @param tableName the name of the table
+   * @param columnInfosMap the mapping from the columnNames to their columnInfos
+   */
+  void appendColumnsToIcebergTable(String tableName, Map<String, ColumnInfos> columnInfosMap);
 
   /**
    * Alter table to drop non-nullability of a list of columns
@@ -149,10 +167,6 @@ public interface SnowflakeConnectionService {
    * @param schemaName schema name
    */
   void schemaExists(String schemaName);
-
-  void hasSchemaPrivileges(String schemaName, String ingestionMethod);
-
-  void hasTableRequiredPrivileges(String tableName);
 
   /**
    * drop snowpipe
@@ -311,4 +325,28 @@ public interface SnowflakeConnectionService {
    */
   ChannelMigrateOffsetTokenResponseDTO migrateStreamingChannelOffsetToken(
       String tableName, String sourceChannelName, String destinationChannelName);
+
+  /**
+   * Alter the RECORD_METADATA column to be of the required structured OBJECT type for iceberg
+   * tables.
+   *
+   * @param tableName iceberg table name
+   */
+  void initializeMetadataColumnTypeForIceberg(String tableName);
+
+  /**
+   * Add the RECORD_METADATA column to the iceberg table if it does not exist.
+   *
+   * @param tableName iceberg table name
+   */
+  void addMetadataColumnForIcebergIfNotExists(String tableName);
+
+  /**
+   * Calls describe table statement and returns all columns and corresponding types.
+   *
+   * @param tableName - table name
+   * @return Optional.empty() if table does not exist. List of all table columns and their types
+   *     otherwise.
+   */
+  Optional<List<DescribeTableRow>> describeTable(String tableName);
 }

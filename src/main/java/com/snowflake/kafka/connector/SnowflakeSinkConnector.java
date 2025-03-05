@@ -16,11 +16,14 @@
  */
 package com.snowflake.kafka.connector;
 
+import com.snowflake.kafka.connector.config.ConnectorConfigDefinition;
+import com.snowflake.kafka.connector.config.IcebergConfigValidator;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
+import com.snowflake.kafka.connector.internal.streaming.DefaultStreamingConfigValidator;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,8 +34,6 @@ import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.sink.SinkConnector;
-
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 
 /**
  * SnowflakeSinkConnector implements SinkConnector for Kafka Connect framework.
@@ -65,9 +66,9 @@ public class SnowflakeSinkConnector extends SinkConnector {
   // Using setupComplete to synchronize
   private boolean setupComplete;
 
-  private static final int VALIDATION_NETWORK_TIMEOUT_IN_MS = 45000;
-
-  private static final int VALIDATION_LOGIN_TIMEOUT_IN_SEC = 20;
+  private final ConnectorConfigValidator connectorConfigValidator =
+      new DefaultConnectorConfigValidator(
+          new DefaultStreamingConfigValidator(), new IcebergConfigValidator());
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
@@ -97,7 +98,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
     // modify invalid connector name
     Utils.convertAppName(config);
 
-    Utils.validateConfig(config);
+    connectorConfigValidator.validateConfig(config);
 
     // enable mdc logging if needed
     KCLogger.toggleGlobalMdcLoggingContext(
@@ -194,7 +195,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
   /** @return ConfigDef with original configuration properties */
   @Override
   public ConfigDef config() {
-    return SnowflakeSinkConnectorConfig.newConfigDef();
+    return ConnectorConfigDefinition.getConfig();
   }
 
   @Override
@@ -228,28 +229,19 @@ public class SnowflakeSinkConnector extends SinkConnector {
     SnowflakeConnectionService testConnection;
     try {
       testConnection =
-          SnowflakeConnectionServiceFactory.builder()
-                  .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT_IN_MS)
-                  .setLoginTimeOut(VALIDATION_LOGIN_TIMEOUT_IN_SEC)
-                  .setProperties(connectorConfigs)
-                  .build();
-
+          SnowflakeConnectionServiceFactory.builder().setProperties(connectorConfigs).build();
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error(
-          "Validate: Error connecting to snowflake:{}, errorCode:{}, exception:{}",
-          e.getExceptionUserMessage(), e.getCode(), e.getMessage()
-      );
+          "Validate: Error connecting to snowflake:{}, errorCode:{}", e.getMessage(), e.getCode());
       // Since url, user, db, schema, exist in config and is not empty,
       // the exceptions here would be invalid URL, and cannot connect, and no private key
       switch (e.getCode()) {
         case "1001":
           // Could be caused by invalid url, invalid user name, invalid password.
-          String errrorString = String.format(
-              ": Cannot connect to Snowflake, due to %s", e.getExceptionUserMessage()
-          );
-          Utils.updateConfigErrorMessage(result, Utils.SF_URL, errrorString);
-          Utils.updateConfigErrorMessage(result, Utils.SF_PRIVATE_KEY, errrorString);
-          Utils.updateConfigErrorMessage(result, Utils.SF_USER, errrorString);
+          Utils.updateConfigErrorMessage(result, Utils.SF_URL, ": Cannot connect to Snowflake");
+          Utils.updateConfigErrorMessage(
+              result, Utils.SF_PRIVATE_KEY, ": Cannot connect to Snowflake");
+          Utils.updateConfigErrorMessage(result, Utils.SF_USER, ": Cannot connect to Snowflake");
           break;
         case "0007":
           Utils.updateConfigErrorMessage(result, Utils.SF_URL, " is not a valid snowflake url");
@@ -317,51 +309,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
       return result;
     }
 
-    try {
-      testConnection.hasSchemaPrivileges(connectorConfigs.get(Utils.SF_SCHEMA),
-              connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, "SNOWPIPE"));
-    } catch (SnowflakeKafkaConnectorException e) {
-      LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
-      if (e.getCode().equals("2001")) {
-        LOGGER.error(Utils.SF_SCHEMA + ": provided role does not have one of the required privileges "
-                + "(CREATE TABLE, CREATE STAGE, CREATE PIPE) on the schema");
-      }
-    } catch (Exception e) {
-      LOGGER.error("Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}", e.getMessage(), e);
-    }
-
-    if (shouldCheckTablePrivilege(connectorConfigs)) {
-      Map<String, String> topicsTablesMap = Utils.parseTopicToTableMap(connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
-      if (topicsTablesMap != null) {
-        checkTablePrivilege(topicsTablesMap, testConnection);
-      }
-    }
-
     LOGGER.info("Validated config with no error");
     return result;
-  }
-
-  private static boolean shouldCheckTablePrivilege(Map<String, String> connectorConfigs) {
-    String topicsTablesMap = connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP);
-    return topicsTablesMap != null && !topicsTablesMap.isEmpty();
-  }
-
-  private static void checkTablePrivilege(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
-    topicsTablesMap.forEach((topic, table) -> {
-      try {
-        if (testConnection.tableExist(table)) {
-          LOGGER.info("Table already {} exists, checking if we sufficient privileges", table);
-          testConnection.hasTableRequiredPrivileges(table);
-        }
-      } catch (SnowflakeKafkaConnectorException e) {
-        LOGGER.error("Validation Error for table {}: msg:{}, errorCode:{}", table, e.getMessage(), e.getCode());
-        if (e.getCode().equals("2001")) {
-          LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
-        }
-      } catch (Exception e) {
-        LOGGER.error("Unexpected Exception in validate for table privilege check {}: msg:{}, errorCode:{}", table, e.getMessage(), e);
-      }
-    });
   }
 
   private static boolean isUsingConfigProvider(Map<String, String> connectorConfigs) {

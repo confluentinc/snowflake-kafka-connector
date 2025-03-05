@@ -19,19 +19,26 @@ class PipeProgressRegistryTelemetry {
     this.telemetryService = telemetryService;
   }
 
-  public void reportKafkaPartitionUsage(boolean isClosing) {
-    telemetryService.reportKafkaPartitionUsage(pipeCreation, isClosing);
+  public void reportKafkaPartitionStart() {
+    telemetryService.reportKafkaPartitionUsage(pipeCreation, false);
+  }
+
+  public void reportKafkaPartitionUsage() {
+    telemetryService.reportKafkaPartitionUsage(pipeTelemetry, false);
   }
 
   public void reportKafkaConnectFatalError(String message) {
     telemetryService.reportKafkaConnectFatalError(message);
   }
 
-  public void initializeStats(int dirtyFilesCount, int stageFilesCount) {
+  public void setupInitialState(long remoteFileCount) {
+    pipeTelemetry.addAndGetFileCountOnStage(remoteFileCount);
+    pipeTelemetry.addAndGetFileCountOnIngestion(remoteFileCount);
+  }
+
+  public void updateStatsAfterError(int dirtyFilesCount, int stageFilesCount) {
     pipeCreation.setFileCountReprocessPurge(dirtyFilesCount);
     pipeCreation.setFileCountRestart(stageFilesCount);
-    pipeTelemetry.addAndGetFileCountOnStage(stageFilesCount);
-    pipeTelemetry.addAndGetFileCountOnIngestion(stageFilesCount);
   }
 
   public void notifyFilesPurged(long maxOffset, int purgedFilesCount) {

@@ -27,15 +27,9 @@ public class InternalUtils {
   static final String JDBC_SCHEMA = "schema";
   static final String JDBC_USER = "user";
   static final String JDBC_PRIVATE_KEY = "privateKey";
-  static final String APPLICATION = "application";
-  static final String CC_IDENTIFIER = "Confluent_Cloud";
   static final String JDBC_SSL = "ssl";
   static final String JDBC_SESSION_KEEP_ALIVE = "client_session_keep_alive";
   static final String JDBC_WAREHOUSE = "warehouse"; // for test only
-  static final String JDBC_NETWORK_TIMEOUT = "networkTimeout";
-
-  static final String JDBC_LOGIN_TIMEOUT = "loginTimeout";
-
   static final String JDBC_AUTHENTICATOR = SFSessionProperty.AUTHENTICATOR.getPropertyKey();
   static final String JDBC_TOKEN = SFSessionProperty.TOKEN.getPropertyKey();
   static final String JDBC_QUERY_RESULT_FORMAT = "JDBC_QUERY_RESULT_FORMAT";
@@ -123,8 +117,8 @@ public class InternalUtils {
    * @param url target server url
    * @return Properties object which will be passed down to JDBC connection
    */
-  static Properties createProperties(Map<String, String> conf, int networkTimeout, int loginTimeout, SnowflakeURL url) {
-    return createProperties(conf, networkTimeout, loginTimeout, url, IngestionMethodConfig.SNOWPIPE);
+  static Properties createProperties(Map<String, String> conf, SnowflakeURL url) {
+    return createProperties(conf, url, IngestionMethodConfig.SNOWPIPE);
   }
 
   /**
@@ -135,11 +129,10 @@ public class InternalUtils {
    * @param ingestionMethodConfig which ingestion method is provided.
    * @return a Properties instance
    */
-  static Properties createProperties(Map<String, String> conf, int networkTimeout, int loginTimeout, SnowflakeURL url,  IngestionMethodConfig ingestionMethodConfig) {
+  static Properties createProperties(
+      Map<String, String> conf, SnowflakeURL url, IngestionMethodConfig ingestionMethodConfig) {
     Properties properties = new Properties();
 
-    // add application parameter to identify connector created from CONFLUENT_CLOUD
-    properties.put(APPLICATION, CC_IDENTIFIER);
     // decrypt rsa key
     String privateKey = "";
     String privateKeyPassphrase = "";
@@ -148,6 +141,7 @@ public class InternalUtils {
     String oAuthClientId = "";
     String oAuthClientSecret = "";
     String oAuthRefreshToken = "";
+    String oAuthTokenEndpoint = "";
 
     // OAuth access token
     String token = "";
@@ -185,6 +179,8 @@ public class InternalUtils {
         case Utils.SF_OAUTH_REFRESH_TOKEN:
           oAuthRefreshToken = entry.getValue();
           break;
+        case Utils.SF_OAUTH_TOKEN_ENDPOINT:
+          oAuthTokenEndpoint = entry.getValue();
         default:
           // ignore unrecognized keys
       }
@@ -214,9 +210,14 @@ public class InternalUtils {
       if (oAuthRefreshToken.isEmpty()) {
         throw SnowflakeErrors.ERROR_0028.getException();
       }
+      URL oauthUrl =
+          oAuthTokenEndpoint.isEmpty()
+              ? new SnowflakeURL(conf.get(Utils.SF_URL))
+              : OAuthURL.from(oAuthTokenEndpoint);
+
       String accessToken =
           Utils.getSnowflakeOAuthAccessToken(
-              url, oAuthClientId, oAuthClientSecret, oAuthRefreshToken);
+              oauthUrl, oAuthClientId, oAuthClientSecret, oAuthRefreshToken);
       properties.put(JDBC_TOKEN, accessToken);
     } else {
       throw SnowflakeErrors.ERROR_0029.getException();
@@ -228,15 +229,6 @@ public class InternalUtils {
     } else {
       properties.put(JDBC_SSL, "off");
     }
-
-    if (networkTimeout != 0) {
-      properties.put(JDBC_NETWORK_TIMEOUT, networkTimeout);
-    }
-
-    if(loginTimeout != 0) {
-      properties.put(JDBC_LOGIN_TIMEOUT, loginTimeout);
-    }
-
     // put values for optional parameters
     properties.put(JDBC_SESSION_KEEP_ALIVE, "true");
     // SNOW-989387 - Set query resultset format to JSON as a workaround
@@ -320,6 +312,17 @@ public class InternalUtils {
       }
     }
     return proxyProperties;
+  }
+
+  protected static Properties parseJdbcPropertiesMap(Map<String, String> conf) {
+    String jdbcConfigMapInput = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_JDBC_MAP);
+    if (jdbcConfigMapInput == null) {
+      return new Properties();
+    }
+    Map<String, String> jdbcMap = Utils.parseCommaSeparatedKeyValuePairs(jdbcConfigMapInput);
+    Properties properties = new Properties();
+    properties.putAll(jdbcMap);
+    return properties;
   }
 
   /**

@@ -1,5 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.mock.MockResultSetForSizeTest;
 import java.sql.ResultSet;
@@ -8,7 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import net.snowflake.ingest.connection.IngestStatus;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class InternalUtilsTest {
   @Test
@@ -78,7 +80,7 @@ public class InternalUtilsTest {
   public void testCreateProperties() {
     Map<String, String> config = TestUtils.getConf();
     SnowflakeURL url = TestUtils.getUrl();
-    Properties prop = InternalUtils.createProperties(config, 0, 60, url);
+    Properties prop = InternalUtils.createProperties(config, url);
     assert prop.containsKey(InternalUtils.JDBC_DATABASE);
     assert prop.containsKey(InternalUtils.JDBC_PRIVATE_KEY);
     assert prop.containsKey(InternalUtils.JDBC_SCHEMA);
@@ -99,7 +101,7 @@ public class InternalUtilsTest {
         () -> {
           Map<String, String> t = new HashMap<>(config);
           t.remove(Utils.SF_PRIVATE_KEY);
-          InternalUtils.createProperties(t, 0, 60, url);
+          InternalUtils.createProperties(t, url);
         });
 
     assert TestUtils.assertError(
@@ -107,7 +109,7 @@ public class InternalUtilsTest {
         () -> {
           Map<String, String> t = new HashMap<>(config);
           t.remove(Utils.SF_SCHEMA);
-          InternalUtils.createProperties(t, 0, 60, url);
+          InternalUtils.createProperties(t, url);
         });
 
     assert TestUtils.assertError(
@@ -115,7 +117,7 @@ public class InternalUtilsTest {
         () -> {
           Map<String, String> t = new HashMap<>(config);
           t.remove(Utils.SF_DATABASE);
-          InternalUtils.createProperties(t, 0, 60, url);
+          InternalUtils.createProperties(t, url);
         });
 
     assert TestUtils.assertError(
@@ -123,7 +125,7 @@ public class InternalUtilsTest {
         () -> {
           Map<String, String> t = new HashMap<>(config);
           t.remove(Utils.SF_USER);
-          InternalUtils.createProperties(t, 0, 60, url);
+          InternalUtils.createProperties(t, url);
         });
   }
 
@@ -133,5 +135,19 @@ public class InternalUtilsTest {
     assert InternalUtils.resultSize(resultSet) == 0;
     resultSet = new MockResultSetForSizeTest(100);
     assert InternalUtils.resultSize(resultSet) == 100;
+  }
+
+  @Test
+  public void parseJdbcPropertiesMapTest() {
+    String key = "snowflake.jdbc.map";
+    String input =
+        "isInsecureMode:true,  disableSamlURLCheck:false, passcodeInPassword:on, foo:bar,"
+            + " networkTimeout:100";
+    Map<String, String> config = new HashMap<>();
+    config.put(key, input);
+    // when
+    Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(config);
+    // then
+    assertEquals(jdbcPropertiesMap.size(), 5);
   }
 }

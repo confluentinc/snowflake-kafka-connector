@@ -3,6 +3,7 @@ package com.snowflake.kafka.connector;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_COUNT_RECORDS_DEFAULT;
 import static com.snowflake.kafka.connector.internal.TestUtils.TEST_CONNECTOR_NAME;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.TestUtils;
@@ -11,7 +12,6 @@ import com.snowflake.kafka.connector.records.SnowflakeRecordContent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -302,15 +302,6 @@ public class SinkTaskIT {
 
     assert offsetMap1.get(topicPartitions0.get(0)).offset() == BUFFER_COUNT_RECORDS_DEFAULT;
     assert offsetMap0.get(topicPartitions1.get(0)).offset() == BUFFER_COUNT_RECORDS_DEFAULT;
-  }
-
-  @Test
-  public void testBehaviorOnNull() {
-    Map<String, String> config = TestUtils.getConf();
-    SnowflakeSinkConnectorConfig.setDefaultValues(config);
-    SnowflakeSinkTask sinkTask = new SnowflakeSinkTask();
-    config.put(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG, "ignore");
-    sinkTask.start(config);
   }
 
   @Test

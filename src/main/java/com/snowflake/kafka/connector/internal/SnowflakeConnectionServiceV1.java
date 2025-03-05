@@ -2,6 +2,7 @@ package com.snowflake.kafka.connector.internal;
 
 import static com.snowflake.kafka.connector.Utils.TABLE_COLUMN_CONTENT;
 import static com.snowflake.kafka.connector.Utils.TABLE_COLUMN_METADATA;
+import static com.snowflake.kafka.connector.streaming.iceberg.IcebergDDLTypes.ICEBERG_METADATA_OBJECT_SCHEMA;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,7 +11,7 @@ import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetTokenResponseDTO;
 import com.snowflake.kafka.connector.internal.streaming.ChannelMigrationResponseCode;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import com.snowflake.kafka.connector.internal.streaming.SchematizationUtils;
+import com.snowflake.kafka.connector.internal.streaming.schemaevolution.ColumnInfos;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryServiceFactory;
 import java.io.ByteArrayInputStream;
@@ -21,13 +22,15 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import net.snowflake.client.jdbc.SnowflakeConnectionV1;
 import net.snowflake.client.jdbc.SnowflakeDriver;
 import net.snowflake.client.jdbc.cloud.storage.StageInfo;
@@ -44,10 +47,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   private final SnowflakeTelemetryService telemetry;
   private final String connectorName;
   private final String taskID;
-  private final Properties prop;
+  private final JdbcProperties jdbcProperties;
 
-  // Placeholder for all proxy related properties set in the connector configuration
-  private final Properties proxyProperties;
   private final SnowflakeURL url;
   private final SnowflakeInternalStage internalStage;
 
@@ -65,30 +66,27 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   SnowflakeConnectionServiceV1(
-      Properties prop,
+      JdbcProperties jdbcProperties,
       SnowflakeURL url,
       String connectorName,
       String taskID,
-      Properties proxyProperties,
       String kafkaProvider,
       IngestionMethodConfig ingestionMethodConfig) {
+    this.jdbcProperties = jdbcProperties;
     this.connectorName = connectorName;
     this.taskID = taskID;
     this.url = url;
-    this.prop = prop;
     this.stageType = null;
-    this.proxyProperties = proxyProperties;
     this.kafkaProvider = kafkaProvider;
+    Properties proxyProperties = jdbcProperties.getProxyProperties();
+    Properties combinedProperties = jdbcProperties.getProperties();
     try {
-      if (proxyProperties != null && !proxyProperties.isEmpty()) {
-        Properties combinedProperties =
-            mergeProxyAndConnectionProperties(this.prop, this.proxyProperties);
+      if (!proxyProperties.isEmpty()) {
         LOGGER.debug("Proxy properties are set, passing in JDBC while creating the connection");
-        this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), combinedProperties);
       } else {
         LOGGER.info("Establishing a JDBC connection with url:{}", url.getJdbcUrl());
-        this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), prop);
       }
+      this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), combinedProperties);
     } catch (SQLException e) {
       throw SnowflakeErrors.ERROR_1001.getException(e);
     }
@@ -102,17 +100,6 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             .setTaskID(this.taskID)
             .build();
     LOGGER.info("initialized the snowflake connection");
-  }
-
-  /* Merges the two properties. */
-  private static Properties mergeProxyAndConnectionProperties(
-      Properties connectionProperties, Properties proxyProperties) {
-    assert connectionProperties != null;
-    assert proxyProperties != null;
-    Properties mergedProperties = new Properties();
-    mergedProperties.putAll(connectionProperties);
-    mergedProperties.putAll(proxyProperties);
-    return mergedProperties;
   }
 
   @Override
@@ -180,6 +167,50 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
+  public void addMetadataColumnForIcebergIfNotExists(String tableName) {
+    checkConnection();
+    InternalUtils.assertNotEmpty("tableName", tableName);
+    String query =
+        "ALTER ICEBERG TABLE identifier(?) ADD COLUMN IF NOT EXISTS RECORD_METADATA "
+            + ICEBERG_METADATA_OBJECT_SCHEMA;
+    try {
+      PreparedStatement stmt = conn.prepareStatement(query);
+      stmt.setString(1, tableName);
+      stmt.execute();
+      stmt.close();
+    } catch (SQLException e) {
+      LOGGER.error(
+          "Couldn't alter table {} add RECORD_METADATA column to align with iceberg format",
+          tableName);
+      throw SnowflakeErrors.ERROR_2019.getException(e);
+    }
+    LOGGER.info(
+        "alter table {} add RECORD_METADATA column to align with iceberg format", tableName);
+  }
+
+  @Override
+  public void initializeMetadataColumnTypeForIceberg(String tableName) {
+    checkConnection();
+    InternalUtils.assertNotEmpty("tableName", tableName);
+    String query =
+        "ALTER ICEBERG TABLE identifier(?) ALTER COLUMN RECORD_METADATA SET DATA TYPE "
+            + ICEBERG_METADATA_OBJECT_SCHEMA;
+    try {
+      PreparedStatement stmt = conn.prepareStatement(query);
+      stmt.setString(1, tableName);
+      stmt.execute();
+      stmt.close();
+    } catch (SQLException e) {
+      LOGGER.error(
+          "Couldn't alter table {} RECORD_METADATA column type to align with iceberg format",
+          tableName);
+      throw SnowflakeErrors.ERROR_2018.getException(e);
+    }
+    LOGGER.info(
+        "alter table {} RECORD_METADATA column type to align with iceberg format", tableName);
+  }
+
+  @Override
   public void createPipe(
       final String tableName,
       final String stageName,
@@ -242,29 +273,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
 
   @Override
   public boolean tableExist(final String tableName) {
-    checkConnection();
-    InternalUtils.assertNotEmpty("tableName", tableName);
-    String query = "desc table identifier(?)";
-    PreparedStatement stmt = null;
-    boolean exist;
-    try {
-      stmt = conn.prepareStatement(query);
-      stmt.setString(1, tableName);
-      stmt.execute();
-      exist = true;
-    } catch (Exception e) {
-      LOGGER.debug("table {} doesn't exist", tableName);
-      exist = false;
-    } finally {
-      if (stmt != null) {
-        try {
-          stmt.close();
-        } catch (SQLException e) {
-          e.printStackTrace();
-        }
-      }
-    }
-    return exist;
+    return describeTable(tableName).isPresent();
   }
 
   @Override
@@ -322,6 +331,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
+  // TODO - use describeTable()
   public boolean isTableCompatible(final String tableName) {
     checkConnection();
     InternalUtils.assertNotEmpty("tableName", tableName);
@@ -356,7 +366,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
       compatible = hasMeta && hasContent && allNullable;
     } catch (SQLException e) {
-      LOGGER.debug("table {} doesn't exist", tableName);
+      LOGGER.debug("Table {} doesn't exist. Exception {}", tableName, e.getStackTrace());
       compatible = false;
     } finally {
       try {
@@ -375,10 +385,12 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
         e.printStackTrace();
       }
     }
+    LOGGER.info("Table {} compatibility is {}", tableName, compatible);
     return compatible;
   }
 
   @Override
+  // TODO - use describeTable()
   public void appendMetaColIfNotExist(final String tableName) {
     checkConnection();
     InternalUtils.assertNotEmpty("tableName", tableName);
@@ -430,6 +442,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
    */
   @Override
   public boolean hasSchemaEvolutionPermission(String tableName, String role) {
+    LOGGER.info("Checking schema evolution permission for table {}", tableName);
     checkConnection();
     InternalUtils.assertNotEmpty("tableName", tableName);
     String query = "show grants on table identifier(?)";
@@ -438,7 +451,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     ResultSet result = null;
     // whether the role has the privilege to do schema evolution (EVOLVE SCHEMA / ALL / OWNERSHIP)
     boolean hasRolePrivilege = false;
-    String myRole = SchematizationUtils.formatName(role);
+    String myRole = FormattingUtils.formatName(role);
     try {
       PreparedStatement stmt = conn.prepareStatement(query);
       stmt.setString(1, tableName);
@@ -487,45 +500,108 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   /**
+   * Alter iceberg table to modify columns datatype
+   *
+   * @param tableName the name of the table
+   * @param columnInfosMap the mapping from the columnNames to their infos
+   */
+  @Override
+  public void alterColumnsDataTypeIcebergTable(
+      String tableName, Map<String, ColumnInfos> columnInfosMap) {
+    LOGGER.debug("Modifying data types of iceberg table columns");
+    String alterSetDatatypeQuery = generateAlterSetDataTypeQuery(columnInfosMap);
+    executeStatement(tableName, alterSetDatatypeQuery);
+  }
+
+  private String generateAlterSetDataTypeQuery(Map<String, ColumnInfos> columnsToModify) {
+    StringBuilder setDataTypeQuery = new StringBuilder("alter iceberg ");
+    setDataTypeQuery.append("table identifier(?) alter column ");
+
+    String columnsPart =
+        columnsToModify.entrySet().stream()
+            .map(
+                column -> {
+                  String columnName = column.getKey();
+                  String dataType = column.getValue().getColumnType();
+                  return columnName + " set data type " + dataType;
+                })
+            .collect(Collectors.joining(", "));
+
+    setDataTypeQuery.append(columnsPart);
+
+    return setDataTypeQuery.toString();
+  }
+
+  /**
    * Alter table to add columns according to a map from columnNames to their types
    *
    * @param tableName the name of the table
-   * @param columnToType the mapping from the columnNames to their types
+   * @param columnInfosMap the mapping from the columnNames to their infos
    */
   @Override
-  public void appendColumnsToTable(String tableName, Map<String, String> columnToType) {
+  public void appendColumnsToTable(String tableName, Map<String, ColumnInfos> columnInfosMap) {
+    LOGGER.debug("Appending columns to snowflake table");
+    appendColumnsToTable(tableName, columnInfosMap, false);
+  }
+
+  /**
+   * Alter iceberg table to add columns according to a map from columnNames to their types
+   *
+   * @param tableName the name of the table
+   * @param columnInfosMap the mapping from the columnNames to their infos
+   */
+  @Override
+  public void appendColumnsToIcebergTable(
+      String tableName, Map<String, ColumnInfos> columnInfosMap) {
+    LOGGER.debug("Appending columns to iceberg table");
+    appendColumnsToTable(tableName, columnInfosMap, true);
+  }
+
+  private void appendColumnsToTable(
+      String tableName, Map<String, ColumnInfos> columnInfosMap, boolean isIcebergTable) {
     checkConnection();
     InternalUtils.assertNotEmpty("tableName", tableName);
-    StringBuilder appendColumnQuery =
-        new StringBuilder("alter table identifier(?) add column if not exists ");
+    StringBuilder appendColumnQuery = new StringBuilder("alter ");
+    if (isIcebergTable) {
+      appendColumnQuery.append("iceberg ");
+    }
+    appendColumnQuery.append("table identifier(?) add column if not exists ");
     boolean first = true;
     StringBuilder logColumn = new StringBuilder("[");
-    for (String columnName : columnToType.keySet()) {
+
+    for (String columnName : columnInfosMap.keySet()) {
       if (first) {
         first = false;
       } else {
-        appendColumnQuery.append(", ");
+        appendColumnQuery.append(", if not exists ");
         logColumn.append(",");
       }
+      ColumnInfos columnInfos = columnInfosMap.get(columnName);
+
       appendColumnQuery
           .append(columnName)
           .append(" ")
-          .append(columnToType.get(columnName))
-          .append(" comment 'column created by schema evolution from Snowflake Kafka Connector'");
-      logColumn.append(columnName).append(" (").append(columnToType.get(columnName)).append(")");
+          .append(columnInfos.getColumnType())
+          .append(columnInfos.getDdlComments());
+      logColumn.append(columnName).append(" (").append(columnInfosMap.get(columnName)).append(")");
     }
+
+    executeStatement(tableName, appendColumnQuery.toString());
+
+    logColumn.insert(0, "Following columns created for table {}:\n").append("]");
+    LOGGER.info(logColumn.toString(), tableName);
+  }
+
+  private void executeStatement(String tableName, String query) {
     try {
-      LOGGER.info("Trying to run query: {}", appendColumnQuery.toString());
-      PreparedStatement stmt = conn.prepareStatement(appendColumnQuery.toString());
+      LOGGER.info("Trying to run query: {}", query);
+      PreparedStatement stmt = conn.prepareStatement(query);
       stmt.setString(1, tableName);
       stmt.execute();
       stmt.close();
     } catch (SQLException e) {
       throw SnowflakeErrors.ERROR_2015.getException(e);
     }
-
-    logColumn.insert(0, "Following columns created for table {}:\n").append("]");
-    LOGGER.info(logColumn.toString(), tableName);
   }
 
   /**
@@ -577,18 +653,22 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   public boolean isStageCompatible(final String stageName) {
     checkConnection();
     InternalUtils.assertNotEmpty("stageName", stageName);
+    boolean isCompatible = true;
+
     if (!stageExist(stageName)) {
       LOGGER.debug("stage {} doesn't exists", stageName);
-      return false;
-    }
-    List<String> files = listStage(stageName, "");
-    for (String name : files) {
-      if (!FileNameUtils.verifyFileName(name)) {
-        LOGGER.debug("file name {} in stage {} is not valid", name, stageName);
-        return false;
+      isCompatible = false;
+    } else {
+      List<String> files = listStage(stageName, "");
+      for (String name : files) {
+        if (!FileNameUtils.verifyFileName(name)) {
+          LOGGER.info("file name {} in stage {} is not valid", name, stageName);
+          isCompatible = false;
+        }
       }
     }
-    return true;
+    LOGGER.info("Stage {} compatibility is {}", stageName, isCompatible);
+    return isCompatible;
   }
 
   @Override
@@ -671,129 +751,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
-  public void hasSchemaPrivileges(String schemaName, String ingestionMethod) {
-    checkConnection();
-    String queryUseSchema = "USE SCHEMA IDENTIFIER(?)";
-    String queryCheckPrivileges = "SHOW GRANTS ON SCHEMA " + schemaName + ";";
-    String currentRole = getCurrentRole(conn);
-
-    boolean hasOwnershipPrivilege = false;
-    boolean hasAllPrivilege = false;
-    boolean hasCreateTablePrivilege = false;
-    boolean hasCreateStagePrivilege = false;
-    boolean hasCreatePipePrivilege = false;
-
-    try {
-      PreparedStatement stmt = conn.prepareStatement(queryUseSchema);
-      stmt.setString(1, schemaName);
-      stmt.execute();
-      stmt.close();
-
-      stmt = conn.prepareStatement(queryCheckPrivileges);
-      ResultSet rs = stmt.executeQuery();
-      while (rs.next()) {
-        if (!rs.getString("grantee_name").equals(currentRole)) {
-          continue;
-        }
-        String privilege = rs.getString("privilege");
-        if (privilege.equalsIgnoreCase("OWNERSHIP")) {
-          hasOwnershipPrivilege = true;
-          break;
-        }
-        if (privilege.equalsIgnoreCase("ALL")) {
-          hasAllPrivilege = true;
-          break;
-        }
-        if (privilege.equalsIgnoreCase("CREATE TABLE")) {
-          hasCreateTablePrivilege = true;
-        }
-        if (privilege.equalsIgnoreCase("CREATE STAGE")) {
-          hasCreateStagePrivilege = true;
-        }
-        if (privilege.equalsIgnoreCase("CREATE PIPE")) {
-          hasCreatePipePrivilege = true;
-        }
-      }
-      rs.close();
-      stmt.close();
-
-      if (hasOwnershipPrivilege || hasAllPrivilege) {
-        LOGGER.info("Schema {} has required privileges", schemaName);
-        return;
-      }
-
-      if (!hasCreateTablePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE TABLE privilege on schema " + schemaName);
-      }
-
-      if(ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
-        LOGGER.info("Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
-        return;
-      }
-
-      // For SNOWPIPE ingestion, we need CREATE STAGE and CREATE PIPE privileges as well
-      if (!hasCreateStagePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE STAGE privilege on schema " + schemaName);
-      }
-      if (!hasCreatePipePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE PIPE privilege on schema " + schemaName);
-      }
-
-      LOGGER.info("Schema {} has required privileges", schemaName);
-
-    } catch (SQLException e) {
-      throw SnowflakeErrors.ERROR_2001.getException(e);
-    }
-  }
-
-  @Override
-  public void hasTableRequiredPrivileges(String tableName) {
-    checkConnection();
-    String queryCheckTablePrivileges = "SHOW GRANTS ON TABLE " + tableName + ";";
-    String currentRole = getCurrentRole(conn);
-    boolean hasOwnershipPrivilege = false;
-    boolean hasAllPrivileges = false;
-    boolean hasInsertPrivilege = false;
-
-    try {
-      PreparedStatement stmt = conn.prepareStatement(queryCheckTablePrivileges);
-      ResultSet rs = stmt.executeQuery();
-      while (rs.next()) {
-        if (!rs.getString("grantee_name").equals(currentRole)) {
-          continue;
-        }
-        String privilege = rs.getString("privilege");
-        if (privilege.equalsIgnoreCase("OWNERSHIP")) {
-          hasOwnershipPrivilege = true;
-          break;
-        }
-        if (privilege.equalsIgnoreCase("ALL")) {
-          hasAllPrivileges = true;
-        }
-        if (privilege.equalsIgnoreCase("INSERT")) {
-          hasInsertPrivilege = true;
-        }
-      }
-      rs.close();
-      stmt.close();
-
-      if (hasOwnershipPrivilege || hasAllPrivileges) {
-        LOGGER.info("Table {} has either OWNERSHIP or ALL privileges", tableName);
-        return;
-      }
-
-      if (!hasInsertPrivilege) { // only checking the bare minimum privilege we need
-        throw SnowflakeErrors.ERROR_2001.getException("Missing INSERT privilege on table " + tableName);
-      }
-
-      LOGGER.info("Table {} has required privilege", tableName);
-
-    } catch (SQLException e) {
-      throw SnowflakeErrors.ERROR_2001.getException(e);
-    }
-  }
-
-  @Override
+  // TODO - move to test-only class
   public void dropPipe(final String pipeName) {
     checkConnection();
     InternalUtils.assertNotEmpty("pipeName", pipeName);
@@ -812,6 +770,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
+  // TODO - move to test-only class
   public boolean dropStageIfEmpty(final String stageName) {
     checkConnection();
     InternalUtils.assertNotEmpty("stageName", stageName);
@@ -895,6 +854,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
+  // TODO - move to test-only class
   public void moveToTableStage(
       final String tableName, final String stageName, final String prefix) {
     InternalUtils.assertNotEmpty("tableName", tableName);
@@ -942,6 +902,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   @Override
   @Deprecated
   // Only using it in test for performance testing
+  // TODO - move to test-only class
   public void put(final String stageName, final String fileName, final String content) {
     InternalUtils.assertNotEmpty("stageName", stageName);
     SnowflakeConnectionV1 sfconn = (SnowflakeConnectionV1) conn;
@@ -1049,19 +1010,19 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   public SnowflakeIngestionService buildIngestService(
       final String stageName, final String pipeName) {
     String account = url.getAccount();
-    String user = prop.getProperty(InternalUtils.JDBC_USER);
+    String user = jdbcProperties.getProperty(InternalUtils.JDBC_USER);
     String userAgentSuffixInHttpRequest =
         String.format(USER_AGENT_SUFFIX_FORMAT, Utils.VERSION, kafkaProvider);
     String host = url.getUrlWithoutPort();
     int port = url.getPort();
     String connectionScheme = url.getScheme();
     String fullPipeName =
-        prop.getProperty(InternalUtils.JDBC_DATABASE)
+        jdbcProperties.getProperty(InternalUtils.JDBC_DATABASE)
             + "."
-            + prop.getProperty(InternalUtils.JDBC_SCHEMA)
+            + jdbcProperties.getProperty(InternalUtils.JDBC_SCHEMA)
             + "."
             + pipeName;
-    PrivateKey privateKey = (PrivateKey) prop.get(InternalUtils.JDBC_PRIVATE_KEY);
+    PrivateKey privateKey = (PrivateKey) jdbcProperties.get(InternalUtils.JDBC_PRIVATE_KEY);
     return SnowflakeIngestionServiceFactory.builder(
             account,
             user,
@@ -1145,9 +1106,9 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     InternalUtils.assertNotEmpty("sourceChannelName", sourceChannelName);
     InternalUtils.assertNotEmpty("destinationChannelName", destinationChannelName);
     String fullyQualifiedTableName =
-        prop.getProperty(InternalUtils.JDBC_DATABASE)
+        jdbcProperties.getProperty(InternalUtils.JDBC_DATABASE)
             + "."
-            + prop.getProperty(InternalUtils.JDBC_SCHEMA)
+            + jdbcProperties.getProperty(InternalUtils.JDBC_SCHEMA)
             + "."
             + tableName;
     String query = "select SYSTEM$SNOWPIPE_STREAMING_MIGRATE_CHANNEL_OFFSET_TOKEN((?), (?), (?));";
@@ -1203,6 +1164,39 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     }
   }
 
+  @Override
+  public Optional<List<DescribeTableRow>> describeTable(String tableName) {
+    checkConnection();
+    String query = "desc table identifier(?)";
+    PreparedStatement stmt = null;
+    List<DescribeTableRow> rows = new ArrayList<>();
+
+    try {
+      stmt = conn.prepareStatement(query);
+      stmt.setString(1, tableName);
+      ResultSet result = stmt.executeQuery();
+
+      while (result.next()) {
+        String columnName = result.getString("name");
+        String type = result.getString("type");
+        String comment = result.getString("comment");
+        rows.add(new DescribeTableRow(columnName, type, comment));
+      }
+      return Optional.of(rows);
+    } catch (Exception e) {
+      LOGGER.debug("table {} doesn't exist", tableName);
+      return Optional.empty();
+    } finally {
+      if (stmt != null) {
+        try {
+          stmt.close();
+        } catch (SQLException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+  }
+
   @VisibleForTesting
   protected ChannelMigrateOffsetTokenResponseDTO getChannelMigrateOffsetTokenResponseDTO(
       String migrateOffsetTokenResultFromSysFunc) throws JsonProcessingException {
@@ -1212,23 +1206,20 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     return channelMigrateOffsetTokenResponseDTO;
   }
 
-  private String getCurrentRole(Connection conn) {
-    String query = "SELECT CURRENT_ROLE()";
-    String currentRole = null;
-    try {
-      Statement stmt = conn.createStatement();
-      ResultSet rs = stmt.executeQuery(query);
-      if (rs.next()) {
-        currentRole = rs.getString(1);
-      }
-    } catch (SQLException e) {
-      throw SnowflakeErrors.ERROR_2001.getException("Failed to fetch the current role");
+  public static class FormattingUtils {
+    /**
+     * Transform the objectName to uppercase unless it is enclosed in double quotes
+     *
+     * <p>In that case, drop the quotes and leave it as it is.
+     *
+     * @param objectName name of the snowflake object, could be tableName, columnName, roleName,
+     *     etc.
+     * @return Transformed objectName
+     */
+    public static String formatName(String objectName) {
+      return (objectName.charAt(0) == '"' && objectName.charAt(objectName.length() - 1) == '"')
+          ? objectName.substring(1, objectName.length() - 1)
+          : objectName.toUpperCase();
     }
-    if (currentRole == null) {
-      throw SnowflakeErrors.ERROR_2001.getException("Got current role as null");
-    }
-
-    return currentRole;
   }
-
 }

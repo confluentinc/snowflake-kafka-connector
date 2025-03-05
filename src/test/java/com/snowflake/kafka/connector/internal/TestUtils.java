@@ -26,18 +26,17 @@ import static com.snowflake.kafka.connector.Utils.HTTP_PROXY_PORT;
 import static com.snowflake.kafka.connector.Utils.HTTP_PROXY_USER;
 import static com.snowflake.kafka.connector.Utils.HTTP_USE_PROXY;
 import static com.snowflake.kafka.connector.Utils.JDK_HTTP_AUTH_TUNNELING;
-import static com.snowflake.kafka.connector.Utils.SF_DATABASE;
-import static com.snowflake.kafka.connector.Utils.SF_SCHEMA;
-import static com.snowflake.kafka.connector.Utils.SF_URL;
-import static com.snowflake.kafka.connector.Utils.SF_USER;
 import static com.snowflake.kafka.connector.Utils.buildOAuthHttpPostRequest;
 import static com.snowflake.kafka.connector.Utils.getSnowflakeOAuthToken;
 
-import com.snowflake.client.jdbc.SnowflakeDriver;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
+import com.snowflake.kafka.connector.config.SnowflakeSinkConnectorConfigBuilder;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
 import com.snowflake.kafka.connector.records.SnowflakeJsonSchema;
 import com.snowflake.kafka.connector.records.SnowflakeRecordContent;
 import io.confluent.connect.avro.AvroConverter;
@@ -49,6 +48,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -57,10 +57,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Random;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import net.snowflake.client.jdbc.internal.apache.http.HttpHeaders;
 import net.snowflake.client.jdbc.internal.apache.http.client.methods.CloseableHttpResponse;
 import net.snowflake.client.jdbc.internal.apache.http.client.methods.HttpPost;
@@ -69,12 +72,8 @@ import net.snowflake.client.jdbc.internal.apache.http.entity.StringEntity;
 import net.snowflake.client.jdbc.internal.apache.http.impl.client.CloseableHttpClient;
 import net.snowflake.client.jdbc.internal.apache.http.impl.client.HttpClientBuilder;
 import net.snowflake.client.jdbc.internal.apache.http.util.EntityUtils;
-import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.JsonNode;
-import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.ObjectMapper;
 import net.snowflake.client.jdbc.internal.google.gson.JsonObject;
 import net.snowflake.client.jdbc.internal.google.gson.JsonParser;
-import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
-import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClientFactory;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -82,6 +81,7 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.params.provider.Arguments;
 
 public class TestUtils {
   // test profile properties
@@ -98,6 +98,7 @@ public class TestUtils {
   private static final String OAUTH_CLIENT_ID = "oauth_client_id";
   private static final String OAUTH_CLIENT_SECRET = "oauth_client_secret";
   private static final String OAUTH_REFRESH_TOKEN = "oauth_refresh_token";
+  private static final String OAUTH_TOKEN_ENDPOINT = "oauth_token_endpoint";
   private static final String PASSWORD = "password";
 
   // AZ request data key
@@ -122,19 +123,14 @@ public class TestUtils {
   private static final String AZ_CREDENTIAL_TYPE_CODE = "code";
 
   private static final Random random = new Random();
-  private static final String DES_RSA_KEY = "des_rsa_key";
   public static final String TEST_CONNECTOR_NAME = "TEST_CONNECTOR";
   private static final Pattern BROKEN_RECORD_PATTERN =
       Pattern.compile("^[^/]+/[^/]+/(\\d+)/(\\d+)_(key|value)_(\\d+)\\.gz$");
 
   // profile path
-  private static final String PROFILE_PATH = "profile.json";
+  public static final String PROFILE_PATH = "profile.json";
 
   private static final ObjectMapper mapper = new ObjectMapper();
-
-  private static Connection conn = null;
-
-  private static Connection connForStreamingIngestTests = null;
 
   private static Map<String, String> conf = null;
 
@@ -156,6 +152,7 @@ public class TestUtils {
           + "    \"fields\": [\n"
           + "      {\n"
           + "        \"type\": \"string\",\n"
+          + "        \"doc\": \"doc\", \n"
           + "        \"optional\": false,\n"
           + "        \"field\": \"regionid\"\n"
           + "      },\n"
@@ -225,6 +222,10 @@ public class TestUtils {
       configuration.put(
           Utils.SF_OAUTH_REFRESH_TOKEN, profileJson.get(OAUTH_REFRESH_TOKEN).asText());
     }
+    if (profileJson.has(OAUTH_TOKEN_ENDPOINT)) {
+      configuration.put(
+          Utils.SF_OAUTH_TOKEN_ENDPOINT, profileJson.get(OAUTH_TOKEN_ENDPOINT).asText());
+    }
 
     // password only appears in test profile
     if (profileJson.has(PASSWORD)) {
@@ -261,32 +262,6 @@ public class TestUtils {
   }
 
   /**
-   * Create snowflake jdbc connection
-   *
-   * @return jdbc connection
-   * @throws Exception when meeting error
-   */
-  private static Connection getConnection() throws Exception {
-    if (conn != null) {
-      return conn;
-    }
-
-    return generateConnectionToSnowflake(PROFILE_PATH);
-  }
-
-  /** Given a profile file path name, generate a connection by constructing a snowflake driver. */
-  private static Connection generateConnectionToSnowflake(final String profileFileName)
-      throws Exception {
-    SnowflakeURL url = new SnowflakeURL(getConfFromFileName(profileFileName).get(Utils.SF_URL));
-    Properties properties =
-        InternalUtils.createProperties(getConfFromFileName(profileFileName), 0, 60, url);
-
-    Connection connToSnowflake = new SnowflakeDriver().connect(url.getJdbcUrl(), properties);
-
-    return connToSnowflake;
-  }
-
-  /**
    * read conf file
    *
    * @return a map of parameters
@@ -317,11 +292,24 @@ public class TestUtils {
     // On top of existing configurations, add
     configuration.put(Utils.SF_ROLE, getProfile(PROFILE_PATH).get(ROLE).asText());
     configuration.put(Utils.TASK_ID, "0");
+    configuration.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "1");
     configuration.put(
         SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT,
         IngestionMethodConfig.SNOWPIPE_STREAMING.toString());
 
     return configuration;
+  }
+
+  public static Map<String, String> getConfForStreaming(boolean useSingleBuffer) {
+    Map<String, String> config = getConfForStreaming();
+
+    if (useSingleBuffer) {
+      config.put(
+          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER,
+          Boolean.TRUE.toString());
+    }
+
+    return config;
   }
 
   /* Get configuration map from profile path. Used against prod deployment of Snowflake */
@@ -335,8 +323,21 @@ public class TestUtils {
           SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT,
           IngestionMethodConfig.SNOWPIPE_STREAMING.toString());
     }
+    configuration.put(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "10");
 
     return configuration;
+  }
+
+  public static Map<String, String> getConfForStreamingWithOAuth(boolean useSingleBuffer) {
+    Map<String, String> config = getConfForStreamingWithOAuth();
+
+    if (useSingleBuffer) {
+      config.put(
+          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER,
+          Boolean.TRUE.toString());
+    }
+
+    return config;
   }
 
   /** @return JDBC config with encrypted private key */
@@ -386,12 +387,89 @@ public class TestUtils {
    */
   static ResultSet executeQuery(String query) {
     try {
-      Statement statement = getConnection().createStatement();
+      Statement statement = TestSnowflakeConnection.getConnection().createStatement();
       return statement.executeQuery(query);
     }
     // if ANY exceptions occur, an illegal state has been reached
     catch (Exception e) {
       throw new IllegalStateException(e);
+    }
+  }
+
+  /**
+   * execute sql query
+   *
+   * @param query sql query string
+   * @param parameter parameter to be inserted at index 1
+   */
+  public static void executeQueryWithParameter(String query, String parameter) {
+    try {
+      executeQueryWithParameter(TestSnowflakeConnection.getConnection(), query, parameter);
+    } catch (Exception e) {
+      throw new RuntimeException("Error executing query: " + query, e);
+    }
+  }
+
+  /**
+   * execute sql query
+   *
+   * @param conn jdbc connection
+   * @param query sql query string
+   * @param parameter parameter to be inserted at index 1
+   */
+  public static void executeQueryWithParameter(Connection conn, String query, String parameter) {
+    try {
+      PreparedStatement stmt = conn.prepareStatement(query);
+      stmt.setString(1, parameter);
+      stmt.execute();
+      stmt.close();
+    } catch (Exception e) {
+      throw new RuntimeException("Error executing query: " + query, e);
+    }
+  }
+
+  /**
+   * execute sql query and collect result
+   *
+   * @param query sql query string
+   * @param parameter parameter to be inserted at index 1
+   * @param resultCollector function to collect result
+   * @return result
+   * @param <T> result type
+   */
+  public static <T> T executeQueryAndCollectResult(
+      String query, String parameter, Function<ResultSet, T> resultCollector) {
+    try {
+      return executeQueryAndCollectResult(
+          TestSnowflakeConnection.getConnection(), query, parameter, resultCollector);
+    } catch (Exception e) {
+      throw new RuntimeException("Error executing query: " + query, e);
+    }
+  }
+
+  /**
+   * execute sql query and collect result
+   *
+   * @param conn jdbc connection
+   * @param query sql query string
+   * @param parameter parameter to be inserted at index 1
+   * @param resultCollector function to collect result
+   * @return result
+   * @param <T> result type
+   */
+  public static <T> T executeQueryAndCollectResult(
+      Connection conn, String query, String parameter, Function<ResultSet, T> resultCollector) {
+    try {
+      PreparedStatement stmt = conn.prepareStatement(query);
+      stmt.setString(1, parameter);
+      stmt.execute();
+      ResultSet resultSet = stmt.getResultSet();
+      T result = resultCollector.apply(resultSet);
+      resultSet.close();
+      stmt.close();
+      return result;
+    } catch (Exception e) {
+      throw new RuntimeException("Error executing query: " + query, e);
     }
   }
 
@@ -411,10 +489,6 @@ public class TestUtils {
     String query = "select * from " + tableName;
 
     return executeQuery(query);
-  }
-
-  static String getDesRsaKey() {
-    return getProfile(PROFILE_PATH).get(DES_RSA_KEY).asText();
   }
 
   /**
@@ -619,6 +693,10 @@ public class TestUtils {
     }
   }
 
+  public static void assertWithRetry(AssertFunction func) throws Exception {
+    assertWithRetry(func, 20, 5);
+  }
+
   /* Generate (noOfRecords - startOffset) for a given topic and partition. */
   public static List<SinkRecord> createJsonStringSinkRecords(
       final long startOffset, final long noOfRecords, final String topicName, final int partitionNo)
@@ -763,25 +841,10 @@ public class TestUtils {
     return records;
   }
 
+  /** @deprecated use SnowflakeSinkConnectorConfigBuilder instead */
+  @Deprecated
   public static Map<String, String> getConfig() {
-    Map<String, String> config = new HashMap<>();
-    config.put(Utils.NAME, "test");
-    config.put(SnowflakeSinkConnectorConfig.TOPICS, "topic1,topic2");
-    config.put(SF_URL, "https://testaccount.snowflake.com:443");
-    config.put(SF_USER, "userName");
-    config.put(Utils.SF_PRIVATE_KEY, "fdsfsdfsdfdsfdsrqwrwewrwrew42314424");
-    config.put(SF_SCHEMA, "testSchema");
-    config.put(SF_DATABASE, "testDatabase");
-    config.put(
-        SnowflakeSinkConnectorConfig.BUFFER_COUNT_RECORDS,
-        SnowflakeSinkConnectorConfig.BUFFER_COUNT_RECORDS_DEFAULT + "");
-    config.put(
-        SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES,
-        SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT + "");
-    config.put(
-        SnowflakeSinkConnectorConfig.BUFFER_FLUSH_TIME_SEC,
-        SnowflakeSinkConnectorConfig.BUFFER_FLUSH_TIME_SEC_DEFAULT + "");
-    return config;
+    return SnowflakeSinkConnectorConfigBuilder.snowpipeConfig().build();
   }
 
   /**
@@ -885,13 +948,16 @@ public class TestUtils {
     }
   }
 
-  public static SnowflakeStreamingIngestClient createStreamingClient(
-      Map<String, String> config, String clientName) {
-    Properties clientProperties = new Properties();
-    clientProperties.putAll(StreamingUtils.convertConfigForStreamingClient(new HashMap<>(config)));
-    return SnowflakeStreamingIngestClientFactory.builder(clientName)
-        .setProperties(clientProperties)
-        .build();
+  public static Map<String, Object> getTableContentOneRow(String tableName) throws SQLException {
+    String getRowQuery = "select * from " + tableName + " limit 1";
+    ResultSet result = executeQuery(getRowQuery);
+    result.next();
+
+    Map<String, Object> contentMap = new HashMap<>();
+    for (int i = 0; i < result.getMetaData().getColumnCount(); i++) {
+      contentMap.put(result.getMetaData().getColumnName(i + 1), result.getObject(i + 1));
+    }
+    return contentMap;
   }
 
   /**
@@ -986,5 +1052,15 @@ public class TestUtils {
     } catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public static Stream<Arguments> nBooleanProduct(int n) {
+    return Sets.cartesianProduct(
+            IntStream.range(0, n)
+                .mapToObj(i -> ImmutableSet.of(false, true))
+                .collect(Collectors.toList()))
+        .stream()
+        .map(List::toArray)
+        .map(Arguments::of);
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Snowflake Inc. All rights reserved.
+ * Copyright (c) 2024 Snowflake Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
@@ -16,22 +16,16 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BehaviorOnNullValues.VALIDATOR;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ICEBERG_ENABLED;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.JMX_OPT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP;
 
 import com.google.common.collect.ImmutableMap;
-import com.snowflake.kafka.connector.internal.BufferThreshold;
 import com.snowflake.kafka.connector.internal.InternalUtils;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.OAuthConstants;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeInternalOperations;
-import com.snowflake.kafka.connector.internal.SnowflakeURL;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
@@ -65,14 +59,13 @@ import net.snowflake.client.jdbc.internal.apache.http.util.EntityUtils;
 import net.snowflake.client.jdbc.internal.google.gson.JsonObject;
 import net.snowflake.client.jdbc.internal.google.gson.JsonParser;
 import org.apache.kafka.common.config.Config;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 
 /** Various arbitrary helper functions */
 public class Utils {
 
   // Connector version, change every release
-  public static final String VERSION = "2.2.2";
+  public static final String VERSION = "3.1.0";
 
   // connector parameter list
   public static final String NAME = "name";
@@ -89,6 +82,7 @@ public class Utils {
   public static final String SF_OAUTH_CLIENT_ID = "snowflake.oauth.client.id";
   public static final String SF_OAUTH_CLIENT_SECRET = "snowflake.oauth.client.secret";
   public static final String SF_OAUTH_REFRESH_TOKEN = "snowflake.oauth.refresh.token";
+  public static final String SF_OAUTH_TOKEN_ENDPOINT = "snowflake.oauth.token.endpoint";
 
   // authenticator type
   public static final String SNOWFLAKE_JWT = "snowflake_jwt";
@@ -168,9 +162,8 @@ public class Utils {
       InputStream input = urlConnection.getInputStream();
       BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(input));
       String line;
-      Pattern pattern = Pattern.compile("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}?)"); // Secure Regex
+      Pattern pattern = Pattern.compile("(\\d+\\.\\d+\\.\\d+?)");
       while ((line = bufferedReader.readLine()) != null) {
-        line = line.substring(0, Math.min(line.length(), 1000)); // Limit regex input to 1000 chars to prevent ReDOS
         Matcher matcher = pattern.matcher(line);
         if (matcher.find()) {
           String version = matcher.group(1);
@@ -394,233 +387,78 @@ public class Utils {
   }
 
   /**
-   * Validate input configuration
+   * Returns whether INGESTION_METHOD_OPT is set to SNOWPIPE. If INGESTION_METHOD_OPT not specified,
+   * returns true as default.
    *
-   * @param config configuration Map
-   * @return connector name
+   * @param config input config object
    */
-  static String validateConfig(Map<String, String> config) {
-    Map<String, String> invalidConfigParams = new HashMap<String, String>(); // verify all config
-
-    // define the input parameters / keys in one place as static constants,
-    // instead of using them directly
-    // define the thresholds statically in one place as static constants,
-    // instead of using the values directly
-
-    // unique name of this connector instance
-    String connectorName = config.getOrDefault(SnowflakeSinkConnectorConfig.NAME, "");
-    if (connectorName.isEmpty() || !isValidSnowflakeApplicationName(connectorName)) {
-      invalidConfigParams.put(
-          SnowflakeSinkConnectorConfig.NAME,
-          Utils.formatString(
-              "{} is empty or invalid. It should match Snowflake object identifier syntax. Please"
-                  + " see the documentation.",
-              SnowflakeSinkConnectorConfig.NAME));
-    }
-
-    // If config doesnt have ingestion method defined, default is snowpipe or if snowpipe is
-    // explicitly passed in as ingestion method
-    // Below checks are just for snowpipe.
-    if (!config.containsKey(INGESTION_METHOD_OPT)
+  static boolean isSnowpipeIngestion(Map<String, String> config) {
+    return !config.containsKey(INGESTION_METHOD_OPT)
         || config
             .get(INGESTION_METHOD_OPT)
-            .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString())) {
-      invalidConfigParams.putAll(
-          BufferThreshold.validateBufferThreshold(config, IngestionMethodConfig.SNOWPIPE));
+            .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString());
+  }
 
-      if (config.containsKey(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG)
-          && Boolean.parseBoolean(
-              config.get(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG))) {
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG,
-            Utils.formatString(
-                "Schematization is only available with {}.",
-                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
-      }
-      if (config.containsKey(SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG)) {
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG,
-            Utils.formatString(
-                "{} is only available with ingestion type: {}.",
-                SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_MAX_CLIENT_LAG,
-                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
-      }
-      if (config.containsKey(
-          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP)) {
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP,
-            Utils.formatString(
-                "{} is only available with ingestion type: {}.",
-                SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP,
-                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
-      }
-      if (config.containsKey(
-              SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG)
-          && Boolean.parseBoolean(
-              config.get(
-                  SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG))) {
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.ENABLE_STREAMING_CLIENT_OPTIMIZATION_CONFIG,
-            Utils.formatString(
-                "Streaming client optimization is only available with {}.",
-                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
-      }
-      if (config.containsKey(
-          SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG)) {
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG,
-            Utils.formatString(
-                "Streaming client Channel migration is only available with {}.",
-                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
-      }
+  /**
+   * @param config config with applied default values
+   * @return true when Iceberg mode is enabled.
+   */
+  public static boolean isIcebergEnabled(Map<String, String> config) {
+    return Boolean.parseBoolean(config.get(ICEBERG_ENABLED));
+  }
+
+  public static boolean isSchematizationEnabled(Map<String, String> config) {
+    return Boolean.parseBoolean(
+        config.get(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG));
+  }
+
+  /**
+   * @param config config with applied default values
+   * @return role specified in rhe config
+   */
+  public static String role(Map<String, String> config) {
+    return config.get(SF_ROLE);
+  }
+
+  /**
+   * Returns whether INGESTION_METHOD_OPT is set to SNOWPIPE_STREAMING. If INGESTION_METHOD_OPT not
+   * specified, returns false as default.
+   *
+   * @param config input config object
+   */
+  public static boolean isSnowpipeStreamingIngestion(Map<String, String> config) {
+    return !isSnowpipeIngestion(config);
+  }
+
+  /**
+   * Class for returned GeneratedName. isNameFromMap equal to True indicates that the name was
+   * resolved by using the map passed to appropriate function. {@link
+   * Utils#generateTableName(String, Map)}
+   */
+  public static class GeneratedName {
+    private final String name;
+    private final boolean isNameFromMap;
+
+    private GeneratedName(String name, boolean isNameFromMap) {
+      this.name = name;
+      this.isNameFromMap = isNameFromMap;
     }
 
-    if (config.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)
-            && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()
-            && parseTopicToTableMap(config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP))
-            == null) {
-      invalidConfigParams.put(
-          SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
-          Utils.formatString(
-              "Invalid {} config format: {}",
-              SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
-              config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)));
+    private static GeneratedName fromMap(String name) {
+      return new GeneratedName(name, true);
     }
 
-    // sanity check
-    if (!config.containsKey(SnowflakeSinkConnectorConfig.SNOWFLAKE_DATABASE)) {
-      invalidConfigParams.put(
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_DATABASE,
-          Utils.formatString(
-              "{} cannot be empty.", SnowflakeSinkConnectorConfig.SNOWFLAKE_DATABASE));
+    public static GeneratedName generated(String name) {
+      return new GeneratedName(name, false);
     }
 
-    // sanity check
-    if (!config.containsKey(SnowflakeSinkConnectorConfig.SNOWFLAKE_SCHEMA)) {
-      invalidConfigParams.put(
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_SCHEMA,
-          Utils.formatString("{} cannot be empty.", SnowflakeSinkConnectorConfig.SNOWFLAKE_SCHEMA));
+    public String getName() {
+      return name;
     }
 
-    switch (config
-        .getOrDefault(SnowflakeSinkConnectorConfig.AUTHENTICATOR_TYPE, Utils.SNOWFLAKE_JWT)
-        .toLowerCase()) {
-        // TODO: SNOW-889748 change to enum
-      case Utils.SNOWFLAKE_JWT:
-        if (!config.containsKey(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY)) {
-          invalidConfigParams.put(
-              SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY,
-              Utils.formatString(
-                  "{} cannot be empty when using {} authenticator.",
-                  SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY,
-                  Utils.SNOWFLAKE_JWT));
-        }
-        break;
-      case Utils.OAUTH:
-        if (!config.containsKey(SnowflakeSinkConnectorConfig.OAUTH_CLIENT_ID)) {
-          invalidConfigParams.put(
-              SnowflakeSinkConnectorConfig.OAUTH_CLIENT_ID,
-              Utils.formatString(
-                  "{} cannot be empty when using {} authenticator.",
-                  SnowflakeSinkConnectorConfig.OAUTH_CLIENT_ID,
-                  Utils.OAUTH));
-        }
-        if (!config.containsKey(SnowflakeSinkConnectorConfig.OAUTH_CLIENT_SECRET)) {
-          invalidConfigParams.put(
-              SnowflakeSinkConnectorConfig.OAUTH_CLIENT_SECRET,
-              Utils.formatString(
-                  "{} cannot be empty when using {} authenticator.",
-                  SnowflakeSinkConnectorConfig.OAUTH_CLIENT_SECRET,
-                  Utils.OAUTH));
-        }
-        if (!config.containsKey(SnowflakeSinkConnectorConfig.OAUTH_REFRESH_TOKEN)) {
-          invalidConfigParams.put(
-              SnowflakeSinkConnectorConfig.OAUTH_REFRESH_TOKEN,
-              Utils.formatString(
-                  "{} cannot be empty when using {} authenticator.",
-                  SnowflakeSinkConnectorConfig.OAUTH_REFRESH_TOKEN,
-                  Utils.OAUTH));
-        }
-        break;
-      default:
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.AUTHENTICATOR_TYPE,
-            Utils.formatString(
-                "{} should be one of {} or {}.",
-                SnowflakeSinkConnectorConfig.AUTHENTICATOR_TYPE,
-                Utils.SNOWFLAKE_JWT,
-                Utils.OAUTH));
+    public boolean isNameFromMap() {
+      return isNameFromMap;
     }
-
-    if (!config.containsKey(SnowflakeSinkConnectorConfig.SNOWFLAKE_USER)) {
-      invalidConfigParams.put(
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_USER,
-          Utils.formatString("{} cannot be empty.", SnowflakeSinkConnectorConfig.SNOWFLAKE_USER));
-    }
-
-    if (!config.containsKey(SnowflakeSinkConnectorConfig.SNOWFLAKE_URL)) {
-      invalidConfigParams.put(
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_URL,
-          Utils.formatString("{} cannot be empty.", SnowflakeSinkConnectorConfig.SNOWFLAKE_URL));
-    }
-    // jvm proxy settings
-    invalidConfigParams.putAll(validateProxySettings(config));
-
-    // set jdbc logging directory
-    Utils.setJDBCLoggingDirectory();
-
-    // validate whether kafka provider config is a valid value
-    if (config.containsKey(SnowflakeSinkConnectorConfig.PROVIDER_CONFIG)) {
-      try {
-        SnowflakeSinkConnectorConfig.KafkaProvider.of(
-            config.get(SnowflakeSinkConnectorConfig.PROVIDER_CONFIG));
-      } catch (IllegalArgumentException exception) {
-        invalidConfigParams.put(
-            SnowflakeSinkConnectorConfig.PROVIDER_CONFIG,
-            Utils.formatString("Kafka provider config error:{}", exception.getMessage()));
-      }
-    }
-
-    if (config.containsKey(BEHAVIOR_ON_NULL_VALUES_CONFIG)) {
-      try {
-        // This throws an exception if config value is invalid.
-        VALIDATOR.ensureValid(
-            BEHAVIOR_ON_NULL_VALUES_CONFIG, config.get(BEHAVIOR_ON_NULL_VALUES_CONFIG));
-      } catch (ConfigException exception) {
-        invalidConfigParams.put(
-            BEHAVIOR_ON_NULL_VALUES_CONFIG,
-            Utils.formatString(
-                "Kafka config:{} error:{}",
-                BEHAVIOR_ON_NULL_VALUES_CONFIG,
-                exception.getMessage()));
-      }
-    }
-
-    if (config.containsKey(JMX_OPT)) {
-      if (!(config.get(JMX_OPT).equalsIgnoreCase("true")
-          || config.get(JMX_OPT).equalsIgnoreCase("false"))) {
-        invalidConfigParams.put(
-            JMX_OPT, Utils.formatString("Kafka config:{} should either be true or false", JMX_OPT));
-      }
-    }
-
-    if (config.containsKey(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
-      if (!(config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("true")
-              || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
-        invalidConfigParams.put(
-                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
-                Utils.formatString(
-                "Kafka config:{} should either be true or false", SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
-      }
-    }
-
-    // Check all config values for ingestion method == IngestionMethodConfig.SNOWPIPE_STREAMING
-    invalidConfigParams.putAll(StreamingUtils.validateStreamingSnowpipeConfig(config));
-
-    // logs and throws exception if there are invalid params
-    handleInvalidParameters(ImmutableMap.copyOf(invalidConfigParams));
-
-    return connectorName;
   }
 
   /**
@@ -631,7 +469,7 @@ public class Utils {
   public static void convertAppName(Map<String, String> config) {
     String appName = config.getOrDefault(SnowflakeSinkConnectorConfig.NAME, "");
     // If appName is empty the following call will throw error
-    String validAppName = generateValidName(appName, new HashMap<String, String>());
+    String validAppName = generateValidName(appName, new HashMap<>());
 
     config.put(SnowflakeSinkConnectorConfig.NAME, validAppName);
   }
@@ -648,6 +486,20 @@ public class Utils {
   }
 
   /**
+   * Verify topic name and generate a valid table name. The returned GeneratedName has a flag
+   * isNameFromMap that indicates if the name was retrieved from the passed topic2table map which
+   * has particular outcomes for the SnowflakeSinkServiceV1
+   *
+   * @param topic input topic name
+   * @param topic2table topic to table map
+   * @return return GeneratedName with valid table name and a flag whether the name was taken from
+   *     the topic2table
+   */
+  public static GeneratedName generateTableName(String topic, Map<String, String> topic2table) {
+    return generateValidNameFromMap(topic, topic2table);
+  }
+
+  /**
    * verify topic name, and generate valid table/application name
    *
    * @param topic input topic name
@@ -655,23 +507,35 @@ public class Utils {
    * @return valid table/application name
    */
   public static String generateValidName(String topic, Map<String, String> topic2table) {
+    return generateValidNameFromMap(topic, topic2table).name;
+  }
+
+  /**
+   * verify topic name, and generate valid table/application name
+   *
+   * @param topic input topic name
+   * @param topic2table topic to table map
+   * @return valid generated table/application name
+   */
+  private static GeneratedName generateValidNameFromMap(
+      String topic, Map<String, String> topic2table) {
     final String PLACE_HOLDER = "_";
     if (topic == null || topic.isEmpty()) {
       throw SnowflakeErrors.ERROR_0020.getException("topic name: " + topic);
     }
     if (topic2table.containsKey(topic)) {
-      return topic2table.get(topic);
+      return GeneratedName.fromMap(topic2table.get(topic));
     }
 
     // try matching regex tables
     for (String regexTopic : topic2table.keySet()) {
       if (topic.matches(regexTopic)) {
-        return topic2table.get(regexTopic);
+        return GeneratedName.fromMap(topic2table.get(regexTopic));
       }
     }
 
     if (Utils.isValidSnowflakeObjectIdentifier(topic)) {
-      return topic;
+      return GeneratedName.generated(topic);
     }
     int hash = Math.abs(topic.hashCode());
 
@@ -700,7 +564,7 @@ public class Utils {
     result.append(PLACE_HOLDER);
     result.append(hash);
 
-    return result.toString();
+    return GeneratedName.generated(result.toString());
   }
 
   public static Map<String, String> parseTopicToTableMap(String input) {
@@ -852,7 +716,10 @@ public class Utils {
    * @return OAuth access token
    */
   public static String getSnowflakeOAuthAccessToken(
-      SnowflakeURL url, String clientId, String clientSecret, String refreshToken) {
+      com.snowflake.kafka.connector.internal.URL url,
+      String clientId,
+      String clientSecret,
+      String refreshToken) {
     return getSnowflakeOAuthToken(
         url,
         clientId,
@@ -879,7 +746,7 @@ public class Utils {
    */
   // TODO: SNOW-895296 Integrate OAuth utils with streaming ingest SDK
   public static String getSnowflakeOAuthToken(
-      SnowflakeURL url,
+      com.snowflake.kafka.connector.internal.URL url,
       String clientId,
       String clientSecret,
       String credential,
@@ -913,8 +780,7 @@ public class Utils {
     final StringEntity entity =
         new StringEntity(payloadString, ContentType.APPLICATION_FORM_URLENCODED);
 
-    HttpPost post =
-        buildOAuthHttpPostRequest(url, OAuthConstants.TOKEN_REQUEST_ENDPOINT, headers, entity);
+    HttpPost post = buildOAuthHttpPostRequest(url, url.path(), headers, entity);
 
     // Request access token
     CloseableHttpClient client = HttpClientBuilder.create().build();
@@ -929,8 +795,7 @@ public class Utils {
                   // Trim surrounding quotation marks
                   return respBody.get(tokenType).toString().replaceAll("^\"|\"$", "");
                 } catch (Exception e) {
-                  throw SnowflakeErrors.ERROR_1004.getException(
-                      "Failed to get Oauth access token after retries");
+                  throw SnowflakeErrors.ERROR_1004.getException(e);
                 }
               })
           .toString();
@@ -948,12 +813,19 @@ public class Utils {
    * @return HttpPost request for OAuth
    */
   public static HttpPost buildOAuthHttpPostRequest(
-      SnowflakeURL url, String path, Map<String, String> headers, StringEntity entity) {
+      com.snowflake.kafka.connector.internal.URL url,
+      String path,
+      Map<String, String> headers,
+      StringEntity entity) {
     // Build post request
     URI uri;
     try {
       uri =
-          new URIBuilder().setHost(url.toString()).setScheme(url.getScheme()).setPath(path).build();
+          new URIBuilder()
+              .setHost(url.hostWithPort())
+              .setScheme(url.getScheme())
+              .setPath(path)
+              .build();
     } catch (URISyntaxException e) {
       throw SnowflakeErrors.ERROR_1004.getException(e);
     }
@@ -987,23 +859,5 @@ public class Utils {
             : Arrays.toString(ex.getCause().getStackTrace());
 
     return formatString(GET_EXCEPTION_FORMAT, customMessage, message, cause);
-  }
-
-  private static void handleInvalidParameters(ImmutableMap<String, String> invalidConfigParams) {
-    // log all invalid params and throw exception
-    if (!invalidConfigParams.isEmpty()) {
-      String invalidParamsMessage = "";
-
-      for (String invalidKey : invalidConfigParams.keySet()) {
-        String invalidValue = invalidConfigParams.get(invalidKey);
-        String errorMessage =
-            Utils.formatString(
-                "Config value '{}' is invalid. Error message: '{}'", invalidKey, invalidValue);
-        invalidParamsMessage += errorMessage + "\n";
-      }
-
-      LOGGER.error("Invalid config: " + invalidParamsMessage);
-      throw SnowflakeErrors.ERROR_0001.getException(invalidParamsMessage);
-    }
   }
 }

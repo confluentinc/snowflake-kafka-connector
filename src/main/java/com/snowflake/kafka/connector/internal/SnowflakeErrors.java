@@ -136,7 +136,14 @@ public enum SnowflakeErrors {
       String.format(
           "Failed to parse %s map",
           SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP)),
-
+  ERROR_0031(
+      "0031",
+      "Failed to combine JDBC properties",
+      "One of snowflake.jdbc.map property overrides other jdbc property"),
+  ERROR_0032(
+      "0032",
+      "Iceberg table does not exist or is in invalid format",
+      "Check Snowflake Kafka Connector docs for details"),
   // Snowflake connection issues 1---
   ERROR_1001(
       "1001",
@@ -209,6 +216,16 @@ public enum SnowflakeErrors {
       "2017",
       "Failed to check schema evolution permission",
       "Failed to check schema evolution permission"),
+
+  ERROR_2018(
+      "2018",
+      "Failed to alter RECORD_METADATA column type for iceberg",
+      "Failed to alter RECORD_METADATA column type to required format for iceberg."),
+  ERROR_2019(
+      "2019",
+      "Failed to add RECORD_METADATA column for iceberg",
+      "Failed to add RECORD_METADATA column with required format for iceberg."),
+
   // Snowpipe related issues 3---
   ERROR_3001("3001", "Failed to ingest file", "Exception reported by Ingest SDK"),
 
@@ -321,7 +338,13 @@ public enum SnowflakeErrors {
       "5024",
       "Timeout while waiting for file cleaner to start",
       "Could not allocate thread for file cleaner to start processing in given time. If problem"
-          + " persists, please try setting snowflake.snowpipe.use_new_cleaner to false");
+          + " persists, please try setting snowflake.snowpipe.use_new_cleaner to false"),
+  ERROR_5025(
+      "5025", "Unexpected data type", "Unexpected data type encountered during schema evolution."),
+  ERROR_5026(
+      "5026",
+      "Invalid SinkRecord received",
+      "Cannot infer type from null or empty object/list during schema evolution.");
 
   // properties
 
@@ -354,7 +377,7 @@ public enum SnowflakeErrors {
     for (StackTraceElement element : e.getStackTrace()) {
       str.append("\n").append(element.toString());
     }
-    return getException(str.toString(), telemetryService, e.getMessage());
+    return getException(str.toString(), telemetryService);
   }
 
   public SnowflakeKafkaConnectorException getException(SnowflakeTelemetryService telemetryService) {
@@ -385,34 +408,6 @@ public enum SnowflakeErrors {
           Utils.formatLogMessage(
               "Exception: {}\nError Code: {}\nDetail: {}\nMessage: {}", name, code, detail, msg),
           code);
-    }
-  }
-
-  /**
-   * Convert a given message into SnowflakeKafkaConnectorException.
-   *
-   * <p>If message is null, we use Enum's toString() method to wrap inside
-   * SnowflakeKafkaConnectorException
-   *
-   * @param msg Message to send to Telemetry Service. Remember, we Strip the message
-   * @param telemetryService can be null
-   * @param errorMessage Trimmed exception message, can be empty
-   * @return Exception wrapped in Snowflake Connector Exception
-   */
-  public SnowflakeKafkaConnectorException getException(
-      String msg, SnowflakeTelemetryService telemetryService, String errorMessage) {
-    if (telemetryService != null) {
-      telemetryService.reportKafkaConnectFatalError(
-          getCode() + msg.substring(0, Math.min(msg.length(), 500)));
-    }
-
-    if (msg == null || msg.isEmpty()) {
-      return new SnowflakeKafkaConnectorException(toString(), code);
-    } else {
-      return new SnowflakeKafkaConnectorException(
-          Utils.formatLogMessage(
-              "Exception: {}\nError Code: {}\nDetail: {}\nMessage: {}", name, code, detail, msg),
-          code, errorMessage);
     }
   }
 
