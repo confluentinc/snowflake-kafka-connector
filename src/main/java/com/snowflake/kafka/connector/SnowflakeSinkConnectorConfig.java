@@ -106,7 +106,7 @@ public class SnowflakeSinkConnectorConfig {
 
   // metrics
   public static final String JMX_OPT = "jmx";
-  public static final boolean JMX_OPT_DEFAULT = true;
+  public static final boolean JMX_OPT_DEFAULT = false;
 
   // for Snowpipe vs Streaming Snowpipe
   public static final String INGESTION_METHOD_OPT = "snowflake.ingestion.method";
