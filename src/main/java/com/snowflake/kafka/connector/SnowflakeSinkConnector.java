@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
@@ -298,7 +299,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {
-        Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, " database does not exist");
+        Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, " database does not exist or there is a permission issue for the provided user. Please check user privileges");
       } else {
         throw e;
       }
@@ -325,16 +326,22 @@ public class SnowflakeSinkConnector extends SinkConnector {
       if (e.getCode().equals("2001")) {
         LOGGER.error(Utils.SF_SCHEMA + ": provided role does not have one of the required privileges "
                 + "(CREATE TABLE, CREATE STAGE, CREATE PIPE) on the schema");
+        Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, " schema does not exist or there is a permission issue for the provided user. Please check user privileges");
+        return result;
       }
     } catch (Exception e) {
       LOGGER.error("Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}", e.getMessage(), e);
     }
 
+    boolean sufficientPriviliges = false;
     if (shouldCheckTablePrivilege(connectorConfigs)) {
       Map<String, String> topicsTablesMap = Utils.parseTopicToTableMap(connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
       if (topicsTablesMap != null) {
-        checkTablePrivilege(topicsTablesMap, testConnection);
+       sufficientPriviliges = checkTablePrivilege(topicsTablesMap, testConnection);
       }
+    }
+    if (!sufficientPriviliges) {
+      Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, "User does not have sufficient privileges on the tables of the database.");
     }
 
     LOGGER.info("Validated config with no error");
@@ -346,7 +353,8 @@ public class SnowflakeSinkConnector extends SinkConnector {
     return topicsTablesMap != null && !topicsTablesMap.isEmpty();
   }
 
-  private static void checkTablePrivilege(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
+  private static boolean checkTablePrivilege(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
+    AtomicBoolean hasCaught2001 = new AtomicBoolean(false);
     topicsTablesMap.forEach((topic, table) -> {
       try {
         if (testConnection.tableExist(table)) {
@@ -357,11 +365,13 @@ public class SnowflakeSinkConnector extends SinkConnector {
         LOGGER.error("Validation Error for table {}: msg:{}, errorCode:{}", table, e.getMessage(), e.getCode());
         if (e.getCode().equals("2001")) {
           LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
+          hasCaught2001.set(true);
         }
       } catch (Exception e) {
         LOGGER.error("Unexpected Exception in validate for table privilege check {}: msg:{}, errorCode:{}", table, e.getMessage(), e);
       }
     });
+    return !hasCaught2001.get();
   }
 
   private static boolean isUsingConfigProvider(Map<String, String> connectorConfigs) {
