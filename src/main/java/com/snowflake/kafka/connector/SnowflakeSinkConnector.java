@@ -298,7 +298,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {
-        Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, " database does not exist");
+        Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, " database does not exist or user does not have sufficient privileges");
       } else {
         throw e;
       }
