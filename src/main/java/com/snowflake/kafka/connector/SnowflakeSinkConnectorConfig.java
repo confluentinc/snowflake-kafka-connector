@@ -19,6 +19,7 @@ package com.snowflake.kafka.connector;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.snowflake.kafka.connector.internal.KCLogger;
+import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
 import java.util.Arrays;
@@ -27,8 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -128,7 +127,7 @@ public class SnowflakeSinkConnectorConfig {
   public static final int SNOWPIPE_FILE_CLEANER_THREADS_DEFAULT = 1;
 
   public static final String SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP =
-          "snowflake.snowpipe.v1Cleaner.disable.reprocessFiles.cleanup";
+      "snowflake.snowpipe.v1Cleaner.disable.reprocessFiles.cleanup";
   public static final boolean SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT = false;
 
   public static final String SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED =
@@ -591,9 +590,9 @@ public class SnowflakeSinkConnectorConfig {
             Type.BOOLEAN,
             SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
             Importance.LOW,
-            "Whether to disable cleanup of reprocess files in Snowpipe used with v1Cleaner. "
-                + "Note: This configuration will not take effect if `snowflake.snowpipe.v2CleanerEnabled` is"
-                + " `true`.")
+            "Whether to disable cleanup of reprocess files in Snowpipe used with v1Cleaner. Note:"
+                + " This configuration will not take effect if"
+                + " `snowflake.snowpipe.v2CleanerEnabled` is `true`.")
         .define(
             SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED,
             ConfigDef.Type.BOOLEAN,

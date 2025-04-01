@@ -7,10 +7,10 @@ import static com.snowflake.kafka.connector.internal.TestUtils.getConf;
 import static com.snowflake.kafka.connector.internal.TestUtils.getConfWithOAuth;
 import static org.junit.Assert.assertEquals;
 
+import com.snowflake.kafka.connector.internal.TestUtils;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import com.snowflake.kafka.connector.internal.TestUtils;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
 import org.junit.Ignore;
@@ -194,8 +194,7 @@ public class ConnectorIT {
         validateMap, new String[] {SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY});
     assertEquals(
         SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY + " must be a valid PEM RSA private key",
-        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY).errorMessages().get(0)
-    );
+        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY).errorMessages().get(0));
   }
 
   @Test
@@ -224,14 +223,15 @@ public class ConnectorIT {
     assertPropHasError(
         validateMap,
         new String[] {
-            SnowflakeSinkConnectorConfig.SNOWFLAKE_USER,
-            SnowflakeSinkConnectorConfig.SNOWFLAKE_URL,
-            SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY
+          SnowflakeSinkConnectorConfig.SNOWFLAKE_USER,
+          SnowflakeSinkConnectorConfig.SNOWFLAKE_URL,
+          SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY
         });
     assertEquals(
-        "snowflake.url.name: Cannot connect to Snowflake, due to Role 'WRONGROLE' specified in the connect string does not exist or not authorized. Contact your local system administrator, or attempt to login with another role, e.g. PUBLIC.",
-        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_URL).errorMessages().get(0)
-    );
+        "snowflake.url.name: Cannot connect to Snowflake, due to Role 'WRONGROLE' specified in the"
+            + " connect string does not exist or not authorized. Contact your local system"
+            + " administrator, or attempt to login with another role, e.g. PUBLIC.",
+        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_URL).errorMessages().get(0));
   }
 
   @Test

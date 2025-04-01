@@ -187,7 +187,8 @@ public class SnowflakeSinkTask extends SinkTask {
       // connector would never start or reach the sink task stage
       behavior =
           SnowflakeSinkConnectorConfig.BehaviorOnNullValues.valueOf(
-              parsedConfig.get(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG)
+              parsedConfig
+                  .get(SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG)
                   .toUpperCase(Locale.ROOT));
     }
 
@@ -381,8 +382,7 @@ public class SnowflakeSinkTask extends SinkTask {
    */
   static Map<String, String> getTopicToTableMap(Map<String, String> config) {
     if (config.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)
-            && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()
-    ) {
+        && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()) {
       Map<String, String> result =
           Utils.parseTopicToTableMap(config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
       if (result != null) {

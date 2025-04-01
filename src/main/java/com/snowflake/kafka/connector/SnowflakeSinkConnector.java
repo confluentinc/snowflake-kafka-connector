@@ -16,6 +16,8 @@
  */
 package com.snowflake.kafka.connector;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
+
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
@@ -31,8 +33,6 @@ import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.sink.SinkConnector;
-
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 
 /**
  * SnowflakeSinkConnector implements SinkConnector for Kafka Connect framework.
@@ -229,24 +229,25 @@ public class SnowflakeSinkConnector extends SinkConnector {
     try {
       testConnection =
           SnowflakeConnectionServiceFactory.builder()
-                  .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT_IN_MS)
-                  .setLoginTimeOut(VALIDATION_LOGIN_TIMEOUT_IN_SEC)
-                  .setProperties(connectorConfigs)
-                  .build();
+              .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT_IN_MS)
+              .setLoginTimeOut(VALIDATION_LOGIN_TIMEOUT_IN_SEC)
+              .setProperties(connectorConfigs)
+              .build();
 
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error(
           "Validate: Error connecting to snowflake:{}, errorCode:{}, exception:{}",
-          e.getExceptionUserMessage(), e.getCode(), e.getMessage()
-      );
+          e.getExceptionUserMessage(),
+          e.getCode(),
+          e.getMessage());
       // Since url, user, db, schema, exist in config and is not empty,
       // the exceptions here would be invalid URL, and cannot connect, and no private key
       switch (e.getCode()) {
         case "1001":
           // Could be caused by invalid url, invalid user name, invalid password.
-          String errrorString = String.format(
-              ": Cannot connect to Snowflake, due to %s", e.getExceptionUserMessage()
-          );
+          String errrorString =
+              String.format(
+                  ": Cannot connect to Snowflake, due to %s", e.getExceptionUserMessage());
           Utils.updateConfigErrorMessage(result, Utils.SF_URL, errrorString);
           Utils.updateConfigErrorMessage(result, Utils.SF_PRIVATE_KEY, errrorString);
           Utils.updateConfigErrorMessage(result, Utils.SF_USER, errrorString);
@@ -298,7 +299,10 @@ public class SnowflakeSinkConnector extends SinkConnector {
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {
-        Utils.updateConfigErrorMessage(result, Utils.SF_DATABASE, " database does not exist or user does not have sufficient privileges");
+        Utils.updateConfigErrorMessage(
+            result,
+            Utils.SF_DATABASE,
+            " database does not exist or user does not have sufficient privileges");
       } else {
         throw e;
       }
@@ -318,20 +322,28 @@ public class SnowflakeSinkConnector extends SinkConnector {
     }
 
     try {
-      testConnection.hasSchemaPrivileges(connectorConfigs.get(Utils.SF_SCHEMA),
-              connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, "SNOWPIPE"));
+      testConnection.hasSchemaPrivileges(
+          connectorConfigs.get(Utils.SF_SCHEMA),
+          connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, "SNOWPIPE"));
     } catch (SnowflakeKafkaConnectorException e) {
       LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
       if (e.getCode().equals("2001")) {
-        LOGGER.error(Utils.SF_SCHEMA + ": provided role does not have one of the required privileges "
+        LOGGER.error(
+            Utils.SF_SCHEMA
+                + ": provided role does not have one of the required privileges "
                 + "(CREATE TABLE, CREATE STAGE, CREATE PIPE) on the schema");
       }
     } catch (Exception e) {
-      LOGGER.error("Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}", e.getMessage(), e);
+      LOGGER.error(
+          "Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}",
+          e.getMessage(),
+          e);
     }
 
     if (shouldCheckTablePrivilege(connectorConfigs)) {
-      Map<String, String> topicsTablesMap = Utils.parseTopicToTableMap(connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
+      Map<String, String> topicsTablesMap =
+          Utils.parseTopicToTableMap(
+              connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
       if (topicsTablesMap != null) {
         checkTablePrivilege(topicsTablesMap, testConnection);
       }
@@ -346,22 +358,33 @@ public class SnowflakeSinkConnector extends SinkConnector {
     return topicsTablesMap != null && !topicsTablesMap.isEmpty();
   }
 
-  private static void checkTablePrivilege(Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
-    topicsTablesMap.forEach((topic, table) -> {
-      try {
-        if (testConnection.tableExist(table)) {
-          LOGGER.info("Table already {} exists, checking if we sufficient privileges", table);
-          testConnection.hasTableRequiredPrivileges(table);
-        }
-      } catch (SnowflakeKafkaConnectorException e) {
-        LOGGER.error("Validation Error for table {}: msg:{}, errorCode:{}", table, e.getMessage(), e.getCode());
-        if (e.getCode().equals("2001")) {
-          LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
-        }
-      } catch (Exception e) {
-        LOGGER.error("Unexpected Exception in validate for table privilege check {}: msg:{}, errorCode:{}", table, e.getMessage(), e);
-      }
-    });
+  private static void checkTablePrivilege(
+      Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
+    topicsTablesMap.forEach(
+        (topic, table) -> {
+          try {
+            if (testConnection.tableExist(table)) {
+              LOGGER.info("Table already {} exists, checking if we sufficient privileges", table);
+              testConnection.hasTableRequiredPrivileges(table);
+            }
+          } catch (SnowflakeKafkaConnectorException e) {
+            LOGGER.error(
+                "Validation Error for table {}: msg:{}, errorCode:{}",
+                table,
+                e.getMessage(),
+                e.getCode());
+            if (e.getCode().equals("2001")) {
+              LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
+            }
+          } catch (Exception e) {
+            LOGGER.error(
+                "Unexpected Exception in validate for table privilege check {}: msg:{},"
+                    + " errorCode:{}",
+                table,
+                e.getMessage(),
+                e);
+          }
+        });
   }
 
   private static boolean isUsingConfigProvider(Map<String, String> connectorConfigs) {

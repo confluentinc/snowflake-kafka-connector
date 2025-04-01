@@ -723,20 +723,24 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
 
       if (!hasCreateTablePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE TABLE privilege on schema " + schemaName);
+        throw SnowflakeErrors.ERROR_2001.getException(
+            "Missing CREATE TABLE privilege on schema " + schemaName);
       }
 
-      if(ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
-        LOGGER.info("Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
+      if (ingestionMethod.equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE_STREAMING.toString())) {
+        LOGGER.info(
+            "Schema {} has required privileges for SNOWPIPE_STREAMING ingestion", schemaName);
         return;
       }
 
       // For SNOWPIPE ingestion, we need CREATE STAGE and CREATE PIPE privileges as well
       if (!hasCreateStagePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE STAGE privilege on schema " + schemaName);
+        throw SnowflakeErrors.ERROR_2001.getException(
+            "Missing CREATE STAGE privilege on schema " + schemaName);
       }
       if (!hasCreatePipePrivilege) {
-        throw SnowflakeErrors.ERROR_2001.getException("Missing CREATE PIPE privilege on schema " + schemaName);
+        throw SnowflakeErrors.ERROR_2001.getException(
+            "Missing CREATE PIPE privilege on schema " + schemaName);
       }
 
       LOGGER.info("Schema {} has required privileges", schemaName);
@@ -783,7 +787,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       }
 
       if (!hasInsertPrivilege) { // only checking the bare minimum privilege we need
-        throw SnowflakeErrors.ERROR_2001.getException("Missing INSERT privilege on table " + tableName);
+        throw SnowflakeErrors.ERROR_2001.getException(
+            "Missing INSERT privilege on table " + tableName);
       }
 
       LOGGER.info("Table {} has required privilege", tableName);
@@ -1230,5 +1235,4 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
 
     return currentRole;
   }
-
 }

@@ -170,7 +170,10 @@ public class Utils {
       String line;
       Pattern pattern = Pattern.compile("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}?)"); // Secure Regex
       while ((line = bufferedReader.readLine()) != null) {
-        line = line.substring(0, Math.min(line.length(), 1000)); // Limit regex input to 1000 chars to prevent ReDOS
+        line =
+            line.substring(
+                0,
+                Math.min(line.length(), 1000)); // Limit regex input to 1000 chars to prevent ReDOS
         Matcher matcher = pattern.matcher(line);
         if (matcher.find()) {
           String version = matcher.group(1);
@@ -476,8 +479,8 @@ public class Utils {
     }
 
     if (config.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)
-            && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()
-            && parseTopicToTableMap(config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP))
+        && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()
+        && parseTopicToTableMap(config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP))
             == null) {
       invalidConfigParams.put(
           SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP,
@@ -606,11 +609,12 @@ public class Utils {
 
     if (config.containsKey(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
       if (!(config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("true")
-              || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
+          || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
         invalidConfigParams.put(
-                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
-                Utils.formatString(
-                "Kafka config:{} should either be true or false", SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
+            Utils.formatString(
+                "Kafka config:{} should either be true or false",
+                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
       }
     }
 
