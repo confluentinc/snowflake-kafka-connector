@@ -16,40 +16,18 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.*;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BehaviorOnNullValues.VALIDATOR;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.JMX_OPT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP;
 
 import com.google.common.collect.ImmutableMap;
-import com.snowflake.kafka.connector.internal.BufferThreshold;
-import com.snowflake.kafka.connector.internal.InternalUtils;
-import com.snowflake.kafka.connector.internal.KCLogger;
-import com.snowflake.kafka.connector.internal.OAuthConstants;
-import com.snowflake.kafka.connector.internal.SnowflakeErrors;
-import com.snowflake.kafka.connector.internal.SnowflakeInternalOperations;
-import com.snowflake.kafka.connector.internal.SnowflakeURL;
+import com.snowflake.kafka.connector.internal.*;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
-import java.net.Authenticator;
-import java.net.PasswordAuthentication;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLEncoder;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Random;
+import java.io.*;
+import java.net.*;
+import java.util.*;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1008,6 +986,29 @@ public class Utils {
 
       LOGGER.error("Invalid config: " + invalidParamsMessage);
       throw SnowflakeErrors.ERROR_0001.getException(invalidParamsMessage);
+    }
+  }
+
+  public static class SnowflakeThreadFactory implements ThreadFactory {
+    private final String connectorName;
+    private final String taskId;
+    private final String threadType;
+    private final AtomicInteger threadNumber = new AtomicInteger(1);
+
+    public SnowflakeThreadFactory(String connectorName, String taskId, String threadType) {
+      this.connectorName = connectorName;
+      this.taskId = taskId;
+      this.threadType = threadType;
+    }
+
+    @Override
+    public Thread newThread(Runnable r) {
+      Thread thread = new Thread(r);
+      thread.setName(
+          String.format(
+              "%s-%s-%s-thread-%d",
+              connectorName, taskId, threadType, threadNumber.getAndIncrement()));
+      return thread;
     }
   }
 }

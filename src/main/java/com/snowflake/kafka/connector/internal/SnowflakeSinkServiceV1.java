@@ -103,6 +103,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   private boolean disableReprocessFilesCleanup = false;
 
   private final Set<String> perTableWarningNotifications = new HashSet<>();
+  private final String V1CleanerThreadType = "v1-cleaner";
+  private final String V1ReprocessCleanerThreadType = "v1-reprocess-cleaner";
+  private final String V2CleanerThreadType = "v2-cleaner";
 
   SnowflakeSinkServiceV1(SnowflakeConnectionService conn) {
     if (conn == null || conn.isClosed()) {
@@ -376,7 +379,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     if (cleanerServiceExecutor != null) {
       cleanerServiceExecutor.shutdown();
     }
-    cleanerServiceExecutor = new ScheduledThreadPoolExecutor(Math.max(1, threadCount));
+    ScheduledThreadPoolExecutor executor =
+        new ScheduledThreadPoolExecutor(Math.max(1, threadCount));
+    executor.setThreadFactory(
+        new Utils.SnowflakeThreadFactory(
+            conn.getConnectorName(), conn.getTaskID(), V2CleanerThreadType));
+    cleanerServiceExecutor = executor;
   }
 
   @Override
@@ -577,8 +585,14 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         this.cleanerExecutor = null;
         this.reprocessCleanerExecutor = null;
       } else {
-        this.cleanerExecutor = Executors.newSingleThreadExecutor();
-        this.reprocessCleanerExecutor = Executors.newSingleThreadExecutor();
+        this.cleanerExecutor =
+            Executors.newSingleThreadExecutor(
+                new Utils.SnowflakeThreadFactory(
+                    conn.getConnectorName(), conn.getTaskID(), V1CleanerThreadType));
+        this.reprocessCleanerExecutor =
+            Executors.newSingleThreadExecutor(
+                new Utils.SnowflakeThreadFactory(
+                    conn.getConnectorName(), conn.getTaskID(), V1ReprocessCleanerThreadType));
         this.stageFileProcessorClient = null;
       }
 

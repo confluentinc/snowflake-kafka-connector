@@ -1051,6 +1051,11 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
   }
 
   @Override
+  public String getTaskID() {
+    return this.taskID;
+  }
+
+  @Override
   public SnowflakeIngestionService buildIngestService(
       final String stageName, final String pipeName) {
     String account = url.getAccount();

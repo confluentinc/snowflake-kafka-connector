@@ -257,6 +257,13 @@ public interface SnowflakeConnectionService {
   String getConnectorName();
 
   /**
+   * Get the task ID of this connection service
+   *
+   * @return the task ID
+   */
+  String getTaskID();
+
+  /**
    * build ingest service instance for given stage and pipe
    *
    * @param stageName stage name
