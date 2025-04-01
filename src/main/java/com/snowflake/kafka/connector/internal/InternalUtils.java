@@ -123,8 +123,10 @@ public class InternalUtils {
    * @param url target server url
    * @return Properties object which will be passed down to JDBC connection
    */
-  static Properties createProperties(Map<String, String> conf, int networkTimeout, int loginTimeout, SnowflakeURL url) {
-    return createProperties(conf, networkTimeout, loginTimeout, url, IngestionMethodConfig.SNOWPIPE);
+  static Properties createProperties(
+      Map<String, String> conf, int networkTimeout, int loginTimeout, SnowflakeURL url) {
+    return createProperties(
+        conf, networkTimeout, loginTimeout, url, IngestionMethodConfig.SNOWPIPE);
   }
 
   /**
@@ -135,7 +137,12 @@ public class InternalUtils {
    * @param ingestionMethodConfig which ingestion method is provided.
    * @return a Properties instance
    */
-  static Properties createProperties(Map<String, String> conf, int networkTimeout, int loginTimeout, SnowflakeURL url,  IngestionMethodConfig ingestionMethodConfig) {
+  static Properties createProperties(
+      Map<String, String> conf,
+      int networkTimeout,
+      int loginTimeout,
+      SnowflakeURL url,
+      IngestionMethodConfig ingestionMethodConfig) {
     Properties properties = new Properties();
 
     // add application parameter to identify connector created from CONFLUENT_CLOUD
@@ -233,7 +240,7 @@ public class InternalUtils {
       properties.put(JDBC_NETWORK_TIMEOUT, networkTimeout);
     }
 
-    if(loginTimeout != 0) {
+    if (loginTimeout != 0) {
       properties.put(JDBC_LOGIN_TIMEOUT, loginTimeout);
     }
 

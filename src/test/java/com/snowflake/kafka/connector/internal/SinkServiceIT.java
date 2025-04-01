@@ -748,10 +748,11 @@ public class SinkServiceIT {
 
   @ParameterizedTest
   @CsvSource({
-          "false, 2", // Scenario 1: SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP = false, TableStage size 2
-          "true, 3"   // Scenario 2: SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP = true, TableStage size 3
+    "false, 2", // Scenario 1: SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP = false, TableStage size 2
+    "true, 3" // Scenario 2: SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP = true, TableStage size 3
   })
-  public void testRecoverReprocessFiles(String disableReprocessFilesCleanup, int expectedTableStageSize) throws Exception {
+  public void testRecoverReprocessFiles(
+      String disableReprocessFilesCleanup, int expectedTableStageSize) throws Exception {
     String data =
         "{\"content\":{\"name\":\"test\"},\"meta\":{\"offset\":0,"
             + "\"topic\":\"test\",\"partition\":0}}";
@@ -788,7 +789,9 @@ public class SinkServiceIT {
     assert getStageSize(stage, table, 0) == 4;
 
     Map<String, String> connectorConfig = new HashMap<>();
-    connectorConfig.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, disableReprocessFilesCleanup);
+    connectorConfig.put(
+        SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
+        disableReprocessFilesCleanup);
 
     SnowflakeSinkService service =
         SnowflakeSinkServiceFactory.builder(conn, IngestionMethodConfig.SNOWPIPE, connectorConfig)
@@ -813,8 +816,10 @@ public class SinkServiceIT {
     TestUtils.assertWithRetry(() -> getStageSize(stage, table, 0) == 0, 30, 10);
 
     // Verify that filename2 appears in the table stage
-    // When SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP is set to True, files will not be removed from currentStage.
-    // As a result, fileName4 will eventually be added to the table stage, bringing the total count to 3.
+    // When SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP is set to True, files will not be removed from
+    // currentStage.
+    // As a result, fileName4 will eventually be added to the table stage, bringing the total count
+    // to 3.
     List<String> files = conn.listStage(table, "", true);
     assert files.size() == expectedTableStageSize;
 

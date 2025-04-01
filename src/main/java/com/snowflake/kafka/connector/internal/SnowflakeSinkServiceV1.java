@@ -683,7 +683,6 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
             }
           });
 
-
       if (!disableReprocessFilesCleanup && reprocessFiles.size() > 0) {
         // After we start the cleaner thread, delay a while and start deleting files.
         reprocessCleanerExecutor.submit(

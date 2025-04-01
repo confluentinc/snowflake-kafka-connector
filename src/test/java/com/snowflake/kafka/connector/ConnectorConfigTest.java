@@ -10,17 +10,17 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TopicToTableValidator;
 import com.snowflake.kafka.connector.config.TopicToTableModeExtractor;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.StreamingUtils;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.storage.Converter;
 import org.junit.Assert;
@@ -257,18 +257,21 @@ public class ConnectorConfigTest {
 
   @Test
   public void testTopicToTableValidatorOnlyThrowsConfigException() {
-    assertThrows(ConfigException.class, () -> {
-      new TopicToTableValidator().ensureValid(TOPICS_TABLES_MAP,
-          "$@#$#@%^$12312");
-    });
-    assertThrows(ConfigException.class, () -> {
-      new TopicToTableValidator().ensureValid(TOPICS_TABLES_MAP,
-          "topic1:!@#@!#!@");
-    });
-    assertThrows(ConfigException.class, () -> {
-      new TopicToTableValidator().ensureValid(TOPICS_TABLES_MAP,
-          "topic1:table1,topic1:table2");
-    });
+    assertThrows(
+        ConfigException.class,
+        () -> {
+          new TopicToTableValidator().ensureValid(TOPICS_TABLES_MAP, "$@#$#@%^$12312");
+        });
+    assertThrows(
+        ConfigException.class,
+        () -> {
+          new TopicToTableValidator().ensureValid(TOPICS_TABLES_MAP, "topic1:!@#@!#!@");
+        });
+    assertThrows(
+        ConfigException.class,
+        () -> {
+          new TopicToTableValidator().ensureValid(TOPICS_TABLES_MAP, "topic1:table1,topic1:table2");
+        });
   }
 
   @Test
@@ -1130,7 +1133,9 @@ public class ConnectorConfigTest {
       config.put(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP, "INVALID");
       Utils.validateConfig(config);
     } catch (SnowflakeKafkaConnectorException exception) {
-      assert exception.getMessage().contains(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP);
+      assert exception
+          .getMessage()
+          .contains(SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP);
       throw exception;
     }
   }

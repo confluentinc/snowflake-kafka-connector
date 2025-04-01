@@ -412,7 +412,8 @@ public enum SnowflakeErrors {
       return new SnowflakeKafkaConnectorException(
           Utils.formatLogMessage(
               "Exception: {}\nError Code: {}\nDetail: {}\nMessage: {}", name, code, detail, msg),
-          code, errorMessage);
+          code,
+          errorMessage);
     }
   }
 
