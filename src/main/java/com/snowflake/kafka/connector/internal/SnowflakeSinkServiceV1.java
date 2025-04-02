@@ -1,11 +1,10 @@
 package com.snowflake.kafka.connector.internal;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
+import static com.snowflake.kafka.connector.Utils.createdNamedThreadFactory;
 import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
 import static com.snowflake.kafka.connector.internal.FileNameUtils.searchForMissingOffsets;
-import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
-import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SIZE_BYTES;
-import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SUB_DOMAIN;
+import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.*;
 import static org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE;
 
 import com.codahale.metrics.Histogram;
@@ -26,21 +25,8 @@ import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import com.snowflake.kafka.connector.records.SnowflakeRecordContent;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -379,12 +365,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     if (cleanerServiceExecutor != null) {
       cleanerServiceExecutor.shutdown();
     }
-    ScheduledThreadPoolExecutor executor =
-        new ScheduledThreadPoolExecutor(Math.max(1, threadCount));
-    executor.setThreadFactory(
-        new Utils.SnowflakeThreadFactory(
-            conn.getConnectorName(), conn.getTaskID(), V2CleanerThreadType));
-    cleanerServiceExecutor = executor;
+    cleanerServiceExecutor =
+        new ScheduledThreadPoolExecutor(
+            Math.max(1, threadCount),
+            createdNamedThreadFactory(
+                conn.getConnectorName(), conn.getTaskID(), V2CleanerThreadType));
   }
 
   @Override
@@ -585,13 +570,14 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         this.cleanerExecutor = null;
         this.reprocessCleanerExecutor = null;
       } else {
+
         this.cleanerExecutor =
             Executors.newSingleThreadExecutor(
-                new Utils.SnowflakeThreadFactory(
+                createdNamedThreadFactory(
                     conn.getConnectorName(), conn.getTaskID(), V1CleanerThreadType));
         this.reprocessCleanerExecutor =
             Executors.newSingleThreadExecutor(
-                new Utils.SnowflakeThreadFactory(
+                createdNamedThreadFactory(
                     conn.getConnectorName(), conn.getTaskID(), V1ReprocessCleanerThreadType));
         this.stageFileProcessorClient = null;
       }
