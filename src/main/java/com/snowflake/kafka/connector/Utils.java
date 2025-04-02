@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.ThreadFactory;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,6 +68,7 @@ import net.snowflake.client.jdbc.internal.google.gson.JsonParser;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
+import org.apache.kafka.common.utils.ThreadUtils;
 
 /** Various arbitrary helper functions */
 public class Utils {
@@ -1009,5 +1011,19 @@ public class Utils {
       LOGGER.error("Invalid config: " + invalidParamsMessage);
       throw SnowflakeErrors.ERROR_0001.getException(invalidParamsMessage);
     }
+  }
+
+  /**
+   * Create a thread factory with a given connector-task name and thread type.
+   *
+   * @param connectorName connector name
+   * @param taskID task ID
+   * @param threadType thread type
+   * @return thread factory
+   */
+  public static ThreadFactory createNamedThreadFactory(
+      String connectorName, String taskID, String threadType) {
+    return ThreadUtils.createThreadFactory(
+        String.join("-", connectorName, taskID, threadType, "%d"), false);
   }
 }

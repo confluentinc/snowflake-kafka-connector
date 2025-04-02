@@ -1,6 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
+import static com.snowflake.kafka.connector.Utils.createNamedThreadFactory;
 import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
 import static com.snowflake.kafka.connector.internal.FileNameUtils.searchForMissingOffsets;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
@@ -103,6 +104,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   private boolean disableReprocessFilesCleanup = false;
 
   private final Set<String> perTableWarningNotifications = new HashSet<>();
+  private final String V1CleanerThreadType = "v1-cleaner";
+  private final String V1ReprocessCleanerThreadType = "v1-reprocess-cleaner";
+  private final String V2CleanerThreadType = "v2-cleaner";
 
   SnowflakeSinkServiceV1(SnowflakeConnectionService conn) {
     if (conn == null || conn.isClosed()) {
@@ -376,7 +380,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     if (cleanerServiceExecutor != null) {
       cleanerServiceExecutor.shutdown();
     }
-    cleanerServiceExecutor = new ScheduledThreadPoolExecutor(Math.max(1, threadCount));
+    cleanerServiceExecutor =
+        new ScheduledThreadPoolExecutor(
+            Math.max(1, threadCount),
+            createNamedThreadFactory(
+                conn.getConnectorName(), conn.getTaskID(), V2CleanerThreadType));
   }
 
   @Override
@@ -577,8 +585,15 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         this.cleanerExecutor = null;
         this.reprocessCleanerExecutor = null;
       } else {
-        this.cleanerExecutor = Executors.newSingleThreadExecutor();
-        this.reprocessCleanerExecutor = Executors.newSingleThreadExecutor();
+
+        this.cleanerExecutor =
+            Executors.newSingleThreadExecutor(
+                createNamedThreadFactory(
+                    conn.getConnectorName(), conn.getTaskID(), V1CleanerThreadType));
+        this.reprocessCleanerExecutor =
+            Executors.newSingleThreadExecutor(
+                createNamedThreadFactory(
+                    conn.getConnectorName(), conn.getTaskID(), V1ReprocessCleanerThreadType));
         this.stageFileProcessorClient = null;
       }
 
