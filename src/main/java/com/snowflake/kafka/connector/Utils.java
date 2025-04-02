@@ -1021,7 +1021,7 @@ public class Utils {
    * @param threadType thread type
    * @return thread factory
    */
-  public static ThreadFactory createdNamedThreadFactory(
+  public static ThreadFactory createNamedThreadFactory(
       String connectorName, String taskID, String threadType) {
     return ThreadUtils.createThreadFactory(
         String.join("-", connectorName, taskID, threadType, "%d"), false);
