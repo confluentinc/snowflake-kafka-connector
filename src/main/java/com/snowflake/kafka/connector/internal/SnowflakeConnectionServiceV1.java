@@ -618,7 +618,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
         String expectedPipeDefinition = pipeDefinition(tableName, stageName);
         compatible = definition.equalsIgnoreCase(expectedPipeDefinition);
         if (!compatible) {
-          LOGGER.error("Pipe definition {} is not same as expected definition {}",
+          LOGGER.error("Pipe definition '{}' is not same as expected definition '{}'",
               definition, expectedPipeDefinition);
         }
       }
