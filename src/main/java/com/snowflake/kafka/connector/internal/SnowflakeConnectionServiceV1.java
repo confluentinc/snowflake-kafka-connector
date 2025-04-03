@@ -615,7 +615,12 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       } else {
         String definition = result.getString("definition");
         LOGGER.debug("pipe {} definition: {}", pipeName, definition);
-        compatible = definition.equalsIgnoreCase(pipeDefinition(tableName, stageName));
+        String expectedPipeDefinition = pipeDefinition(tableName, stageName);
+        compatible = definition.equalsIgnoreCase(expectedPipeDefinition);
+        if (!compatible) {
+          LOGGER.error("Pipe definition '{}' is not same as expected definition '{}'",
+              definition, expectedPipeDefinition);
+        }
       }
 
     } catch (SQLException e) {
