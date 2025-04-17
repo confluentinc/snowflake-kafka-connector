@@ -42,16 +42,16 @@ public class IcebergInitServiceIT extends BaseIcebergIT {
     assertThat(describeRecordMetadataType(tableName))
         .isEqualTo(
             "OBJECT(offset NUMBER(19,0), "
-                + "topic VARCHAR(134217728), "
+                + "topic VARCHAR(16777216), "
                 + "partition NUMBER(10,0), "
-                + "key VARCHAR(134217728), "
+                + "key VARCHAR(16777216), "
                 + "schema_id NUMBER(10,0), "
                 + "key_schema_id NUMBER(10,0), "
                 + "CreateTime NUMBER(19,0), "
                 + "LogAppendTime NUMBER(19,0), "
                 + "SnowflakeConnectorPushTime NUMBER(19,0), "
-                + "headers MAP(VARCHAR(134217728), "
-                + "VARCHAR(134217728)))");
+                + "headers MAP(VARCHAR(16777216), "
+                + "VARCHAR(16777216)))");
   }
 
   @Test
@@ -70,16 +70,16 @@ public class IcebergInitServiceIT extends BaseIcebergIT {
     assertThat(describeRecordMetadataType(tableName))
         .isEqualTo(
             "OBJECT(offset NUMBER(19,0), "
-                + "topic VARCHAR(134217728), "
+                + "topic VARCHAR(16777216), "
                 + "partition NUMBER(10,0), "
-                + "key VARCHAR(134217728), "
+                + "key VARCHAR(16777216), "
                 + "schema_id NUMBER(10,0), "
                 + "key_schema_id NUMBER(10,0), "
                 + "CreateTime NUMBER(19,0), "
                 + "LogAppendTime NUMBER(19,0), "
                 + "SnowflakeConnectorPushTime NUMBER(19,0), "
-                + "headers MAP(VARCHAR(134217728), "
-                + "VARCHAR(134217728)))");
+                + "headers MAP(VARCHAR(16777216), "
+                + "VARCHAR(16777216)))");
   }
 
   @Test
@@ -100,15 +100,15 @@ public class IcebergInitServiceIT extends BaseIcebergIT {
     assertThat(describeRecordMetadataType(tableName))
         .isEqualTo(
             "OBJECT(offset NUMBER(19,0), "
-                + "topic VARCHAR(134217728), "
+                + "topic VARCHAR(16777216), "
                 + "partition NUMBER(10,0), "
-                + "key VARCHAR(134217728), "
+                + "key VARCHAR(16777216), "
                 + "schema_id NUMBER(10,0), "
                 + "key_schema_id NUMBER(10,0), "
                 + "CreateTime NUMBER(19,0), "
                 + "LogAppendTime NUMBER(19,0), "
                 + "SnowflakeConnectorPushTime NUMBER(19,0), "
-                + "headers MAP(VARCHAR(134217728), "
-                + "VARCHAR(134217728)))");
+                + "headers MAP(VARCHAR(16777216), "
+                + "VARCHAR(16777216)))");
   }
 }
