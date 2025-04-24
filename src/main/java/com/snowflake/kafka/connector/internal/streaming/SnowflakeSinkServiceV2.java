@@ -68,7 +68,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   private final IcebergTableSchemaValidator icebergTableSchemaValidator;
   private final IcebergInitService icebergInitService;
 
-  private SchemaEvolutionService schemaEvolutionService;
+  private final SchemaEvolutionService schemaEvolutionService;
 
   private Map<String, String> topicToTableMap;
 
@@ -119,14 +119,12 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
       KafkaRecordErrorReporter recordErrorReporter,
       SinkTaskContext sinkTaskContext,
       boolean enableCustomJMXMonitoring,
-      Map<String, String> topicToTableMap,
-      SchemaEvolutionService schemaEvolutionService) {
+      Map<String, String> topicToTableMap) {
     this(conn, connectorConfig);
     this.kafkaRecordErrorReporter = recordErrorReporter;
     this.sinkTaskContext = sinkTaskContext;
     this.enableCustomJMXMonitoring = enableCustomJMXMonitoring;
     this.topicToTableMap = topicToTableMap;
-    this.schemaEvolutionService = schemaEvolutionService;
   }
 
   @Deprecated
@@ -178,53 +176,6 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
             ? "default_connector"
             : this.conn.getConnectorName();
     this.metricsJmxReporter = new MetricsJmxReporter(new MetricRegistry(), connectorName);
-  }
-
-  @VisibleForTesting
-  public SnowflakeSinkServiceV2(
-      SnowflakeConnectionService conn,
-      RecordService recordService,
-      SnowflakeTelemetryService telemetryService,
-      IcebergTableSchemaValidator icebergTableSchemaValidator,
-      IcebergInitService icebergInitService,
-      Map<String, String> topicToTableMap,
-      SnowflakeSinkConnectorConfig.BehaviorOnNullValues behaviorOnNullValues,
-      boolean enableCustomJMXMonitoring,
-      KafkaRecordErrorReporter kafkaRecordErrorReporter,
-      SinkTaskContext sinkTaskContext,
-      SnowflakeStreamingIngestClient streamingIngestClient,
-      Map<String, String> connectorConfig,
-      boolean enableSchematization,
-      boolean closeChannelsInParallel,
-      Map<String, TopicPartitionChannel> partitionsToChannel,
-      SchemaEvolutionService schemaEvolutionService) {
-    this.conn = conn;
-    this.recordService = recordService;
-    this.icebergTableSchemaValidator = icebergTableSchemaValidator;
-    this.icebergInitService = icebergInitService;
-    this.telemetryService = telemetryService;
-    this.topicToTableMap = topicToTableMap;
-    this.behaviorOnNullValues = behaviorOnNullValues;
-    this.enableCustomJMXMonitoring = enableCustomJMXMonitoring;
-    this.kafkaRecordErrorReporter = kafkaRecordErrorReporter;
-    this.sinkTaskContext = sinkTaskContext;
-    this.streamingIngestClient = streamingIngestClient;
-    this.connectorConfig = connectorConfig;
-    this.streamingIngestClient =
-        StreamingClientProvider.getStreamingClientProviderInstance()
-            .getClient(this.connectorConfig);
-    this.enableSchematization = enableSchematization;
-    this.schemaEvolutionService = schemaEvolutionService;
-    this.closeChannelsInParallel = closeChannelsInParallel;
-    this.partitionsToChannel = partitionsToChannel;
-
-    this.tableName2SchemaEvolutionPermission = new HashMap<>();
-    if (this.topicToTableMap != null) {
-      this.topicToTableMap.forEach(
-          (topic, tableName) -> {
-            populateSchemaEvolutionPermissions(tableName);
-          });
-    }
   }
 
   /**
@@ -620,7 +571,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   }
 
   /**
-   * Gets a unique identifier consisting of topic name and partition number.
+   * Gets a unique identifier consisting of connector name, topic name and partition number.
    *
    * @param topic topic name
    * @param partition partition number
