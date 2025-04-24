@@ -128,6 +128,21 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   private final Set<String> channelsVisitedPerBatch = new HashSet<>();
 
   public SnowflakeSinkServiceV2(
+      SnowflakeConnectionService conn,
+      Map<String, String> connectorConfig,
+      KafkaRecordErrorReporter recordErrorReporter,
+      SinkTaskContext sinkTaskContext,
+      boolean enableCustomJMXMonitoring,
+      Map<String, String> topicToTableMap) {
+    this(conn, connectorConfig);
+    this.kafkaRecordErrorReporter = recordErrorReporter;
+    this.sinkTaskContext = sinkTaskContext;
+    this.enableCustomJMXMonitoring = enableCustomJMXMonitoring;
+    this.topicToTableMap = topicToTableMap;
+  }
+
+  @Deprecated
+  public SnowflakeSinkServiceV2(
       SnowflakeConnectionService conn, Map<String, String> connectorConfig) {
     if (conn == null || conn.isClosed()) {
       throw SnowflakeErrors.ERROR_5010.getException();
