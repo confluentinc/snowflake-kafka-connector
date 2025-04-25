@@ -82,7 +82,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   private final IcebergTableSchemaValidator icebergTableSchemaValidator;
   private final IcebergInitService icebergInitService;
 
-  private final SchemaEvolutionService schemaEvolutionService;
+  private SchemaEvolutionService schemaEvolutionService;
 
   private Map<String, String> topicToTableMap;
 
@@ -133,12 +133,14 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
       KafkaRecordErrorReporter recordErrorReporter,
       SinkTaskContext sinkTaskContext,
       boolean enableCustomJMXMonitoring,
-      Map<String, String> topicToTableMap) {
+      Map<String, String> topicToTableMap,
+      SchemaEvolutionService schemaEvolutionService) {
     this(conn, connectorConfig);
     this.kafkaRecordErrorReporter = recordErrorReporter;
     this.sinkTaskContext = sinkTaskContext;
     this.enableCustomJMXMonitoring = enableCustomJMXMonitoring;
     this.topicToTableMap = topicToTableMap;
+    this.schemaEvolutionService = schemaEvolutionService;
   }
 
   @Deprecated
