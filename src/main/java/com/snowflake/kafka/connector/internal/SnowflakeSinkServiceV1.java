@@ -1127,9 +1127,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
                 offsets.getContinuousOffsets(),
                 offsets.getMissingOffsets());
         if (LOGGER.isDebugEnabled()) {
-          LOGGER.info("{}, failedFiles: {}", baseLog, failedFiles);
+          LOGGER.error("{}, failedFiles: {}", baseLog, failedFiles);
         } else {
-          LOGGER.info(baseLog);
+          LOGGER.error(baseLog);
         }
         conn.moveToTableStage(tableName, stageName, failedFiles);
       }
