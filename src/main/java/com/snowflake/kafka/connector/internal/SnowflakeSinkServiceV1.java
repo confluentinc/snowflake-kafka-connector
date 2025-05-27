@@ -1105,12 +1105,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         OffsetContinuityRanges offsets = searchForMissingOffsets(files);
         LOGGER.info(
             "Purging loaded files for pipe: {}, loadedFileCount: {}, continuousOffsets: {},"
-                + " missingOffsets: {}",
+                + " missingOffsets: {}, files: {}",
             pipeName,
             files.size(),
             offsets.getContinuousOffsets(),
-            offsets.getMissingOffsets());
-        LOGGER.debug("Purging files: {}", files);
+            offsets.getMissingOffsets(),
+            files);
         conn.purgeStage(stageName, files);
       }
     }
