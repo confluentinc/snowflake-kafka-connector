@@ -298,29 +298,47 @@ public class InternalUtils {
    */
   protected static Properties generateProxyParametersIfRequired(Map<String, String> conf) {
     Properties proxyProperties = new Properties();
-    // Set proxyHost and proxyPort only if both of them are present and are non null
-    if (conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST) != null
-        && conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT) != null) {
+
+
+
+    String useProxy = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY);
+    
+    String proxyHost = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST);
+    if (proxyHost == null) {
+      proxyHost = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST);
+    }
+    
+    String proxyPort = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT);
+    if (proxyPort == null) {
+      proxyPort = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT);
+    }
+    
+    // Check if we should use proxy (either new config is true or we have old JVM proxy configs)
+    boolean shouldUseProxy = Boolean.parseBoolean(useProxy) || (proxyHost != null && proxyPort != null);
+    
+    if (shouldUseProxy && proxyHost != null && proxyPort != null) {
       proxyProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), "true");
-      proxyProperties.put(
-          SFSessionProperty.PROXY_HOST.getPropertyKey(),
-          conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST));
-      proxyProperties.put(
-          SFSessionProperty.PROXY_PORT.getPropertyKey(),
-          conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT));
-
-      // nonProxyHosts parameter is not required. Check if it was set or not.
-      if (conf.get(SnowflakeSinkConnectorConfig.JVM_NON_PROXY_HOSTS) != null) {
-        proxyProperties.put(
-            SFSessionProperty.NON_PROXY_HOSTS.getPropertyKey(),
-            conf.get(SnowflakeSinkConnectorConfig.JVM_NON_PROXY_HOSTS));
+      proxyProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), proxyHost);
+      proxyProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), proxyPort);
+      
+      String nonProxyHosts = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS);
+      if (nonProxyHosts == null) {
+        nonProxyHosts = conf.get(SnowflakeSinkConnectorConfig.JVM_NON_PROXY_HOSTS);
       }
-
-      // For username and password, check if host and port are given.
-      // If they are given, check if username and password are non null
-      String username = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_USERNAME);
-      String password = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PASSWORD);
-
+      if (nonProxyHosts != null) {
+        proxyProperties.put(SFSessionProperty.NON_PROXY_HOSTS.getPropertyKey(), nonProxyHosts);
+      }
+      
+      String username = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_USER);
+      if (username == null) {
+        username = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_USERNAME);
+      }
+      
+      String password = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PASSWORD);
+      if (password == null) {
+        password = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PASSWORD);
+      }
+      
       if (username != null && password != null) {
         proxyProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), username);
         proxyProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), password);

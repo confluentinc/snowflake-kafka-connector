@@ -57,6 +57,9 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
 
   private StageInfo.StageType stageType;
 
+  // Store the original connector config for proxy settings
+  private final Map<String, String> connectorConfig;
+
   private static final long CREDENTIAL_EXPIRY_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(30);
 
   // User agent suffix we want to pass in to ingest service
@@ -71,7 +74,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       String taskID,
       Properties proxyProperties,
       String kafkaProvider,
-      IngestionMethodConfig ingestionMethodConfig) {
+      IngestionMethodConfig ingestionMethodConfig,
+      Map<String, String> connectorConfig) {
     this.connectorName = connectorName;
     this.taskID = taskID;
     this.url = url;
@@ -79,6 +83,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     this.stageType = null;
     this.proxyProperties = proxyProperties;
     this.kafkaProvider = kafkaProvider;
+    this.connectorConfig = connectorConfig;
     try {
       if (proxyProperties != null && !proxyProperties.isEmpty()) {
         Properties combinedProperties =
@@ -1087,7 +1092,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             fullPipeName,
             privateKey,
             userAgentSuffixInHttpRequest,
-            telemetry)
+            telemetry,
+            connectorConfig)
         .build();
   }
 

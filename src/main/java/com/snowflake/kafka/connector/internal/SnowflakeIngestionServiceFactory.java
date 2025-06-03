@@ -2,6 +2,7 @@ package com.snowflake.kafka.connector.internal;
 
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.security.PrivateKey;
+import java.util.Map;
 import javax.annotation.Nullable;
 
 /** A factory to create {@link SnowflakeIngestionService} */
@@ -31,6 +32,32 @@ public class SnowflakeIngestionServiceFactory {
         telemetry);
   }
 
+  public static SnowflakeIngestionServiceBuilder builder(
+      String accountName,
+      String userName,
+      String host,
+      int port,
+      String connectionScheme,
+      String stageName,
+      String pipeName,
+      PrivateKey privateKey,
+      String userAgentSuffix,
+      SnowflakeTelemetryService telemetry,
+      Map<String, String> connectorConfig) {
+    return new SnowflakeIngestionServiceBuilder(
+        accountName,
+        userName,
+        host,
+        port,
+        connectionScheme,
+        stageName,
+        pipeName,
+        privateKey,
+        userAgentSuffix,
+        telemetry,
+        connectorConfig);
+  }
+
   /** Builder class to create instance of {@link SnowflakeIngestionService} */
   static class SnowflakeIngestionServiceBuilder {
     private final SnowflakeIngestionService service;
@@ -58,6 +85,33 @@ public class SnowflakeIngestionServiceFactory {
               privateKey,
               userAgentSuffix,
               telemetry);
+    }
+
+    private SnowflakeIngestionServiceBuilder(
+        String accountName,
+        String userName,
+        String host,
+        int port,
+        String connectionScheme,
+        String stageName,
+        String pipeName,
+        PrivateKey privateKey,
+        String userAgentSuffix,
+        @Nullable SnowflakeTelemetryService telemetry,
+        Map<String, String> connectorConfig) {
+      this.service =
+          new SnowflakeIngestionServiceV1(
+              accountName,
+              userName,
+              host,
+              port,
+              connectionScheme,
+              stageName,
+              pipeName,
+              privateKey,
+              userAgentSuffix,
+              telemetry,
+              connectorConfig);
     }
 
     SnowflakeIngestionServiceBuilder setTelemetry(SnowflakeTelemetryService telemetry) {

@@ -32,6 +32,9 @@ public class SnowflakeConnectionServiceFactory {
     // This info is provided in the connector configuration
     // This property will be appeneded to user agent while calling snowpipe API in http request
     private String kafkaProvider = null;
+    
+    // Store the original connector config for proxy settings
+    private Map<String, String> connectorConfig;
 
     /** Underlying implementation - Check Enum {@link IngestionMethodConfig} */
     private IngestionMethodConfig ingestionMethodConfig;
@@ -77,6 +80,7 @@ public class SnowflakeConnectionServiceFactory {
       if (!conf.containsKey(Utils.SF_URL)) {
         throw SnowflakeErrors.ERROR_0017.getException();
       }
+      this.connectorConfig = conf;
       this.url = new SnowflakeURL(conf.get(Utils.SF_URL));
       this.kafkaProvider =
           SnowflakeSinkConnectorConfig.KafkaProvider.of(conf.get(PROVIDER_CONFIG)).name();
@@ -99,7 +103,7 @@ public class SnowflakeConnectionServiceFactory {
       InternalUtils.assertNotEmpty("url", url);
       InternalUtils.assertNotEmpty("connectorName", connectorName);
       return new SnowflakeConnectionServiceV1(
-          prop, url, connectorName, taskID, proxyProperties, kafkaProvider, ingestionMethodConfig);
+          prop, url, connectorName, taskID, proxyProperties, kafkaProvider, ingestionMethodConfig, connectorConfig);
     }
   }
 }
