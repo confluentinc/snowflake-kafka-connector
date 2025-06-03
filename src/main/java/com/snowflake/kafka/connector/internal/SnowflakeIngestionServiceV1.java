@@ -82,7 +82,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
       PrivateKey privateKey,
       String userAgentSuffix,
       @Nullable SnowflakeTelemetryService telemetry,
-      Map<String, String> connectorConfig) {
+      Properties proxyProperties) {
 
     this(
         stageName,
@@ -97,7 +97,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
             privateKey,
             userAgentSuffix,
             telemetry,
-            connectorConfig),
+            proxyProperties),
         telemetry);
     LOGGER.info("initialized the pipe connector for pipe {}", pipeName);
   }
@@ -149,10 +149,8 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
       PrivateKey privateKey,
       String userAgentSuffix,
       SnowflakeTelemetryService telemetry,
-      Map<String, String> connectorConfig) {
+      Properties proxyProperties) {
     try {
-      java.util.Properties proxyProperties = convertConnectorConfigToProxyProperties(connectorConfig);
-      
       return new SimpleIngestManager(
           accountName,
           userName,
@@ -166,63 +164,6 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_0002.getException(e, telemetry);
     }
-  }
-
-  private static java.util.Properties convertConnectorConfigToProxyProperties(Map<String, String> connectorConfig) {
-    java.util.Properties proxyProperties = new java.util.Properties();
-
-    if (connectorConfig.containsKey(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY)) {
-      proxyProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY));
-    }
-    
-    // Use new Snowflake configs if available, otherwise fall back to JVM configs
-    String proxyHost = connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST);
-    if (proxyHost == null) {
-      proxyHost = connectorConfig.get(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST);
-    }
-    if (proxyHost != null) {
-      proxyProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), proxyHost);
-    }
-    
-    String proxyPort = connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT);
-    if (proxyPort == null) {
-      proxyPort = connectorConfig.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT);
-    }
-    if (proxyPort != null) {
-      proxyProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), proxyPort);
-    }
-    
-    String nonProxyHosts = connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS);
-    if (nonProxyHosts == null) {
-      nonProxyHosts = connectorConfig.get(SnowflakeSinkConnectorConfig.JVM_NON_PROXY_HOSTS);
-    }
-    if (nonProxyHosts != null) {
-      proxyProperties.put(SFSessionProperty.NON_PROXY_HOSTS.getPropertyKey(), nonProxyHosts);
-    }
-    
-    String proxyUser = connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_USER);
-    if (proxyUser == null) {
-      proxyUser = connectorConfig.get(SnowflakeSinkConnectorConfig.JVM_PROXY_USERNAME);
-    }
-    if (proxyUser != null) {
-      proxyProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), proxyUser);
-    }
-    
-    String proxyPassword = connectorConfig.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PASSWORD);
-    if (proxyPassword == null) {
-      proxyPassword = connectorConfig.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PASSWORD);
-    }
-    if (proxyPassword != null) {
-      proxyProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), proxyPassword);
-    }
-    
-    // If we have JVM proxy configs but no explicit USE_PROXY setting, enable proxy
-    if (!proxyProperties.containsKey(SFSessionProperty.USE_PROXY.getPropertyKey()) && 
-        proxyHost != null && proxyPort != null) {
-      proxyProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), "true");
-    }
-    
-    return proxyProperties;
   }
 
   @Override

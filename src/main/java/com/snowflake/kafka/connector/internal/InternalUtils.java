@@ -293,16 +293,15 @@ public class InternalUtils {
    * Helper method to decide whether to add any properties related to proxy server. These property
    * is passed on to snowflake JDBC while calling put API, which requires proxyProperties
    *
-   * @param conf
+   * @param conf connector configuration map
    * @return proxy parameters if needed
    */
   protected static Properties generateProxyParametersIfRequired(Map<String, String> conf) {
     Properties proxyProperties = new Properties();
 
-
-
     String useProxy = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY);
     
+    // Use new Snowflake configs if available, otherwise fall back to JVM configs
     String proxyHost = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST);
     if (proxyHost == null) {
       proxyHost = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST);
