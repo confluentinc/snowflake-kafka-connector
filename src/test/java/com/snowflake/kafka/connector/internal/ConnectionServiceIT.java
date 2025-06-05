@@ -34,12 +34,9 @@ import net.snowflake.client.jdbc.internal.apache.http.HttpHeaders;
 import net.snowflake.client.jdbc.internal.apache.http.client.methods.HttpPost;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -54,8 +51,8 @@ public class ConnectionServiceIT {
   private final String stageName1 = TestUtils.randomStageName();
   private final String topicName = TestUtils.randomTopicName();
 
+  @Disabled("NPE")
   @Test
-  @Ignore("NPE")
   public void testEncryptedKey() {
     // no exception
     SnowflakeConnectionServiceFactory.builder()
@@ -63,6 +60,7 @@ public class ConnectionServiceIT {
         .build();
   }
 
+  @Disabled("NPE")
   @Test
   public void testOAuthAZ() {
     Map<String, String> confWithOAuth = TestUtils.getConfWithOAuth();

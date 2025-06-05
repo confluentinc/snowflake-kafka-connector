@@ -262,32 +262,6 @@ public class TestUtils {
   }
 
   /**
-   * Create snowflake jdbc connection
-   *
-   * @return jdbc connection
-   * @throws Exception when meeting error
-   */
-  private static Connection getConnection() throws Exception {
-    if (conn != null) {
-      return conn;
-    }
-
-    return generateConnectionToSnowflake(PROFILE_PATH);
-  }
-
-  /** Given a profile file path name, generate a connection by constructing a snowflake driver. */
-  private static Connection generateConnectionToSnowflake(final String profileFileName)
-      throws Exception {
-    SnowflakeURL url = new SnowflakeURL(getConfFromFileName(profileFileName).get(Utils.SF_URL));
-    Properties properties =
-        InternalUtils.createProperties(getConfFromFileName(profileFileName), 0, 60, url);
-
-    Connection connToSnowflake = new SnowflakeDriver().connect(url.getJdbcUrl(), properties);
-
-    return connToSnowflake;
-  }
-
-  /**
    * read conf file
    *
    * @return a map of parameters

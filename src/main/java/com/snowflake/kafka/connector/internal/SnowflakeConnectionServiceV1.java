@@ -1360,6 +1360,7 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
     }
 
     return currentRole;
+  }
 
   public static class FormattingUtils {
     /**

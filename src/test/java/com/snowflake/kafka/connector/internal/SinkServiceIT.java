@@ -779,10 +779,10 @@ public class SinkServiceIT {
     // File 2 is not ingested, so moved to table stage
     // File 3 is not ingested, so moved to table stage
     // File 4 is removed by reprocess cleaner
-    conn.put(stage, fileName1, data);
-    conn.put(stage, fileName2, data);
-    conn.put(stage, fileName3, data);
-    conn.put(stage, fileName4, data);
+    conn.putWithCache(stage, fileName1, data);
+    conn.putWithCache(stage, fileName2, data);
+    conn.putWithCache(stage, fileName3, data);
+    conn.putWithCache(stage, fileName4, data);
 
     ingestionService.ingestFile(fileName1);
 
@@ -823,7 +823,6 @@ public class SinkServiceIT {
     List<String> files = conn.listStage(table, "", true);
     assert files.size() == expectedTableStageSize;
 
-    service.closeAll();
   }
 
   @Test

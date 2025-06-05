@@ -16,7 +16,7 @@ public class TestSnowflakeConnection {
         new SnowflakeURL(getConfFromFileName(TestUtils.PROFILE_PATH).get(Utils.SF_URL));
 
     Properties properties =
-        InternalUtils.createProperties(getConfFromFileName(TestUtils.PROFILE_PATH), url);
+        InternalUtils.createProperties(getConfFromFileName(TestUtils.PROFILE_PATH), 0, 60, url);
 
     return new SnowflakeDriver().connect(url.getJdbcUrl(), properties);
   }

@@ -13,7 +13,7 @@ public class JdbcPropertiesTest {
   public void shouldCombineProperties() {
     // given
     SnowflakeURL url = TestUtils.getUrl();
-    Properties connection = InternalUtils.createProperties(TestUtils.getConf(), url);
+    Properties connection = InternalUtils.createProperties(TestUtils.getConf(), 0, 60, url);
 
     Properties proxy = new Properties();
     proxy.put("useProxy", "true");

@@ -2,7 +2,9 @@ package com.snowflake.kafka.connector;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BEHAVIOR_ON_NULL_VALUES_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BehaviorOnNullValues.VALIDATOR;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.JMX_OPT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP;
 import static com.snowflake.kafka.connector.Utils.*;
 
 import com.google.common.collect.ImmutableMap;
@@ -58,7 +60,10 @@ public class DefaultConnectorConfigValidator implements ConnectorConfigValidator
     // If config doesnt have ingestion method defined, default is snowpipe or if snowpipe is
     // explicitly passed in as ingestion method
     // Below checks are just for snowpipe.
-    if (isSnowpipeIngestion(config)) {
+    if (!config.containsKey(INGESTION_METHOD_OPT)
+            || config
+            .get(INGESTION_METHOD_OPT)
+            .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString())) {
       invalidConfigParams.putAll(
           BufferThreshold.validateBufferThreshold(config, IngestionMethodConfig.SNOWPIPE));
 
@@ -136,6 +141,7 @@ public class DefaultConnectorConfigValidator implements ConnectorConfigValidator
     }
 
     if (config.containsKey(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP)
+        && !config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP).isEmpty()
         && parseTopicToTableMap(config.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP))
             == null) {
       invalidConfigParams.put(
@@ -260,6 +266,17 @@ public class DefaultConnectorConfigValidator implements ConnectorConfigValidator
           || config.get(JMX_OPT).equalsIgnoreCase("false"))) {
         invalidConfigParams.put(
             JMX_OPT, Utils.formatString("Kafka config:{} should either be true or false", JMX_OPT));
+      }
+    }
+
+    if (config.containsKey(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
+      if (!(config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("true")
+              || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
+        invalidConfigParams.put(
+                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
+                Utils.formatString(
+                        "Kafka config:{} should either be true or false",
+                        SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
       }
     }
 
