@@ -20,6 +20,8 @@ import net.snowflake.client.core.SFSessionProperty;
 import net.snowflake.client.jdbc.internal.apache.commons.codec.binary.Base64;
 import net.snowflake.client.jdbc.internal.org.bouncycastle.jce.provider.BouncyCastleProvider;
 import net.snowflake.ingest.connection.IngestStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class InternalUtils {
   // JDBC parameter list
@@ -46,6 +48,7 @@ public class InternalUtils {
 
   // backoff with 1, 2, 4, 8 seconds
   public static final int backoffSec[] = {0, 1, 2, 4, 8};
+  private static final Logger log = LoggerFactory.getLogger(InternalUtils.class);
 
   /**
    * count the size of result set
@@ -312,10 +315,11 @@ public class InternalUtils {
       proxyPort = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT);
     }
     
-    // Check if we should use proxy (either new config is true or we have old JVM proxy configs)
-    boolean shouldUseProxy = Boolean.parseBoolean(useProxy) || (proxyHost != null && proxyPort != null);
-    
-    if (shouldUseProxy && proxyHost != null && proxyPort != null) {
+    boolean proxyEnabled = Boolean.parseBoolean(useProxy);
+    boolean hasHostAndPort = (proxyHost != null && proxyPort != null);
+
+    if (proxyEnabled && hasHostAndPort) {
+      log.info("Enabling proxy usage for Snowflake JDBC connection.");
       proxyProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), "true");
       proxyProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), proxyHost);
       proxyProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), proxyPort);
