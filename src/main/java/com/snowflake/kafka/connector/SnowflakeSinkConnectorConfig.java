@@ -100,7 +100,7 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String SNOWFLAKE_STREAMING_METADATA_CONNECTOR_PUSH_TIME =
       "snowflake.streaming.metadata.connectorPushTime";
-  public static final boolean SNOWFLAKE_STREAMING_METADATA_CONNECTOR_PUSH_TIME_DEFAULT = true;
+  public static final boolean SNOWFLAKE_STREAMING_METADATA_CONNECTOR_PUSH_TIME_DEFAULT = false;
 
   // Where is Kafka hosted? self, confluent or any other in future.
   // By default it will be None since this is not enforced and only used for monitoring
@@ -140,7 +140,7 @@ public class SnowflakeSinkConnectorConfig {
   public static final String SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER =
       "snowflake.streaming.enable.single.buffer";
 
-  public static final boolean SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER_DEFAULT = true;
+  public static final boolean SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER_DEFAULT = false;
   public static final String SNOWPIPE_STREAMING_MAX_CLIENT_LAG =
       "snowflake.streaming.max.client.lag";
   public static final int SNOWPIPE_STREAMING_MAX_CLIENT_LAG_SECONDS_DEFAULT = 120;
@@ -213,7 +213,7 @@ public class SnowflakeSinkConnectorConfig {
       "enable.streaming.channel.offset.verification";
   public static final String ENABLE_CHANNEL_OFFSET_TOKEN_VERIFICATION_FUNCTION_DISPLAY =
       "Enable streaming channel offset verification function";
-  public static final boolean ENABLE_CHANNEL_OFFSET_TOKEN_VERIFICATION_FUNCTION_DEFAULT = true;
+  public static final boolean ENABLE_CHANNEL_OFFSET_TOKEN_VERIFICATION_FUNCTION_DEFAULT = false;
   public static final String ENABLE_CHANNEL_OFFSET_TOKEN_VERIFICATION_FUNCTION_DOC =
       "Whether to enable streaming channel offset verification function. The function checks only"
           + " for incremental offsets (might contain gaps) and might signal false positives in case"
