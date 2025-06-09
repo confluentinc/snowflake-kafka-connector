@@ -57,6 +57,7 @@ ADDITIONAL_LICENSES_MAP = {
     "io.confluent:kafka-schema-serializer": APACHE_LICENSE,
     "io.confluent:logredactor": APACHE_LICENSE,
     "io.confluent:logredactor-metrics": APACHE_LICENSE,
+    "io.confluent:snowflake-ingest-sdk": APACHE_LICENSE,
     "io.dropwizard.metrics:metrics-core": APACHE_LICENSE,
     "io.dropwizard.metrics:metrics-jmx": APACHE_LICENSE,
     "io.dropwizard.metrics:metrics-jvm": APACHE_LICENSE,
