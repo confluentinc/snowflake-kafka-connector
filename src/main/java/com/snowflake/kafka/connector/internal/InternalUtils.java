@@ -320,6 +320,9 @@ public class InternalUtils {
 
     if (proxyEnabled && hasHostAndPort) {
       log.info("Enabling proxy usage for Snowflake JDBC connection.");
+      log.info("Proxy host: {}", proxyHost);
+      log.info("Proxy port: {}", proxyPort);
+
       proxyProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), "true");
       proxyProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), proxyHost);
       proxyProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), proxyPort);
@@ -346,6 +349,7 @@ public class InternalUtils {
         proxyProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), username);
         proxyProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), password);
       }
+      log.info("Proxy properties: {}", proxyProperties);
     }
     return proxyProperties;
   }

@@ -6,10 +6,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Map;
 import java.util.Properties;
 
 public class SnowflakeConnectionServiceFactory {
+  private static final Logger log = LoggerFactory.getLogger(SnowflakeConnectionServiceFactory.class);
+
   public static SnowflakeConnectionServiceBuilder builder() {
     return new SnowflakeConnectionServiceBuilder();
   }
@@ -85,7 +90,11 @@ public class SnowflakeConnectionServiceFactory {
       //  it is better if we have two properties decoupled
       // Right now, proxy parameters are picked from jvm system properties, in future they need to
       // be decoupled
+      log.info("generating proxy parameters if required");
       this.proxyProperties = InternalUtils.generateProxyParametersIfRequired(conf);
+
+
+
       this.connectorName = conf.get(Utils.NAME);
       this.ingestionMethodConfig = IngestionMethodConfig.determineIngestionMethod(conf);
       this.prop =
