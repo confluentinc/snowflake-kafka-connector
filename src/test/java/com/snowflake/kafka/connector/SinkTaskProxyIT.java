@@ -15,6 +15,13 @@ public class SinkTaskProxyIT {
   @After
   public void testCleanup() {
     TestUtils.resetProxyParametersInJVM();
+    // Reset JVM proxy properties
+    System.clearProperty(Utils.HTTP_USE_PROXY);
+    System.clearProperty(Utils.HTTPS_PROXY_HOST);
+    System.clearProperty(Utils.HTTPS_PROXY_PORT);
+    System.clearProperty(Utils.HTTP_PROXY_HOST);
+    System.clearProperty(Utils.HTTP_PROXY_PORT);
+    System.clearProperty(Utils.HTTP_NON_PROXY_HOSTS);
   }
 
   @Test(expected = SnowflakeKafkaConnectorException.class)
@@ -100,6 +107,115 @@ public class SinkTaskProxyIT {
     String file = "{\"aa\":123}";
     String fileName =
         FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
+
+    connectionService.putWithCache(stage, fileName, file);
+    ingestionService.ingestFile(fileName);
+    List<String> names = new ArrayList<>(1);
+    names.add(fileName);
+  }
+
+  /**
+   * Test Snowflake-specific proxy configuration with authentication.
+   * Requires a proxy server running at localhost:3128 with authentication.
+   */
+  @Test
+  public void testSnowflakeProxyConfig() {
+    Map<String, String> config = TestUtils.getConf();
+    SnowflakeSinkConnectorConfig.setDefaultValues(config);
+
+    // Configure Snowflake-specific proxy settings
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY, "true");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST, "localhost");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT, "3128");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_USER, "admin");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PASSWORD, "test");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS, "localhost,127.0.0.1");
+
+    SnowflakeSinkTask sinkTask = new SnowflakeSinkTask();
+    sinkTask.start(config);
+
+    // Verify Snowflake-specific proxy properties are set
+    assert System.getProperty("snowflake.jdbc.use_proxy").equals("true");
+    assert System.getProperty("snowflake.jdbc.proxy_host").equals("localhost");
+    assert System.getProperty("snowflake.jdbc.proxy_port").equals("3128");
+    assert System.getProperty("snowflake.jdbc.proxy_user").equals("admin");
+    assert System.getProperty("snowflake.jdbc.proxy_password").equals("test");
+    assert System.getProperty("snowflake.jdbc.non_proxy_hosts").equals("localhost,127.0.0.1");
+
+    // Test actual Snowflake operations through proxy
+    Optional<SnowflakeConnectionService> optSfConnectionService = sinkTask.getSnowflakeConnection();
+    Assert.assertTrue(optSfConnectionService.isPresent());
+
+    SnowflakeConnectionService connectionService = optSfConnectionService.get();
+
+    String stage = TestUtils.randomStageName();
+    String pipe = TestUtils.randomPipeName();
+    String table = TestUtils.randomTableName();
+
+    // Test basic Snowflake operations
+    connectionService.createStage(stage);
+    connectionService.createTable(table);
+    connectionService.createPipe(table, stage, pipe);
+
+    SnowflakeIngestionService ingestionService = connectionService.buildIngestService(stage, pipe);
+
+    // Test data ingestion
+    String file = "{\"aa\":123}";
+    String fileName = FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
+
+    connectionService.putWithCache(stage, fileName, file);
+    ingestionService.ingestFile(fileName);
+    List<String> names = new ArrayList<>(1);
+    names.add(fileName);
+  }
+
+  /**
+   * Test Snowflake-specific proxy configuration without authentication.
+   * Requires a proxy server running at localhost:3128 without authentication.
+   */
+  @Test
+  public void testSnowflakeProxyConfigWithoutAuth() {
+    Map<String, String> config = TestUtils.getConf();
+    SnowflakeSinkConnectorConfig.setDefaultValues(config);
+
+    // Configure Snowflake-specific proxy settings without auth
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY, "true");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST, "localhost");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT, "3128");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS, "localhost,127.0.0.1");
+
+    SnowflakeSinkTask sinkTask = new SnowflakeSinkTask();
+    sinkTask.start(config);
+
+    // Verify Snowflake-specific proxy properties are set
+    assert System.getProperty("snowflake.jdbc.use_proxy").equals("true");
+    assert System.getProperty("snowflake.jdbc.proxy_host").equals("localhost");
+    assert System.getProperty("snowflake.jdbc.proxy_port").equals("3128");
+    assert System.getProperty("snowflake.jdbc.non_proxy_hosts").equals("localhost,127.0.0.1");
+    // Verify auth properties are not set
+    assert System.getProperty("snowflake.jdbc.proxy_user") == null;
+    assert System.getProperty("snowflake.jdbc.proxy_password") == null;
+
+    // Test actual Snowflake operations through proxy
+    Optional<SnowflakeConnectionService> optSfConnectionService = sinkTask.getSnowflakeConnection();
+    Assert.assertTrue(optSfConnectionService.isPresent());
+
+    SnowflakeConnectionService connectionService = optSfConnectionService.get();
+
+    String stage = TestUtils.randomStageName();
+    String pipe = TestUtils.randomPipeName();
+    String table = TestUtils.randomTableName();
+
+    // Test basic Snowflake operations
+    connectionService.createStage(stage);
+    connectionService.createTable(table);
+    connectionService.createPipe(table, stage, pipe);
+
+    SnowflakeIngestionService ingestionService = connectionService.buildIngestService(stage, pipe);
+
+    // Test data ingestion
+    String file = "{\"aa\":123}";
+    String fileName = FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
 
     connectionService.putWithCache(stage, fileName, file);
     ingestionService.ingestFile(fileName);

@@ -299,7 +299,8 @@ public class InternalUtils {
    * @param conf connector configuration map
    * @return proxy parameters if needed
    */
-  protected static Properties generateProxyParametersIfRequired(Map<String, String> conf) {
+  // visible for testing
+  public static Properties generateProxyParametersIfRequired(Map<String, String> conf) {
     Properties proxyProperties = new Properties();
 
     String useProxy = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY);
