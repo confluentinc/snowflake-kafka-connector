@@ -281,8 +281,6 @@ public class Utils {
         SnowflakeSinkConnectorConfig.getProperty(
             config, SnowflakeSinkConnectorConfig.JVM_PROXY_PORT);
 
-    LOGGER.info("JVM Proxy host: {}, port: {}", host, port);
-
     // either both host and port are provided or none of them are provided
     if (host != null ^ port != null) {
       invalidConfigParams.put(
