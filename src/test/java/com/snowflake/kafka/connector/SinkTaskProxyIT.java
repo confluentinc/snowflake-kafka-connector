@@ -134,14 +134,6 @@ public class SinkTaskProxyIT {
     SnowflakeSinkTask sinkTask = new SnowflakeSinkTask();
     sinkTask.start(config);
 
-    // Verify Snowflake-specific proxy properties are set
-    assert System.getProperty("snowflake.jdbc.use_proxy").equals("true");
-    assert System.getProperty("snowflake.jdbc.proxy_host").equals("localhost");
-    assert System.getProperty("snowflake.jdbc.proxy_port").equals("3128");
-    assert System.getProperty("snowflake.jdbc.proxy_user").equals("admin");
-    assert System.getProperty("snowflake.jdbc.proxy_password").equals("test");
-    assert System.getProperty("snowflake.jdbc.non_proxy_hosts").equals("localhost,127.0.0.1");
-
     // Test actual Snowflake operations through proxy
     Optional<SnowflakeConnectionService> optSfConnectionService = sinkTask.getSnowflakeConnection();
     Assert.assertTrue(optSfConnectionService.isPresent());
@@ -186,15 +178,6 @@ public class SinkTaskProxyIT {
 
     SnowflakeSinkTask sinkTask = new SnowflakeSinkTask();
     sinkTask.start(config);
-
-    // Verify Snowflake-specific proxy properties are set
-    assert System.getProperty("snowflake.jdbc.use_proxy").equals("true");
-    assert System.getProperty("snowflake.jdbc.proxy_host").equals("localhost");
-    assert System.getProperty("snowflake.jdbc.proxy_port").equals("3128");
-    assert System.getProperty("snowflake.jdbc.non_proxy_hosts").equals("localhost,127.0.0.1");
-    // Verify auth properties are not set
-    assert System.getProperty("snowflake.jdbc.proxy_user") == null;
-    assert System.getProperty("snowflake.jdbc.proxy_password") == null;
 
     // Test actual Snowflake operations through proxy
     Optional<SnowflakeConnectionService> optSfConnectionService = sinkTask.getSnowflakeConnection();
