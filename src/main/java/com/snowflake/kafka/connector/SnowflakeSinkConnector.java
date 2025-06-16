@@ -199,7 +199,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   @Override
   public Config validate(Map<String, String> connectorConfigs) {
-    LOGGER.info("Validating connector Config: Start");
+    LOGGER.debug("Validating connector Config: Start");
     // cross-fields validation here
     Config result = super.validate(connectorConfigs);
 
