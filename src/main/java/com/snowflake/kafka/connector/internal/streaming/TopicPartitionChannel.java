@@ -1369,7 +1369,9 @@ public class TopicPartitionChannel {
     INSERT_ROWS_SCHEMA_EVOLUTION_FALLBACK,
     ;
 
-    /** @return Used to LOG which API tried to invoke fallback function. */
+    /**
+     * @return Used to LOG which API tried to invoke fallback function.
+     */
     @Override
     public String toString() {
       return "[" + this.name() + "]";

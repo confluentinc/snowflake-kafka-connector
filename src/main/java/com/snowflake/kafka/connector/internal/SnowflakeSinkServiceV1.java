@@ -1119,13 +1119,13 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       if (!failedFiles.isEmpty()) {
         OffsetContinuityRanges offsets = searchForMissingOffsets(failedFiles);
         LOGGER.error(
-                "Moving failed files for pipe: {} to tableStage failedFileCount: {},"
-                    + " continuousOffsets: {}, missingOffsets: {}, failedFiles: {}",
-                pipeName,
-                failedFiles.size(),
-                offsets.getContinuousOffsets(),
-                offsets.getMissingOffsets(),
-                failedFiles);
+            "Moving failed files for pipe: {} to tableStage failedFileCount: {},"
+                + " continuousOffsets: {}, missingOffsets: {}, failedFiles: {}",
+            pipeName,
+            failedFiles.size(),
+            offsets.getContinuousOffsets(),
+            offsets.getMissingOffsets(),
+            failedFiles);
         conn.moveToTableStage(tableName, stageName, failedFiles);
       }
     }
