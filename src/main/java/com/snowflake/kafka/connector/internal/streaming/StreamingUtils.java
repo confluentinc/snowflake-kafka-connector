@@ -22,13 +22,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import net.snowflake.client.core.SFSessionProperty;
 import net.snowflake.ingest.streaming.OffsetTokenVerificationFunction;
 import net.snowflake.ingest.utils.Constants;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.record.DefaultRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import net.snowflake.client.core.SFSessionProperty;
 
 /* Utility class/Helper methods for streaming related ingestion. */
 public class StreamingUtils {
@@ -178,14 +178,14 @@ public class StreamingUtils {
           streamingProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), value);
           return value;
         });
-    
+
     connectorConfig.computeIfPresent(
         SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT,
         (key, value) -> {
           streamingProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), value);
           return value;
         });
-    
+
     connectorConfig.computeIfPresent(
         SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS,
         (key, value) -> {

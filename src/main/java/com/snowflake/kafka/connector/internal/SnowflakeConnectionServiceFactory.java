@@ -6,15 +6,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Map;
 import java.util.Properties;
 
 public class SnowflakeConnectionServiceFactory {
-  private static final Logger log = LoggerFactory.getLogger(SnowflakeConnectionServiceFactory.class);
-
   public static SnowflakeConnectionServiceBuilder builder() {
     return new SnowflakeConnectionServiceBuilder();
   }
@@ -86,9 +81,6 @@ public class SnowflakeConnectionServiceFactory {
       this.kafkaProvider =
           SnowflakeSinkConnectorConfig.KafkaProvider.of(conf.get(PROVIDER_CONFIG)).name();
       this.proxyProperties = InternalUtils.generateProxyParametersIfRequired(conf);
-
-
-
       this.connectorName = conf.get(Utils.NAME);
       this.ingestionMethodConfig = IngestionMethodConfig.determineIngestionMethod(conf);
       this.prop =

@@ -83,11 +83,14 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       if (proxyProperties != null && !proxyProperties.isEmpty()) {
         Properties combinedProperties =
             mergeProxyAndConnectionProperties(this.prop, this.proxyProperties);
-        LOGGER.info("Proxy properties are set, passing in JDBC while creating the connection for url : {}",
+        LOGGER.info(
+            "Proxy properties are set, passing in JDBC while creating the connection for url : {}",
             url.getJdbcUrl());
         this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), combinedProperties);
       } else {
-        LOGGER.info("Proxy is not being used. Establishing a JDBC connection with url:{}", url.getJdbcUrl());
+        LOGGER.info(
+            "Proxy is not being used. Establishing a JDBC connection with url:{}",
+            url.getJdbcUrl());
         this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), prop);
       }
     } catch (SQLException e) {
