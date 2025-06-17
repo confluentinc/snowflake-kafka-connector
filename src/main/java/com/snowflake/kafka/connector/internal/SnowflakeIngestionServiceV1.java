@@ -4,7 +4,6 @@ import static com.snowflake.kafka.connector.internal.InternalUtils.convertIngest
 import static com.snowflake.kafka.connector.internal.InternalUtils.timestampToDate;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.security.PrivateKey;
 import java.util.*;
@@ -16,7 +15,6 @@ import net.snowflake.ingest.SimpleIngestManager;
 import net.snowflake.ingest.connection.HistoryRangeResponse;
 import net.snowflake.ingest.connection.HistoryResponse;
 import net.snowflake.ingest.utils.StagedFileWrapper;
-import net.snowflake.client.core.SFSessionProperty;
 
 /**
  * Implementation of Snowpipe API calls. i.e handshake between KC and Snowpipe API's.

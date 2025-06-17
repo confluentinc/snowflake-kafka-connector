@@ -115,8 +115,8 @@ public class SinkTaskProxyIT {
   }
 
   /**
-   * Test Snowflake-specific proxy configuration with authentication.
-   * Requires a proxy server running at localhost:3128 with authentication.
+   * Test Snowflake-specific proxy configuration with authentication. Requires a proxy server
+   * running at localhost:3128 with authentication.
    */
   @Test
   public void testSnowflakeProxyConfig() {
@@ -162,8 +162,8 @@ public class SinkTaskProxyIT {
   }
 
   /**
-   * Test Snowflake-specific proxy configuration without authentication.
-   * Requires a proxy server running at localhost:3128 without authentication.
+   * Test Snowflake-specific proxy configuration without authentication. Requires a proxy server
+   * running at localhost:3128 without authentication.
    */
   @Test
   public void testSnowflakeProxyConfigWithoutAuth() {

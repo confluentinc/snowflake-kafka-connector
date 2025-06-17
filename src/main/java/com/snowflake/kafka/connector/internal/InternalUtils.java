@@ -304,18 +304,18 @@ public class InternalUtils {
     Properties proxyProperties = new Properties();
 
     String useProxy = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY);
-    
+
     // Use new Snowflake configs if available, otherwise fall back to JVM configs
     String proxyHost = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST);
     if (proxyHost == null) {
       proxyHost = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_HOST);
     }
-    
+
     String proxyPort = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT);
     if (proxyPort == null) {
       proxyPort = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT);
     }
-    
+
     boolean proxyEnabled = Boolean.parseBoolean(useProxy);
     boolean hasHostAndPort = (proxyHost != null && proxyPort != null);
 
@@ -325,7 +325,7 @@ public class InternalUtils {
       proxyProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), "true");
       proxyProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), proxyHost);
       proxyProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), proxyPort);
-      
+
       String nonProxyHosts = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS);
       if (nonProxyHosts == null) {
         nonProxyHosts = conf.get(SnowflakeSinkConnectorConfig.JVM_NON_PROXY_HOSTS);
@@ -333,17 +333,17 @@ public class InternalUtils {
       if (nonProxyHosts != null) {
         proxyProperties.put(SFSessionProperty.NON_PROXY_HOSTS.getPropertyKey(), nonProxyHosts);
       }
-      
+
       String username = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_USER);
       if (username == null) {
         username = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_USERNAME);
       }
-      
+
       String password = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PASSWORD);
       if (password == null) {
         password = conf.get(SnowflakeSinkConnectorConfig.JVM_PROXY_PASSWORD);
       }
-      
+
       if (username != null && password != null) {
         proxyProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), username);
         proxyProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), password);
