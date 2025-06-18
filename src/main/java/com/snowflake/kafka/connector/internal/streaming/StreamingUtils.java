@@ -9,6 +9,8 @@ import com.snowflake.kafka.connector.Utils;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import net.snowflake.client.core.SFSessionProperty;
 import net.snowflake.ingest.streaming.OffsetTokenVerificationFunction;
 import net.snowflake.ingest.utils.Constants;
 import org.apache.kafka.common.record.DefaultRecord;
@@ -152,6 +154,8 @@ public class StreamingUtils {
           streamingProperties.put(STREAMING_CONSTANT_OAUTH_TOKEN_ENDPOINT, value);
           return value;
         });
+
+    // todo: add the proxy related configs here
 
     return streamingProperties;
   }

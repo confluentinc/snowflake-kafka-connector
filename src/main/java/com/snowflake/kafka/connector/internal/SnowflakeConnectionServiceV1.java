@@ -1170,7 +1170,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             fullPipeName,
             privateKey,
             userAgentSuffixInHttpRequest,
-            telemetry)
+            telemetry,
+            jdbcProperties.getProxyProperties())
         .build();
   }
 

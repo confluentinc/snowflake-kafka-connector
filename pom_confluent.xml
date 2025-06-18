@@ -79,6 +79,17 @@
             <url>https://packages.confluent.io/maven/</url>
         </repository>
 
+        <!-- AWS CodeArtifact repositories for io.confluent packages -->
+        <repository>
+            <id>confluent-codeartifact-snapshots</id>
+            <name>Confluent CodeArtifact Snapshots</name>
+            <url>https://confluent-519856050701.d.codeartifact.us-west-2.amazonaws.com/maven/maven-snapshots/</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+
+
         <repository>
             <id>cloudera-repo</id>
             <url>
@@ -464,7 +475,7 @@
         <dependency>
             <groupId>net.snowflake</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>3.20.0</version>
+            <version>3.23.0</version>
         </dependency>
 
         <dependency>
@@ -480,9 +491,9 @@
 
         <!-- Ingest SDK for copy staged file into snowflake table -->
         <dependency>
-            <groupId>net.snowflake</groupId>
+            <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
-            <version>3.0.1</version>
+            <version>2.1.5-2</version>
             <exclusions>
                 <exclusion>
                     <groupId>net.snowflake</groupId>

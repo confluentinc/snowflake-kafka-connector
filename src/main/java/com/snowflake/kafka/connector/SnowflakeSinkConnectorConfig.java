@@ -81,6 +81,14 @@ public class SnowflakeSinkConnectorConfig {
   public static final String JVM_PROXY_USERNAME = "jvm.proxy.username";
   public static final String JVM_PROXY_PASSWORD = "jvm.proxy.password";
 
+  // Snowflake HTTPS Proxy Info
+  public static final String SNOWFLAKE_USE_HTTPS_PROXY = "snowflake.useHttpsProxy";
+  public static final String SNOWFLAKE_HTTPS_PROXY_HOST = "snowflake.https.proxyHost";
+  public static final String SNOWFLAKE_HTTPS_PROXY_PORT = "snowflake.https.proxyPort";
+  public static final String SNOWFLAKE_HTTPS_NON_PROXY_HOSTS = "snowflake.https.nonProxyHosts";
+  public static final String SNOWFLAKE_HTTPS_PROXY_USER = "snowflake.https.proxyUser";
+  public static final String SNOWFLAKE_HTTPS_PROXY_PASSWORD = "snowflake.https.proxyPassword";
+
   // JDBC logging directory Info (environment variable)
   public static final String SNOWFLAKE_JDBC_LOG_DIR = "JDBC_LOG_DIR";
 
