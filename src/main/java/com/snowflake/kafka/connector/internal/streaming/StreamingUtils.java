@@ -157,6 +157,14 @@ public class StreamingUtils {
 
     // todo: add the proxy related configs here
 
+    // Add disallow local IPs config if present
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS, value);
+          return value;
+        });
+
     return streamingProperties;
   }
 

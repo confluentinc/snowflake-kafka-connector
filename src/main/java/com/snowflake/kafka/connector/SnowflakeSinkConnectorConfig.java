@@ -69,6 +69,13 @@ public class SnowflakeSinkConnectorConfig {
   public static final String OAUTH_REFRESH_TOKEN = Utils.SF_OAUTH_REFRESH_TOKEN;
   public static final String OAUTH_TOKEN_ENDPOINT = Utils.SF_OAUTH_TOKEN_ENDPOINT;
 
+  // Connection security
+  public static final String DISALLOW_LOCAL_IPS = "connection.disallow.local.ips";
+  public static final boolean DISALLOW_LOCAL_IPS_DEFAULT = true;
+  public static final String DISALLOW_LOCAL_IPS_DOC = "Disallow local IP addresses after DNS "
+      + "resolution.";
+  public static final String DISALLOW_LOCAL_IPS_DISPLAY = "Disallow local IP addresses";
+
   // For Snowpipe Streaming client
   public static final String SNOWFLAKE_ROLE = Utils.SF_ROLE;
   public static final String ENABLE_SCHEMATIZATION_CONFIG = "snowflake.enable.schematization";
