@@ -348,6 +348,12 @@ public class InternalUtils {
         proxyProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), username);
         proxyProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), password);
       }
+
+      // Add disallow local IPs config if present
+      String disallowLocalIps = conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS);
+      if (disallowLocalIps != null) {
+        proxyProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS, disallowLocalIps);
+      }
     }
     return proxyProperties;
   }

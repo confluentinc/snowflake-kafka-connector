@@ -77,6 +77,13 @@ public class SnowflakeSinkConnectorConfig {
   static final String OAUTH_CLIENT_SECRET = Utils.SF_OAUTH_CLIENT_SECRET;
   static final String OAUTH_REFRESH_TOKEN = Utils.SF_OAUTH_REFRESH_TOKEN;
 
+  // Connection security
+  public static final String DISALLOW_LOCAL_IPS = "connection.disallow.local.ips";
+  public static final boolean DISALLOW_LOCAL_IPS_DEFAULT = true;
+  public static final String DISALLOW_LOCAL_IPS_DOC = "Disallow local IP addresses after DNS "
+      + "resolution.";
+  public static final String DISALLOW_LOCAL_IPS_DISPLAY = "Disallow local IP addresses";
+
   // For Snowpipe Streaming client
   public static final String SNOWFLAKE_ROLE = Utils.SF_ROLE;
   public static final String ENABLE_SCHEMATIZATION_CONFIG = "snowflake.enable.schematization";
@@ -499,15 +506,15 @@ public class SnowflakeSinkConnectorConfig {
             ConfigDef.Width.NONE,
             SNOWFLAKE_HTTPS_PROXY_USER)
         .define(
-            SNOWFLAKE_HTTPS_PROXY_PASSWORD,
-            Type.PASSWORD,
-            "",
+            DISALLOW_LOCAL_IPS,
+            Type.BOOLEAN,
+            DISALLOW_LOCAL_IPS_DEFAULT,
             Importance.LOW,
-            "HTTPS proxy password for Snowflake connections",
+            DISALLOW_LOCAL_IPS_DOC,
             PROXY_INFO,
             10,
             ConfigDef.Width.NONE,
-            SNOWFLAKE_HTTPS_PROXY_PASSWORD)
+            DISALLOW_LOCAL_IPS_DISPLAY)
         // Connector Config
         .define(
             TOPICS_TABLES_MAP,
