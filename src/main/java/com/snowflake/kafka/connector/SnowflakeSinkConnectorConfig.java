@@ -530,13 +530,23 @@ public class SnowflakeSinkConnectorConfig {
             ConfigDef.Width.NONE,
             SNOWFLAKE_HTTPS_PROXY_USER)
         .define(
+            SNOWFLAKE_HTTPS_PROXY_PASSWORD,
+            Type.PASSWORD,
+            "",
+            Importance.LOW,
+            "HTTPS proxy password for Snowflake connections",
+            PROXY_INFO,
+            10,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_PASSWORD)
+        .define(
             DISALLOW_LOCAL_IPS,
             Type.BOOLEAN,
             DISALLOW_LOCAL_IPS_DEFAULT,
             Importance.LOW,
             DISALLOW_LOCAL_IPS_DOC,
             PROXY_INFO,
-            10,
+            11,
             ConfigDef.Width.NONE,
             DISALLOW_LOCAL_IPS_DISPLAY)
         .define(
@@ -546,7 +556,7 @@ public class SnowflakeSinkConnectorConfig {
             Importance.LOW,
             DISALLOW_PRIVATE_IPS_DOC,
             PROXY_INFO,
-            11,
+            12,
             ConfigDef.Width.NONE,
             DISALLOW_PRIVATE_IPS_DISPLAY)
         .define(
@@ -556,7 +566,7 @@ public class SnowflakeSinkConnectorConfig {
             Importance.LOW,
             DISALLOW_CLASS_E_IPS_DOC,
             PROXY_INFO,
-            12,
+            13,
             ConfigDef.Width.NONE,
             DISALLOW_CLASS_E_IPS_DISPLAY)
         .define(
@@ -566,7 +576,7 @@ public class SnowflakeSinkConnectorConfig {
             Importance.LOW,
             DISALLOW_CIDR_RANGES_DOC,
             PROXY_INFO,
-            13,
+            14,
             ConfigDef.Width.NONE,
             DISALLOW_CIDR_RANGES_DISPLAY)
         .define(
@@ -576,7 +586,7 @@ public class SnowflakeSinkConnectorConfig {
             Importance.LOW,
             ALLOW_CIDR_RANGES_DOC,
             PROXY_INFO,
-            14,
+            15,
             ConfigDef.Width.NONE,
             ALLOW_CIDR_RANGES_DISPLAY)
         // Connector Config
