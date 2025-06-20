@@ -388,7 +388,7 @@ public class InternalUtils {
 
     if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS)) {
       proxyProperties.put(
-          "connection.disallow.local.ips",
+          SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
           conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS));
     }
 
