@@ -282,7 +282,14 @@ public class TestUtils {
 
   /* Get configuration map from profile path. Used against prod deployment of Snowflake */
   public static Map<String, String> getConf() {
-    return getConfFromFileName(PROFILE_PATH);
+    Map<String, String> configuration = getConfFromFileName(PROFILE_PATH);
+    
+    // Disable connection restrictions for tests to allow localhost connections
+    configuration.put("connection.disallow.local.ips", "false");
+    configuration.put("connection.disallow.private.ips", "false");
+    configuration.put("connection.disallow.class.e.ips", "false");
+    
+    return configuration;
   }
 
   /* Get configuration map from profile path. Used against prod deployment of Snowflake */
@@ -296,6 +303,11 @@ public class TestUtils {
     configuration.put(
         SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT,
         IngestionMethodConfig.SNOWPIPE_STREAMING.toString());
+    
+    // Disable connection restrictions for tests to allow localhost connections
+    configuration.put("connection.disallow.local.ips", "false");
+    configuration.put("connection.disallow.private.ips", "false");
+    configuration.put("connection.disallow.class.e.ips", "false");
 
     return configuration;
   }
@@ -350,6 +362,11 @@ public class TestUtils {
     config.remove(Utils.SF_PRIVATE_KEY);
     config.put(Utils.SF_PRIVATE_KEY, getEncryptedPrivateKey());
     config.put(Utils.PRIVATE_KEY_PASSPHRASE, getPrivateKeyPassphrase());
+    
+    // Disable connection restrictions for tests to allow localhost connections
+    config.put("connection.disallow.local.ips", "false");
+    config.put("connection.disallow.private.ips", "false");
+    config.put("connection.disallow.class.e.ips", "false");
 
     return config;
   }
