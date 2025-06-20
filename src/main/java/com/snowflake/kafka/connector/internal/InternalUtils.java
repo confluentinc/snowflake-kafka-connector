@@ -354,7 +354,36 @@ public class InternalUtils {
       if (disallowLocalIps != null) {
         proxyProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS, disallowLocalIps);
       }
+
+      if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS)) {
+        proxyProperties.put(
+            "connection.disallow.private.ips",
+            conf.get(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS));
+      }
+
+      if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS)) {
+        proxyProperties.put(
+            SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS,
+            conf.get(SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS));
+      }
+      if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES)) {
+        proxyProperties.put(
+            SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES,
+            conf.get(SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES));
+      }
+      if (conf.containsKey(SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES)) {
+        proxyProperties.put(
+            SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES,
+            conf.get(SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES));
+      }
     }
+
+    if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS)) {
+      proxyProperties.put(
+          "connection.disallow.local.ips",
+          conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS));
+    }
+
     return proxyProperties;
   }
 

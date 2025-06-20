@@ -213,6 +213,33 @@ public class StreamingUtils {
           return value;
         });
 
+    // Add disallow private IPs config if present
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS, value);
+          return value;
+        });
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES, value);
+          return value;
+        });
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES, value);
+          return value;
+        });
+
     return streamingProperties;
   }
 
