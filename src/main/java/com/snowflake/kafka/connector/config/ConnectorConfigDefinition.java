@@ -202,6 +202,117 @@ public class ConnectorConfigDefinition {
             4,
             ConfigDef.Width.NONE,
             JVM_PROXY_PASSWORD)
+        // Snowflake HTTPS proxy
+        .define(
+            SNOWFLAKE_USE_HTTPS_PROXY,
+            ConfigDef.Type.BOOLEAN,
+            false,
+            ConfigDef.Importance.LOW,
+            "Enable HTTPS proxy for Snowflake connections",
+            PROXY_INFO_DOC,
+            5,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_USE_HTTPS_PROXY)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_HOST,
+            ConfigDef.Type.STRING,
+            "",
+            ConfigDef.Importance.LOW,
+            "HTTPS proxy host for Snowflake connections",
+            PROXY_INFO_DOC,
+            6,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_HOST)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_PORT,
+            ConfigDef.Type.STRING,
+            "",
+            ConfigDef.Importance.LOW,
+            "HTTPS proxy port for Snowflake connections",
+            PROXY_INFO_DOC,
+            7,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_PORT)
+        .define(
+            SNOWFLAKE_HTTPS_NON_PROXY_HOSTS,
+            ConfigDef.Type.STRING,
+            "",
+            ConfigDef.Importance.LOW,
+            "Hosts to bypass HTTPS proxy for Snowflake connections",
+            PROXY_INFO_DOC,
+            8,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_NON_PROXY_HOSTS)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_USER,
+            ConfigDef.Type.STRING,
+            "",
+            ConfigDef.Importance.LOW,
+            "HTTPS proxy username for Snowflake connections",
+            PROXY_INFO_DOC,
+            9,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_USER)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_PASSWORD,
+            ConfigDef.Type.PASSWORD,
+            "",
+            ConfigDef.Importance.LOW,
+            "HTTPS proxy password for Snowflake connections",
+            PROXY_INFO_DOC,
+            10,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_PASSWORD)
+        .define(
+            DISALLOW_LOCAL_IPS,
+            ConfigDef.Type.BOOLEAN,
+            DISALLOW_LOCAL_IPS_DEFAULT,
+            ConfigDef.Importance.LOW,
+            DISALLOW_LOCAL_IPS_DOC,
+            PROXY_INFO_DOC,
+            11,
+            ConfigDef.Width.NONE,
+            DISALLOW_LOCAL_IPS_DISPLAY)
+        .define(
+            DISALLOW_PRIVATE_IPS,
+            ConfigDef.Type.BOOLEAN,
+            DISALLOW_PRIVATE_IPS_DEFAULT,
+            ConfigDef.Importance.LOW,
+            DISALLOW_PRIVATE_IPS_DOC,
+            PROXY_INFO_DOC,
+            12,
+            ConfigDef.Width.NONE,
+            DISALLOW_PRIVATE_IPS_DISPLAY)
+        .define(
+            DISALLOW_CLASS_E_IPS,
+            ConfigDef.Type.BOOLEAN,
+            DISALLOW_CLASS_E_IPS_DEFAULT,
+            ConfigDef.Importance.LOW,
+            DISALLOW_CLASS_E_IPS_DOC,
+            PROXY_INFO_DOC,
+            13,
+            ConfigDef.Width.NONE,
+            DISALLOW_CLASS_E_IPS_DISPLAY)
+        .define(
+            DISALLOW_CIDR_RANGES,
+            ConfigDef.Type.STRING,
+            DISALLOW_CIDR_RANGES_DEFAULT,
+            ConfigDef.Importance.LOW,
+            DISALLOW_CIDR_RANGES_DOC,
+            PROXY_INFO_DOC,
+            14,
+            ConfigDef.Width.NONE,
+            DISALLOW_CIDR_RANGES_DISPLAY)
+        .define(
+            ALLOW_CIDR_RANGES,
+            ConfigDef.Type.STRING,
+            ALLOW_CIDR_RANGES_DEFAULT,
+            ConfigDef.Importance.LOW,
+            ALLOW_CIDR_RANGES_DOC,
+            PROXY_INFO_DOC,
+            15,
+            ConfigDef.Width.NONE,
+            ALLOW_CIDR_RANGES_DISPLAY)
         // Connector Config
         .define(
             TOPICS_TABLES_MAP,
