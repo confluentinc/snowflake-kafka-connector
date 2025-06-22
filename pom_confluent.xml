@@ -493,7 +493,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
-            <version>2.1.5-2</version>
+            <version>3.0.1-1</version>
             <exclusions>
                 <exclusion>
                     <groupId>net.snowflake</groupId>
