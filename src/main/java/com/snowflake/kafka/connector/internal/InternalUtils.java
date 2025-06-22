@@ -349,10 +349,10 @@ public class InternalUtils {
         proxyProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), password);
       }
 
-      // Add disallow local IPs config if present
-      String disallowLocalIps = conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS);
-      if (disallowLocalIps != null) {
-        proxyProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS, disallowLocalIps);
+      if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS)) {
+        proxyProperties.put(
+                SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
+                conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS));
       }
 
       if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS)) {
@@ -378,11 +378,6 @@ public class InternalUtils {
       }
     }
 
-    if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS)) {
-      proxyProperties.put(
-          SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
-          conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS));
-    }
 
     return proxyProperties;
   }
