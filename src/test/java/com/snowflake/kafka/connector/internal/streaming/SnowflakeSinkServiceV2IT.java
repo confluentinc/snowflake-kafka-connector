@@ -37,8 +37,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -48,7 +48,6 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -167,7 +166,6 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-
   @Test
   public void testRebalanceOpenCloseIngestion() throws Exception {
     conn = getConn(false);
@@ -283,15 +281,15 @@ public class SnowflakeSinkServiceV2IT {
     SnowflakeConnectionService connectionService = Mockito.spy(this.conn);
     connectionService.createTable(table);
     SnowflakeTelemetryServiceV2 telemetryService =
-            Mockito.spy((SnowflakeTelemetryServiceV2) this.conn.getTelemetryClient());
+        Mockito.spy((SnowflakeTelemetryServiceV2) this.conn.getTelemetryClient());
     Mockito.when(connectionService.getTelemetryClient()).thenReturn(telemetryService);
 
     // opens a channel for partition 0, table and topic
     SnowflakeSinkService service =
-            StreamingSinkServiceBuilder.builder(connectionService, config)
-                    .withSinkTaskContext(new InMemorySinkTaskContext(Collections.singleton(topicPartition)))
-                    .withEnableCustomJMXMetrics(true)
-                    .build();
+        StreamingSinkServiceBuilder.builder(connectionService, config)
+            .withSinkTaskContext(new InMemorySinkTaskContext(Collections.singleton(topicPartition)))
+            .withEnableCustomJMXMetrics(true)
+            .build();
 
     service.startPartition(table, topicPartition);
     service.startPartition(table, new TopicPartition(topic, partition2));
@@ -299,10 +297,10 @@ public class SnowflakeSinkServiceV2IT {
     final int recordsInPartition1 = 2;
     final int recordsInPartition2 = 5;
     List<SinkRecord> recordsPartition1 =
-            TestUtils.createJsonStringSinkRecords(0, recordsInPartition1, topic, partition);
+        TestUtils.createJsonStringSinkRecords(0, recordsInPartition1, topic, partition);
 
     List<SinkRecord> recordsPartition2 =
-            TestUtils.createJsonStringSinkRecords(0, recordsInPartition2, topic, partition2);
+        TestUtils.createJsonStringSinkRecords(0, recordsInPartition2, topic, partition2);
 
     List<SinkRecord> records = new ArrayList<>(recordsPartition1);
     records.addAll(recordsPartition2);
@@ -310,82 +308,82 @@ public class SnowflakeSinkServiceV2IT {
     service.insert(records);
 
     TestUtils.assertWithRetry(
-            () -> {
-              // This is how we will trigger flush. (Mimicking poll API)
-              service.insert(new ArrayList<>()); // trigger time based flush
-              return TestUtils.tableSize(table) == recordsInPartition1 + recordsInPartition2;
-            },
-            10,
-            20);
+        () -> {
+          // This is how we will trigger flush. (Mimicking poll API)
+          service.insert(new ArrayList<>()); // trigger time based flush
+          return TestUtils.tableSize(table) == recordsInPartition1 + recordsInPartition2;
+        },
+        10,
+        20);
 
     TestUtils.assertWithRetry(
-            () -> service.getOffset(topicPartition) == recordsInPartition1, 20, 5);
+        () -> service.getOffset(topicPartition) == recordsInPartition1, 20, 5);
     TestUtils.assertWithRetry(
-            () -> service.getOffset(new TopicPartition(topic, partition2)) == recordsInPartition2,
-            20,
-            5);
+        () -> service.getOffset(new TopicPartition(topic, partition2)) == recordsInPartition2,
+        20,
+        5);
 
     // verify all metrics
     Map<String, Gauge> metricRegistry =
-            service
-                    .getMetricRegistry(SnowflakeSinkServiceV2.partitionChannelKey(topic, partition))
-                    .get()
-                    .getGauges();
+        service
+            .getMetricRegistry(SnowflakeSinkServiceV2.partitionChannelKey(topic, partition))
+            .get()
+            .getGauges();
     assert metricRegistry.size()
-            == SnowflakeTelemetryChannelStatus.NUM_METRICS * 2; // two partitions
+        == SnowflakeTelemetryChannelStatus.NUM_METRICS * 2; // two partitions
 
     // partition 1
     verifyPartitionMetrics(
-            metricRegistry,
-            partitionChannelKey(topic, partition),
-            NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE,
-            recordsInPartition1 - 1);
+        metricRegistry,
+        partitionChannelKey(topic, partition),
+        NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE,
+        recordsInPartition1 - 1);
     verifyPartitionMetrics(
-            metricRegistry,
-            partitionChannelKey(topic, partition2),
-            NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE,
-            recordsInPartition2 - 1);
+        metricRegistry,
+        partitionChannelKey(topic, partition2),
+        NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE,
+        recordsInPartition2 - 1);
 
     // verify telemetry
     Mockito.verify(telemetryService, Mockito.times(2))
-            .reportKafkaPartitionStart(Mockito.any(SnowflakeTelemetryChannelCreation.class));
+        .reportKafkaPartitionStart(Mockito.any(SnowflakeTelemetryChannelCreation.class));
 
     service.closeAll();
 
     // verify metrics closed
     assert !service
-            .getMetricRegistry(SnowflakeSinkServiceV2.partitionChannelKey(topic, partition))
-            .isPresent();
+        .getMetricRegistry(SnowflakeSinkServiceV2.partitionChannelKey(topic, partition))
+        .isPresent();
 
     Mockito.verify(telemetryService, Mockito.times(2))
-            .reportKafkaPartitionUsage(
-                    Mockito.any(SnowflakeTelemetryChannelStatus.class), Mockito.eq(true));
+        .reportKafkaPartitionUsage(
+            Mockito.any(SnowflakeTelemetryChannelStatus.class), Mockito.eq(true));
   }
 
   private void verifyPartitionMetrics(
-          Map<String, Gauge> metricRegistry,
-          String partitionChannelKey,
-          long offsetPersistedInSnowflake,
-          long processedOffset) {
+      Map<String, Gauge> metricRegistry,
+      String partitionChannelKey,
+      long offsetPersistedInSnowflake,
+      long processedOffset) {
     // offsets
     assert (long)
             metricRegistry
-                    .get(
-                            MetricsUtil.constructMetricName(
-                                    partitionChannelKey,
-                                    MetricsUtil.OFFSET_SUB_DOMAIN,
-                                    MetricsUtil.OFFSET_PERSISTED_IN_SNOWFLAKE))
-                    .getValue()
-            == offsetPersistedInSnowflake;
+                .get(
+                    MetricsUtil.constructMetricName(
+                        partitionChannelKey,
+                        MetricsUtil.OFFSET_SUB_DOMAIN,
+                        MetricsUtil.OFFSET_PERSISTED_IN_SNOWFLAKE))
+                .getValue()
+        == offsetPersistedInSnowflake;
     assert (long)
             metricRegistry
-                    .get(
-                            MetricsUtil.constructMetricName(
-                                    partitionChannelKey,
-                                    MetricsUtil.OFFSET_SUB_DOMAIN,
-                                    MetricsUtil.PROCESSED_OFFSET))
-                    .getValue()
-            == processedOffset;
+                .get(
+                    MetricsUtil.constructMetricName(
+                        partitionChannelKey,
+                        MetricsUtil.OFFSET_SUB_DOMAIN,
+                        MetricsUtil.PROCESSED_OFFSET))
+                .getValue()
+        == processedOffset;
   }
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
@@ -510,8 +508,7 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testStreamingIngestion_timeBased(boolean useSingleBuffer)
-      throws Exception {
+  public void testStreamingIngestion_timeBased(boolean useSingleBuffer) throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth, useSingleBuffer);
@@ -547,8 +544,7 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testNativeJsonInputIngestion(boolean useSingleBuffer)
-      throws Exception {
+  public void testNativeJsonInputIngestion(boolean useSingleBuffer) throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth, useSingleBuffer);
@@ -648,8 +644,7 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testNativeAvroInputIngestion(boolean useSingleBuffer)
-      throws Exception {
+  public void testNativeAvroInputIngestion(boolean useSingleBuffer) throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth, useSingleBuffer);
@@ -883,7 +878,8 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testBrokenRecordIngestionFollowedUpByValidRecord(boolean useSingleBuffer) throws Exception {
+  public void testBrokenRecordIngestionFollowedUpByValidRecord(boolean useSingleBuffer)
+      throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth, useSingleBuffer);
@@ -941,8 +937,7 @@ public class SnowflakeSinkServiceV2IT {
    */
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testBrokenRecordIngestionAfterValidRecord(boolean useSingleBuffer)
-      throws Exception {
+  public void testBrokenRecordIngestionAfterValidRecord(boolean useSingleBuffer) throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth, useSingleBuffer);
@@ -1294,8 +1289,7 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testStreamingIngestionValidClientLag(boolean useSingleBuffer)
-      throws Exception {
+  public void testStreamingIngestionValidClientLag(boolean useSingleBuffer) throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth, useSingleBuffer);
@@ -1358,7 +1352,8 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testStreamingIngestionValidClientPropertiesOverride(boolean useSingleBuffer) throws Exception {
+  public void testStreamingIngestionValidClientPropertiesOverride(boolean useSingleBuffer)
+      throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = new HashMap<>(getConfig(useOAuth, useSingleBuffer));
@@ -1396,7 +1391,8 @@ public class SnowflakeSinkServiceV2IT {
    */
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testStreamingIngestion_invalidClientPropertiesOverride(boolean useSingleBuffer) throws Exception {
+  public void testStreamingIngestion_invalidClientPropertiesOverride(boolean useSingleBuffer)
+      throws Exception {
     boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = new HashMap<>(getConfig(useOAuth, useSingleBuffer));

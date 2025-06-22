@@ -153,7 +153,8 @@ public class SinkTaskProxyIT {
 
     // Test data ingestion
     String file = "{\"aa\":123}";
-    String fileName = FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
+    String fileName =
+        FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
 
     connectionService.putWithCache(stage, fileName, file);
     ingestionService.ingestFile(fileName);
@@ -198,7 +199,8 @@ public class SinkTaskProxyIT {
 
     // Test data ingestion
     String file = "{\"aa\":123}";
-    String fileName = FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
+    String fileName =
+        FileNameTestUtils.fileName(TestUtils.TEST_CONNECTOR_NAME, table, null, 0, 0, 1);
 
     connectionService.putWithCache(stage, fileName, file);
     ingestionService.ingestFile(fileName);

@@ -61,7 +61,7 @@ public class DefaultConnectorConfigValidator implements ConnectorConfigValidator
     // explicitly passed in as ingestion method
     // Below checks are just for snowpipe.
     if (!config.containsKey(INGESTION_METHOD_OPT)
-            || config
+        || config
             .get(INGESTION_METHOD_OPT)
             .equalsIgnoreCase(IngestionMethodConfig.SNOWPIPE.toString())) {
       invalidConfigParams.putAll(
@@ -271,12 +271,12 @@ public class DefaultConnectorConfigValidator implements ConnectorConfigValidator
 
     if (config.containsKey(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP)) {
       if (!(config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("true")
-              || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
+          || config.get(SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP).equalsIgnoreCase("false"))) {
         invalidConfigParams.put(
-                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
-                Utils.formatString(
-                        "Kafka config:{} should either be true or false",
-                        SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
+            Utils.formatString(
+                "Kafka config:{} should either be true or false",
+                SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP));
       }
     }
 

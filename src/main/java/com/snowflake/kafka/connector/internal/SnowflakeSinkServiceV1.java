@@ -2,7 +2,6 @@ package com.snowflake.kafka.connector.internal;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
 import static com.snowflake.kafka.connector.Utils.createNamedThreadFactory;
-import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
 import static com.snowflake.kafka.connector.internal.FileNameUtils.searchForMissingOffsets;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SIZE_BYTES;

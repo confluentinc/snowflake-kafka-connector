@@ -72,32 +72,32 @@ public class SnowflakeSinkConnectorConfig {
   // Connection security
   public static final String DISALLOW_LOCAL_IPS = "connection.disallow.local.ips";
   public static final boolean DISALLOW_LOCAL_IPS_DEFAULT = true;
-  public static final String DISALLOW_LOCAL_IPS_DOC = "Disallow local IP addresses after DNS "
-      + "resolution.";
+  public static final String DISALLOW_LOCAL_IPS_DOC =
+      "Disallow local IP addresses after DNS " + "resolution.";
   public static final String DISALLOW_LOCAL_IPS_DISPLAY = "Disallow local IP addresses";
 
   public static final String DISALLOW_PRIVATE_IPS = "connection.disallow.private.ips";
   public static final boolean DISALLOW_PRIVATE_IPS_DEFAULT = true;
-  public static final String DISALLOW_PRIVATE_IPS_DOC = "Disallow private IP addresses after DNS "
-      + "resolution.";
+  public static final String DISALLOW_PRIVATE_IPS_DOC =
+      "Disallow private IP addresses after DNS " + "resolution.";
   public static final String DISALLOW_PRIVATE_IPS_DISPLAY = "Disallow private IP addresses";
 
   public static final String DISALLOW_CLASS_E_IPS = "connection.disallow.class.e.ips";
   public static final boolean DISALLOW_CLASS_E_IPS_DEFAULT = true;
-  public static final String DISALLOW_CLASS_E_IPS_DOC = "Disallow Class E IP addresses after DNS "
-      + "resolution.";
+  public static final String DISALLOW_CLASS_E_IPS_DOC =
+      "Disallow Class E IP addresses after DNS " + "resolution.";
   public static final String DISALLOW_CLASS_E_IPS_DISPLAY = "Disallow Class E IP addresses";
 
   public static final String DISALLOW_CIDR_RANGES = "connection.disallow.cidr.ranges";
   public static final String DISALLOW_CIDR_RANGES_DEFAULT = "";
-  public static final String DISALLOW_CIDR_RANGES_DOC = "Disallow IP addresses from the "
-      + "configured CIDR ranges after DNS resolution.";
+  public static final String DISALLOW_CIDR_RANGES_DOC =
+      "Disallow IP addresses from the " + "configured CIDR ranges after DNS resolution.";
   public static final String DISALLOW_CIDR_RANGES_DISPLAY = "Disallow CIDR ranges";
 
   public static final String ALLOW_CIDR_RANGES = "connection.allow.cidr.ranges";
   public static final String ALLOW_CIDR_RANGES_DEFAULT = "";
-  public static final String ALLOW_CIDR_RANGES_DOC = "Allow IP addresses from the "
-      + "configured CIDR ranges after DNS resolution.";
+  public static final String ALLOW_CIDR_RANGES_DOC =
+      "Allow IP addresses from the " + "configured CIDR ranges after DNS resolution.";
   public static final String ALLOW_CIDR_RANGES_DISPLAY = "Allow CIDR ranges";
 
   // For Snowpipe Streaming client

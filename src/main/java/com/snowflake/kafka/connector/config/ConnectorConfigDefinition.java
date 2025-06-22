@@ -465,10 +465,12 @@ public class ConnectorConfigDefinition {
             "Whether to use new file cleaner for snowpipe data ingestion")
         .define(
             SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP,
-            ConfigDef.Type.BOOLEAN,SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
+            ConfigDef.Type.BOOLEAN,
+            SNOWPIPE_DISABLE_REPROCESS_FILES_CLEANUP_DEFAULT,
             ConfigDef.Importance.LOW,
             "Whether to disable cleanup of reprocess files in Snowpipe used with v1Cleaner. Note:"
-            + " This configuration will not take effect if `snowflake.snowpipe.v2CleanerEnabled` is `true`.")
+                + " This configuration will not take effect if"
+                + " `snowflake.snowpipe.v2CleanerEnabled` is `true`.")
         .define(
             SNOWPIPE_FILE_CLEANER_THREADS,
             ConfigDef.Type.INT,
