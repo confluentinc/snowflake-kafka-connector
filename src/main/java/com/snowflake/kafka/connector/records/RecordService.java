@@ -260,7 +260,16 @@ public class RecordService {
     final Map<String, Object> streamingIngestRow = new HashMap<>();
     for (JsonNode node : row.content.getData()) {
       if (enableSchematization) {
-        streamingIngestRow.putAll(getMapFromJsonNodeForStreamingIngest(node));
+        try {
+          streamingIngestRow.putAll(getMapFromJsonNodeForStreamingIngest(node));
+        } catch (StringIndexOutOfBoundsException e) {
+          LOGGER.trace("Record data that caused StringIndexOutOfBoundsException: {}", node.toString());
+          LOGGER.info("StringIndexOutOfBoundsException occurred while processing record - Topic: {}, Partition: {}, Offset: {}", 
+              record.topic(), record.kafkaPartition(), record.kafkaOffset());
+          
+          throw SnowflakeErrors.ERROR_0010.getException(
+              "Invalid column name encountered during streaming ingest processing: " + e.getMessage());
+        }
       } else {
         streamingIngestRow.put(TABLE_COLUMN_CONTENT, MAPPER.writeValueAsString(node));
       }
