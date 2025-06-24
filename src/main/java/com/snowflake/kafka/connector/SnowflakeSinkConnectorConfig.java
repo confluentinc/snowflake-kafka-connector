@@ -90,6 +90,14 @@ public class SnowflakeSinkConnectorConfig {
   public static final String JVM_PROXY_USERNAME = "jvm.proxy.username";
   public static final String JVM_PROXY_PASSWORD = "jvm.proxy.password";
 
+  // Snowflake HTTPS Proxy Info
+  public static final String SNOWFLAKE_USE_HTTPS_PROXY = "snowflake.useHttpsProxy";
+  public static final String SNOWFLAKE_HTTPS_PROXY_HOST = "snowflake.https.proxyHost";
+  public static final String SNOWFLAKE_HTTPS_PROXY_PORT = "snowflake.https.proxyPort";
+  public static final String SNOWFLAKE_HTTPS_NON_PROXY_HOSTS = "snowflake.https.nonProxyHosts";
+  public static final String SNOWFLAKE_HTTPS_PROXY_USER = "snowflake.https.proxyUser";
+  public static final String SNOWFLAKE_HTTPS_PROXY_PASSWORD = "snowflake.https.proxyPassword";
+
   // JDBC logging directory Info (environment variable)
   static final String SNOWFLAKE_JDBC_LOG_DIR = "JDBC_LOG_DIR";
 
@@ -439,6 +447,67 @@ public class SnowflakeSinkConnectorConfig {
             4,
             ConfigDef.Width.NONE,
             JVM_PROXY_PASSWORD)
+        // Snowflake HTTPS proxy
+        .define(
+            SNOWFLAKE_USE_HTTPS_PROXY,
+            Type.BOOLEAN,
+            false,
+            Importance.LOW,
+            "Enable HTTPS proxy for Snowflake connections",
+            PROXY_INFO,
+            5,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_USE_HTTPS_PROXY)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_HOST,
+            Type.STRING,
+            "",
+            Importance.LOW,
+            "HTTPS proxy host for Snowflake connections",
+            PROXY_INFO,
+            6,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_HOST)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_PORT,
+            Type.STRING,
+            "",
+            Importance.LOW,
+            "HTTPS proxy port for Snowflake connections",
+            PROXY_INFO,
+            7,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_PORT)
+        .define(
+            SNOWFLAKE_HTTPS_NON_PROXY_HOSTS,
+            Type.STRING,
+            "",
+            Importance.LOW,
+            "Hosts to bypass HTTPS proxy for Snowflake connections",
+            PROXY_INFO,
+            8,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_NON_PROXY_HOSTS)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_USER,
+            Type.STRING,
+            "",
+            Importance.LOW,
+            "HTTPS proxy username for Snowflake connections",
+            PROXY_INFO,
+            9,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_USER)
+        .define(
+            SNOWFLAKE_HTTPS_PROXY_PASSWORD,
+            Type.PASSWORD,
+            "",
+            Importance.LOW,
+            "HTTPS proxy password for Snowflake connections",
+            PROXY_INFO,
+            10,
+            ConfigDef.Width.NONE,
+            SNOWFLAKE_HTTPS_PROXY_PASSWORD)
         // Connector Config
         .define(
             TOPICS_TABLES_MAP,
