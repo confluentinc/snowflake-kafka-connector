@@ -83,10 +83,14 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
       if (proxyProperties != null && !proxyProperties.isEmpty()) {
         Properties combinedProperties =
             mergeProxyAndConnectionProperties(this.prop, this.proxyProperties);
-        LOGGER.debug("Proxy properties are set, passing in JDBC while creating the connection");
+        LOGGER.debug(
+            "Proxy properties are set, passing in JDBC while creating the connection for url : {}",
+            url.getJdbcUrl());
         this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), combinedProperties);
       } else {
-        LOGGER.info("Establishing a JDBC connection with url:{}", url.getJdbcUrl());
+        LOGGER.debug(
+            "Proxy is not being used. Establishing a JDBC connection with url:{}",
+            url.getJdbcUrl());
         this.conn = new SnowflakeDriver().connect(url.getJdbcUrl(), prop);
       }
     } catch (SQLException e) {
@@ -1087,7 +1091,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             fullPipeName,
             privateKey,
             userAgentSuffixInHttpRequest,
-            telemetry)
+            telemetry,
+            proxyProperties)
         .build();
   }
 
