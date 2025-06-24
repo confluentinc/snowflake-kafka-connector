@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import net.snowflake.client.core.SFSessionProperty;
 import net.snowflake.ingest.streaming.OffsetTokenVerificationFunction;
 import net.snowflake.ingest.utils.Constants;
 import org.apache.kafka.common.config.ConfigException;
@@ -163,45 +162,6 @@ public class StreamingUtils {
         Utils.SF_OAUTH_REFRESH_TOKEN,
         (key, value) -> {
           streamingProperties.put(STREAMING_CONSTANT_OAUTH_REFRESH_TOKEN, value);
-          return value;
-        });
-
-    connectorConfig.computeIfPresent(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY,
-        (key, value) -> {
-          streamingProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), value);
-          return value;
-        });
-    connectorConfig.computeIfPresent(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST,
-        (key, value) -> {
-          streamingProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), value);
-          return value;
-        });
-
-    connectorConfig.computeIfPresent(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT,
-        (key, value) -> {
-          streamingProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), value);
-          return value;
-        });
-
-    connectorConfig.computeIfPresent(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS,
-        (key, value) -> {
-          streamingProperties.put(SFSessionProperty.NON_PROXY_HOSTS.getPropertyKey(), value);
-          return value;
-        });
-    connectorConfig.computeIfPresent(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_USER,
-        (key, value) -> {
-          streamingProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), value);
-          return value;
-        });
-    connectorConfig.computeIfPresent(
-        SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PASSWORD,
-        (key, value) -> {
-          streamingProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), value);
           return value;
         });
 
