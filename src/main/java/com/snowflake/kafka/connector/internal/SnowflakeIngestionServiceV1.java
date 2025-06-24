@@ -69,37 +69,6 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
     LOGGER.info("initialized the pipe connector for pipe {}", pipeName);
   }
 
-  SnowflakeIngestionServiceV1(
-      String accountName,
-      String userName,
-      String host,
-      int port,
-      String connectionScheme,
-      String stageName,
-      String pipeName,
-      PrivateKey privateKey,
-      String userAgentSuffix,
-      @Nullable SnowflakeTelemetryService telemetry,
-      Properties proxyProperties) {
-
-    this(
-        stageName,
-        pipeName,
-        createOrThrow(
-            accountName,
-            userName,
-            host,
-            port,
-            connectionScheme,
-            pipeName,
-            privateKey,
-            userAgentSuffix,
-            telemetry,
-            proxyProperties),
-        telemetry);
-    LOGGER.info("initialized the pipe connector for pipe {}", pipeName);
-  }
-
   @VisibleForTesting
   SnowflakeIngestionServiceV1(
       String stageName,
@@ -132,33 +101,6 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
           host,
           port,
           userAgentSuffix);
-    } catch (Exception e) {
-      throw SnowflakeErrors.ERROR_0002.getException(e, telemetry);
-    }
-  }
-
-  private static SimpleIngestManager createOrThrow(
-      String accountName,
-      String userName,
-      String host,
-      int port,
-      String connectionScheme,
-      String pipeName,
-      PrivateKey privateKey,
-      String userAgentSuffix,
-      SnowflakeTelemetryService telemetry,
-      Properties proxyProperties) {
-    try {
-      return new SimpleIngestManager(
-          accountName,
-          userName,
-          pipeName,
-          privateKey,
-          connectionScheme,
-          host,
-          port,
-          userAgentSuffix,
-          proxyProperties);
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_0002.getException(e, telemetry);
     }
