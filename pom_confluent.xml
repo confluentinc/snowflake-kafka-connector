@@ -497,7 +497,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>3.23.0-2</version>
+            <version>3.23.0-3</version>
         </dependency>
 
         <!-- Ingest SDK for copy staged file into snowflake table -->
