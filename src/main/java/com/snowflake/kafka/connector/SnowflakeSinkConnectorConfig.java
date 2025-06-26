@@ -179,7 +179,7 @@ public class SnowflakeSinkConnectorConfig {
   public static final String SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER =
       "snowflake.streaming.enable.single.buffer";
 
-  public static final boolean SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER_DEFAULT = false;
+  public static final boolean SNOWPIPE_STREAMING_ENABLE_SINGLE_BUFFER_DEFAULT = true;
   public static final String SNOWPIPE_STREAMING_MAX_CLIENT_LAG =
       "snowflake.streaming.max.client.lag";
   public static final int SNOWPIPE_STREAMING_MAX_CLIENT_LAG_SECONDS_DEFAULT = 120;
