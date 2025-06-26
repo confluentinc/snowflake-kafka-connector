@@ -439,7 +439,7 @@ public class SnowflakeSinkConnectorConfig {
             JVM_PROXY_USERNAME)
         .define(
             JVM_PROXY_PASSWORD,
-            Type.STRING,
+            Type.PASSWORD,
             "",
             Importance.LOW,
             "JVM proxy password",
