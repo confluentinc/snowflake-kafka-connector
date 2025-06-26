@@ -822,6 +822,8 @@ public class SinkServiceIT {
     // to 3.
     List<String> files = conn.listStage(table, "", true);
     assert files.size() == expectedTableStageSize;
+
+    service.closeAll();
   }
 
   @Test
