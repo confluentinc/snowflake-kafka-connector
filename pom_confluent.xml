@@ -471,6 +471,11 @@
             </exclusions>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.13</version> <!-- or any 4.5.x -->
+        </dependency>
         <!--JDBC driver for building connection with Snowflake-->
         <dependency>
             <groupId>net.snowflake</groupId>
