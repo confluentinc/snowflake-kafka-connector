@@ -378,7 +378,7 @@ public class SnowflakeSinkConnectorConfig {
             OAUTH_CLIENT_ID)
         .define(
             OAUTH_CLIENT_SECRET,
-            Type.STRING,
+            Type.PASSWORD,
             "",
             Importance.HIGH,
             "Client secret of target OAuth integration",
@@ -388,7 +388,7 @@ public class SnowflakeSinkConnectorConfig {
             OAUTH_CLIENT_SECRET)
         .define(
             OAUTH_REFRESH_TOKEN,
-            Type.STRING,
+            Type.PASSWORD,
             "",
             Importance.HIGH,
             "Refresh token for OAuth",
@@ -439,7 +439,7 @@ public class SnowflakeSinkConnectorConfig {
             JVM_PROXY_USERNAME)
         .define(
             JVM_PROXY_PASSWORD,
-            Type.STRING,
+            Type.PASSWORD,
             "",
             Importance.LOW,
             "JVM proxy password",
