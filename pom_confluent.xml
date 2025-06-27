@@ -165,6 +165,7 @@
                         </goals>
                         <phase>generate-resources</phase>
                         <configuration>
+                            <skip>true</skip>
                             <executable>python3</executable>
                             <arguments>
                                 <argument>${project.basedir}/scripts/process_licenses.py</argument>
@@ -486,11 +487,17 @@
             </exclusions>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.14</version>
+        </dependency>
+
         <!--JDBC driver for building connection with Snowflake-->
         <dependency>
-            <groupId>net.snowflake</groupId>
+            <groupId>io.confluent</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>3.23.0</version>
+            <version>3.23.0-3</version>
         </dependency>
 
         <!-- Ingest SDK for copy staged file into snowflake table -->
