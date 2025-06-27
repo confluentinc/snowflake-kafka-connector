@@ -1590,7 +1590,7 @@ public class SnowflakeSinkServiceV2IT {
     long assertionSleepTimeMs = 6 * 1000L;
 
     conn = getConn(false);
-    Map<String, String> config = getConfig(false, false);
+    Map<String, String> config = getConfig(false, true);
     config.put(ENABLE_SCHEMATIZATION_CONFIG, "true");
     config.put(
         SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD,
