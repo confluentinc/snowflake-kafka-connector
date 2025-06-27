@@ -283,12 +283,10 @@ public class TestUtils {
   /* Get configuration map from profile path. Used against prod deployment of Snowflake */
   public static Map<String, String> getConf() {
     Map<String, String> configuration = getConfFromFileName(PROFILE_PATH);
-
     // Disable connection restrictions for tests to allow localhost connections
     configuration.put("connection.disallow.local.ips", "false");
     configuration.put("connection.disallow.private.ips", "false");
     configuration.put("connection.disallow.class.e.ips", "false");
-
     return configuration;
   }
 
