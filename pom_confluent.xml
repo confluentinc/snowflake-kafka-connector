@@ -497,7 +497,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
-            <version>2.1.5-1</version>
+            <version>2.1.5-2</version>
             <exclusions>
                 <exclusion>
                     <groupId>net.snowflake</groupId>
@@ -609,6 +609,13 @@
             <artifactId>kafka-connect-avro-converter</artifactId>
             <version>7.2.1</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/io.confluent/connect-utils -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>connect-utils</artifactId>
+            <version>0.6.4</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core -->
