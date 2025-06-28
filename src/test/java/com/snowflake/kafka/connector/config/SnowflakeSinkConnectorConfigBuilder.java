@@ -34,7 +34,8 @@ public class SnowflakeSinkConnectorConfigBuilder {
     return commonRequiredFields()
         .withIcebergEnabled()
         .withIngestionMethod(IngestionMethodConfig.SNOWPIPE_STREAMING)
-        .withSchematizationEnabled(true);
+        .withSchematizationEnabled(true)
+        .withSingleBufferEnabled(true);
   }
 
   private static SnowflakeSinkConnectorConfigBuilder commonRequiredFields() {
