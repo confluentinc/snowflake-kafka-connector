@@ -1583,14 +1583,15 @@ public class SnowflakeSinkServiceV2IT {
         .containsKey(new StreamingClientProperties(fishConfig));
   }
 
-  @Test
-  void testSkippingOffsetsInSchemaEvolution() throws Exception {
+  @ParameterizedTest(name = "useSingleBuffer: {0}")
+  @MethodSource("singleBufferParameters")
+  void testSkippingOffsetsInSchemaEvolution(boolean useSingleBuffer) throws Exception {
     long maxClientLagSeconds = 1L;
     long schemaEvolutionDelayMs = 3 * 1000L; // must be enough for sdk to flush and commit
     long assertionSleepTimeMs = 6 * 1000L;
 
     conn = getConn(false);
-    Map<String, String> config = getConfig(false, true);
+    Map<String, String> config = getConfig(false, useSingleBuffer);
     config.put(ENABLE_SCHEMATIZATION_CONFIG, "true");
     config.put(
         SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD,
@@ -1610,6 +1611,7 @@ public class SnowflakeSinkServiceV2IT {
             .withSchemaEvolutionService(
                 new DelayedSchemaEvolutionService(conn, schemaEvolutionDelayMs))
             .build();
+    service.setRecordNumber(1);
     service.startPartition(table, new TopicPartition(topic, partition));
 
     service.insert(
