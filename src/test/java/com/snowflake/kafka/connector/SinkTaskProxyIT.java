@@ -71,6 +71,9 @@ public class SinkTaskProxyIT {
     config.put(SnowflakeSinkConnectorConfig.JVM_PROXY_PORT, "3128");
     config.put(SnowflakeSinkConnectorConfig.JVM_PROXY_USERNAME, "admin");
     config.put(SnowflakeSinkConnectorConfig.JVM_PROXY_PASSWORD, "test");
+    config.put(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS, "false");
+    config.put(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS, "false");
+    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY, "true");
     SnowflakeSinkTask sinkTask = new SnowflakeSinkTask();
 
     sinkTask.start(config);
