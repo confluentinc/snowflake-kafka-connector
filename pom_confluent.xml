@@ -631,7 +631,6 @@
             <groupId>io.confluent</groupId>
             <artifactId>connect-utils</artifactId>
             <version>0.6.4</version>
-
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core -->
