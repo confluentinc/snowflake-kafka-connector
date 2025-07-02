@@ -5,10 +5,13 @@ import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_TOLERANCE_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ErrorTolerance;
 
+import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
+
+import net.snowflake.client.core.SFSessionProperty;
 import net.snowflake.ingest.streaming.OffsetTokenVerificationFunction;
 import net.snowflake.ingest.utils.Constants;
 import org.apache.kafka.common.record.DefaultRecord;
@@ -150,6 +153,82 @@ public class StreamingUtils {
         Utils.SF_OAUTH_TOKEN_ENDPOINT,
         (key, value) -> {
           streamingProperties.put(STREAMING_CONSTANT_OAUTH_TOKEN_ENDPOINT, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_USE_HTTPS_PROXY,
+            (key, value) -> {
+              streamingProperties.put(SFSessionProperty.USE_PROXY.getPropertyKey(), value);
+              return value;
+            });
+    connectorConfig.computeIfPresent(
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_HOST,
+            (key, value) -> {
+              streamingProperties.put(SFSessionProperty.PROXY_HOST.getPropertyKey(), value);
+              return value;
+            });
+
+    connectorConfig.computeIfPresent(
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PORT,
+            (key, value) -> {
+              streamingProperties.put(SFSessionProperty.PROXY_PORT.getPropertyKey(), value);
+              return value;
+            });
+
+    connectorConfig.computeIfPresent(
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_NON_PROXY_HOSTS,
+            (key, value) -> {
+              streamingProperties.put(SFSessionProperty.NON_PROXY_HOSTS.getPropertyKey(), value);
+              return value;
+            });
+    connectorConfig.computeIfPresent(
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_USER,
+            (key, value) -> {
+              streamingProperties.put(SFSessionProperty.PROXY_USER.getPropertyKey(), value);
+              return value;
+            });
+    connectorConfig.computeIfPresent(
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_HTTPS_PROXY_PASSWORD,
+            (key, value) -> {
+              streamingProperties.put(SFSessionProperty.PROXY_PASSWORD.getPropertyKey(), value);
+              return value;
+            });
+
+    // Add disallow local IPs config if present
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS, value);
+          return value;
+        });
+
+    // Add disallow private IPs config if present
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_CLASS_E_IPS, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+        SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES,
+        (key, value) -> {
+          streamingProperties.put(SnowflakeSinkConnectorConfig.ALLOW_CIDR_RANGES, value);
           return value;
         });
 

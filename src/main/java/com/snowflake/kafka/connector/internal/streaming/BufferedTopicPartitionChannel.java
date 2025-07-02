@@ -295,7 +295,7 @@ public class BufferedTopicPartitionChannel implements TopicPartitionChannel {
     }
 
     // Open channel and reset the offset in kafka
-    this.channel = Preconditions.checkNotNull(openChannelForTable());
+    this.channel = Preconditions.checkNotNull(openChannelForTable(this.enableSchemaEvolution));
     final long lastCommittedOffsetToken = fetchOffsetTokenWithRetry();
     this.offsetPersistedInSnowflake.set(lastCommittedOffsetToken);
     this.processedOffset.set(lastCommittedOffsetToken);
@@ -963,7 +963,7 @@ public class BufferedTopicPartitionChannel implements TopicPartitionChannel {
       final StreamingApiFallbackInvoker streamingApiFallbackInvoker) {
     LOGGER.warn(
         "{} Re-opening channel:{}", streamingApiFallbackInvoker, this.getChannelNameFormatV1());
-    return Preconditions.checkNotNull(openChannelForTable());
+    return Preconditions.checkNotNull(openChannelForTable(this.enableSchemaEvolution));
   }
 
   /**
@@ -1016,13 +1016,18 @@ public class BufferedTopicPartitionChannel implements TopicPartitionChannel {
    *
    * @return new channel which was fetched after open/reopen
    */
-  private SnowflakeStreamingIngestChannel openChannelForTable() {
+  private SnowflakeStreamingIngestChannel openChannelForTable(boolean schemaEvolutionEnabled) {
+    OpenChannelRequest.OnErrorOption onErrorOption =
+            schemaEvolutionEnabled
+                    ? OpenChannelRequest.OnErrorOption.SKIP_BATCH
+                    : OpenChannelRequest.OnErrorOption.CONTINUE;
+
     OpenChannelRequest channelRequest =
         OpenChannelRequest.builder(this.channelNameFormatV1)
             .setDBName(this.sfConnectorConfig.get(Utils.SF_DATABASE))
             .setSchemaName(this.sfConnectorConfig.get(Utils.SF_SCHEMA))
             .setTableName(this.tableName)
-            .setOnErrorOption(OpenChannelRequest.OnErrorOption.CONTINUE)
+            .setOnErrorOption(onErrorOption)
             .setOffsetTokenVerificationFunction(StreamingUtils.offsetTokenVerificationFunction)
             .build();
     LOGGER.info(

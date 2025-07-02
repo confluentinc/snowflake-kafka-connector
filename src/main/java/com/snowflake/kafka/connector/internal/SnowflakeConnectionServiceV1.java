@@ -699,8 +699,10 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
         String expectedPipeDefinition = pipeDefinition(tableName, stageName);
         compatible = definition.equalsIgnoreCase(expectedPipeDefinition);
         if (!compatible) {
-          LOGGER.error("Pipe definition '{}' is not same as expected definition '{}'",
-              definition, expectedPipeDefinition);
+          LOGGER.error(
+              "Pipe definition '{}' is not same as expected definition '{}'",
+              definition,
+              expectedPipeDefinition);
         }
       }
 
@@ -1170,7 +1172,8 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
             fullPipeName,
             privateKey,
             userAgentSuffixInHttpRequest,
-            telemetry)
+            telemetry,
+            jdbcProperties.getProxyProperties())
         .build();
   }
 

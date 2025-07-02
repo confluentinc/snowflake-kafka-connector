@@ -7,7 +7,6 @@ import static com.snowflake.kafka.connector.internal.TestUtils.getConf;
 import static com.snowflake.kafka.connector.internal.TestUtils.getConfWithOAuth;
 import static org.junit.Assert.assertEquals;
 
-import com.snowflake.kafka.connector.internal.TestUtils;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
