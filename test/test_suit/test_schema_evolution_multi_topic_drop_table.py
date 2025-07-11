@@ -2,11 +2,12 @@ import json
 from time import sleep
 
 from test_suit.test_utils import NonRetryableError
+from test_suit.base_e2e import BaseE2eTest
 
 
 # test if the table is updated with the correct column, and if the table is
 # recreated and updated after it's being dropped
-class TestSchemaEvolutionMultiTopicDropTable:
+class TestSchemaEvolutionMultiTopicDropTable(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_schema_evolution_multi_topic_drop_table"
@@ -61,7 +62,7 @@ class TestSchemaEvolutionMultiTopicDropTable:
             self.driver.sendBytesData(topic, value, key)
 
         # Sleep for some time and then verify the rows are ingested
-        sleep(120)
+        sleep(100)
         self.verify("0")
 
         # Recreate the table

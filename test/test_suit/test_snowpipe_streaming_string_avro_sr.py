@@ -1,10 +1,11 @@
 from test_suit.test_utils import RetryableError, NonRetryableError
 from time import sleep
 from confluent_kafka import avro
+from test_suit.base_e2e import BaseE2eTest
 
 # SR -> Schema Registry
 # Runs only in confluent test suite environment
-class TestSnowpipeStreamingStringAvroSR:
+class TestSnowpipeStreamingStringAvroSR(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_snowpipe_streaming_string_avro_sr"
@@ -21,7 +22,9 @@ class TestSnowpipeStreamingStringAvroSR:
             "fields":[
                 {"name":"id","type":"int"},
                 {"name":"firstName","type":"string"},
-                {"name":"time","type":"int"}
+                {"name":"time","type":"int"},
+                {"name":"someFloat","type":"float"},
+                {"name":"someFloatNaN","type":"float"}
             ]
         }
         """
@@ -34,25 +37,18 @@ class TestSnowpipeStreamingStringAvroSR:
         return self.fileName + ".json"
 
     def send(self):
-        # create topic with n partitions and only one replication factor
-        print("Partition count:" + str(self.partitionNum))
-        print("Topic:", self.topic)
-
-        self.driver.describeTopic(self.topic)
 
         for p in range(self.partitionNum):
             print("Sending in Partition:" + str(p))
             key = []
             value = []
-            value = []
             for e in range(self.recordNum):
-                value.append({"id": e, "firstName": "abc0", "time": 1835})
+                value.append({"id": e, "firstName": "abc0", "time": 1835, "someFloat": 21.37, "someFloatNaN": "NaN"})
             self.driver.sendAvroSRData(self.topic, value, self.valueSchema, key=[], key_schema="", partition=p)
             sleep(2)
 
     def verify(self, round):
-        res = self.driver.snowflake_conn.cursor().execute(
-            "SELECT count(*) FROM {}".format(self.topic)).fetchone()[0]
+        res = self.driver.select_number_of_records(self.topic)
         print("Count records in table {}={}".format(self.topic, str(res)))
         if res < (self.recordNum * self.partitionNum):
             print("Topic:" + self.topic + " count is less, will retry")

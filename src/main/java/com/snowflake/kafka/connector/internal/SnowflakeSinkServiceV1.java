@@ -2,7 +2,6 @@ package com.snowflake.kafka.connector.internal;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
 import static com.snowflake.kafka.connector.Utils.createNamedThreadFactory;
-import static com.snowflake.kafka.connector.config.TopicToTableModeExtractor.determineTopic2TableMode;
 import static com.snowflake.kafka.connector.internal.FileNameUtils.searchForMissingOffsets;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_SIZE_BYTES;
@@ -22,6 +21,7 @@ import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeCr
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryPipeStatus;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import com.snowflake.kafka.connector.records.RecordService;
+import com.snowflake.kafka.connector.records.RecordServiceFactory;
 import com.snowflake.kafka.connector.records.SnowflakeJsonSchema;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import com.snowflake.kafka.connector.records.SnowflakeRecordContent;
@@ -120,7 +120,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     this.conn = conn;
     isStopped = false;
     this.telemetryService = conn.getTelemetryClient();
-    this.recordService = new RecordService(this.telemetryService);
+    this.recordService = RecordServiceFactory.createRecordService(false, false);
     this.topic2TableMap = new HashMap<>();
 
     // Setting the default value in constructor
@@ -137,6 +137,17 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
    */
   @Override
   public void startPartition(final String tableName, final TopicPartition topicPartition) {
+    Utils.GeneratedName generatedTableName =
+        Utils.generateTableName(topicPartition.topic(), topic2TableMap);
+    if (!tableName.equals(generatedTableName.getName())) {
+      LOGGER.warn(
+          "tableNames do not match, this is acceptable in tests but not in production! Resorting to"
+              + " originalName and assuming no potential clashes on file prefixes. original={},"
+              + " recalculated={}",
+          tableName,
+          generatedTableName.getName());
+      generatedTableName = Utils.GeneratedName.generated(tableName);
+    }
     String stageName = Utils.stageName(conn.getConnectorName(), tableName);
     String nameIndex = getNameIndex(topicPartition.topic(), topicPartition.partition());
     if (pipes.containsKey(nameIndex)) {
@@ -148,7 +159,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       pipes.put(
           nameIndex,
           new ServiceContext(
-              tableName,
+              generatedTableName,
               stageName,
               pipeName,
               topicPartition.topic(),
@@ -500,7 +511,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private boolean forceCleanerFileReset = false;
 
     private ServiceContext(
-        String tableName,
+        Utils.GeneratedName generatedTableName,
         String stageName,
         String pipeName,
         String topicName,
@@ -508,36 +519,30 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         int partition,
         ScheduledExecutorService v2CleanerExecutor) {
       this.pipeName = pipeName;
-      this.tableName = tableName;
+      this.tableName = generatedTableName.getName();
       this.stageName = stageName;
       this.conn = conn;
       this.fileNames = new LinkedList<>();
       this.cleanerFileNames = new LinkedList<>();
       this.buffer = new SnowpipeBuffer();
       this.ingestionService = conn.buildIngestService(stageName, pipeName);
-      // SNOW-1642799 = if multiple topics load data into single table, we need to ensure prefix is
-      // unique per table - otherwise, file cleaners for different channels may run into race
-      // condition
-      TopicToTableModeExtractor.Topic2TableMode mode =
-          determineTopic2TableMode(topic2TableMap, topicName);
-      if (mode == TopicToTableModeExtractor.Topic2TableMode.MANY_TOPICS_SINGLE_TABLE
-          && !enableStageFilePrefixExtension) {
+      // SNOW-1642799 = if multiple topics load data into single table, we need to ensure the file
+      // prefix is unique per topic - otherwise, file cleaners for different topics will try to
+      // clean the same prefixed files creating a race condition and a potential to delete
+      // not yet ingested files created by another topic
+      if (generatedTableName.isNameFromMap() && !enableStageFilePrefixExtension) {
         LOGGER.warn(
-            "The table {} is used as ingestion target by multiple topics - including this one"
-                + " '{}'.\n"
-                + "To prevent potential data loss consider setting"
-                + " '"
-                + SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED
-                + "' to true",
+            "The table {} may be used as ingestion target by multiple topics - including this one"
+                + " '{}'.\nTo prevent potential data loss consider setting '{}' to true",
+            tableName,
             topicName,
-            tableName);
+            SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED);
       }
-      if (mode == TopicToTableModeExtractor.Topic2TableMode.MANY_TOPICS_SINGLE_TABLE
-          && enableStageFilePrefixExtension) {
+      {
+        final String topicForPrefix =
+            generatedTableName.isNameFromMap() && enableStageFilePrefixExtension ? topicName : "";
         this.prefix =
-            FileNameUtils.filePrefix(conn.getConnectorName(), tableName, topicName, partition);
-      } else {
-        this.prefix = FileNameUtils.filePrefix(conn.getConnectorName(), tableName, "", partition);
+            FileNameUtils.filePrefix(conn.getConnectorName(), tableName, topicForPrefix, partition);
       }
       this.processedOffset = new AtomicLong(-1);
       this.flushedOffset = new AtomicLong(-1);
@@ -552,7 +557,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       this.pipeStatus =
           new SnowflakeTelemetryPipeStatus(
-              tableName, stageName, pipeName, enableCustomJMXMonitoring, this.metricsJmxReporter);
+              tableName,
+              stageName,
+              pipeName,
+              partition,
+              enableCustomJMXMonitoring,
+              this.metricsJmxReporter);
 
       if (enableCustomJMXMonitoring) {
         partitionBufferCountHistogram =
@@ -616,8 +626,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         } catch (Exception e) {
           LOGGER.warn("Cleaner and Flusher threads shut down before initialization");
         }
+        // with v2 cleaner enabled, this event is raised by the cleaner itself
+        telemetryService.reportKafkaPartitionStart(pipeCreation);
       }
-      telemetryService.reportKafkaPartitionStart(pipeCreation);
     }
 
     private boolean resetCleanerFiles() {
@@ -1105,12 +1116,12 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         OffsetContinuityRanges offsets = searchForMissingOffsets(files);
         LOGGER.info(
             "Purging loaded files for pipe: {}, loadedFileCount: {}, continuousOffsets: {},"
-                + " missingOffsets: {}, files: {}",
+                + " missingOffsets: {}",
             pipeName,
             files.size(),
             offsets.getContinuousOffsets(),
-            offsets.getMissingOffsets(),
-            files);
+            offsets.getMissingOffsets());
+        LOGGER.debug("Purging files: {}", files);
         conn.purgeStage(stageName, files);
       }
     }
@@ -1118,14 +1129,19 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private void moveToTableStage(List<String> failedFiles) {
       if (!failedFiles.isEmpty()) {
         OffsetContinuityRanges offsets = searchForMissingOffsets(failedFiles);
-        LOGGER.error(
-                "Moving failed files for pipe: {} to tableStage failedFileCount: {},"
-                    + " continuousOffsets: {}, missingOffsets: {}, failedFiles: {}",
+        String baseLog =
+            String.format(
+                "Moving failed files for pipe: %s to tableStage failedFileCount: %d,"
+                    + " continuousOffsets: %s, missingOffsets: %s",
                 pipeName,
                 failedFiles.size(),
                 offsets.getContinuousOffsets(),
-                offsets.getMissingOffsets(),
-                failedFiles);
+                offsets.getMissingOffsets());
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.info("{}, failedFiles: {}", baseLog, failedFiles);
+        } else {
+          LOGGER.info(baseLog);
+        }
         conn.moveToTableStage(tableName, stageName, failedFiles);
       }
     }

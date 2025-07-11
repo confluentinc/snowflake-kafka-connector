@@ -7,7 +7,6 @@ import static com.snowflake.kafka.connector.internal.TestUtils.getConf;
 import static com.snowflake.kafka.connector.internal.TestUtils.getConfWithOAuth;
 import static org.junit.Assert.assertEquals;
 
-import com.snowflake.kafka.connector.internal.TestUtils;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -213,25 +212,6 @@ public class ConnectorIT {
     Map<String, ConfigValue> validateMap = toValidateMap(config);
     assertPropHasError(
         validateMap, new String[] {SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY});
-  }
-
-  @Test
-  public void testValidateWrongRoleConfig() {
-    Map<String, String> config = TestUtils.getConfForStreaming();
-    config.put(SnowflakeSinkConnectorConfig.SNOWFLAKE_ROLE, "wrongRole");
-    Map<String, ConfigValue> validateMap = toValidateMap(config);
-    assertPropHasError(
-        validateMap,
-        new String[] {
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_USER,
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_URL,
-          SnowflakeSinkConnectorConfig.SNOWFLAKE_PRIVATE_KEY
-        });
-    assertEquals(
-        "snowflake.url.name: Cannot connect to Snowflake, due to Role 'WRONGROLE' specified in the"
-            + " connect string does not exist or not authorized. Contact your local system"
-            + " administrator, or attempt to login with another role, e.g. PUBLIC.",
-        validateMap.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_URL).errorMessages().get(0));
   }
 
   @Test

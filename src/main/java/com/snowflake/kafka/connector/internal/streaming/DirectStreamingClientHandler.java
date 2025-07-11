@@ -42,12 +42,13 @@ public class DirectStreamingClientHandler implements StreamingClientHandler {
     LOGGER.info("Initializing Streaming Client...");
 
     try {
-      SnowflakeStreamingIngestClient createdClient =
+      SnowflakeStreamingIngestClientFactory.Builder builder =
           SnowflakeStreamingIngestClientFactory.builder(
                   streamingClientProperties.clientName + "_" + createdClientId.getAndIncrement())
               .setProperties(streamingClientProperties.clientProperties)
-              .setParameterOverrides(streamingClientProperties.parameterOverrides)
-              .build();
+              .setParameterOverrides(streamingClientProperties.parameterOverrides);
+
+      SnowflakeStreamingIngestClient createdClient = builder.build();
 
       LOGGER.info(
           "Successfully initialized Streaming Client:{} with properties {}",

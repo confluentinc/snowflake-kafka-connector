@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
@@ -15,7 +16,6 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -779,10 +779,10 @@ public class SinkServiceIT {
     // File 2 is not ingested, so moved to table stage
     // File 3 is not ingested, so moved to table stage
     // File 4 is removed by reprocess cleaner
-    conn.put(stage, fileName1, data);
-    conn.put(stage, fileName2, data);
-    conn.put(stage, fileName3, data);
-    conn.put(stage, fileName4, data);
+    conn.putWithCache(stage, fileName1, data);
+    conn.putWithCache(stage, fileName2, data);
+    conn.putWithCache(stage, fileName3, data);
+    conn.putWithCache(stage, fileName4, data);
 
     ingestionService.ingestFile(fileName1);
 

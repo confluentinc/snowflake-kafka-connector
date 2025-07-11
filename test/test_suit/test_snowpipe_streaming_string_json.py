@@ -3,8 +3,9 @@ import datetime
 from test_suit.test_utils import RetryableError, NonRetryableError
 import json
 from time import sleep
+from test_suit.base_e2e import BaseE2eTest
 
-class TestSnowpipeStreamingStringJson:
+class TestSnowpipeStreamingStringJson(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_snowpipe_streaming_string_json"
@@ -54,8 +55,7 @@ class TestSnowpipeStreamingStringJson:
             sleep(2)
 
     def verify(self, round):
-        res = self.driver.snowflake_conn.cursor().execute(
-            "SELECT count(*) FROM {}".format(self.topic)).fetchone()[0]
+        res = self.driver.select_number_of_records(self.topic)
         print("Count records in table {}={}".format(self.topic, str(res)))
         if res < (self.recordNum * self.partitionNum):
             print("Topic:" + self.topic + " count is less, will retry")
@@ -84,6 +84,14 @@ class TestSnowpipeStreamingStringJson:
                 # unique offset count and partition no are two columns (returns tuple)
                 if rows[p][0] != self.recordNum or rows[p][1] != p:
                     raise NonRetryableError("Unique offsets for partitions count doesnt match")
+
+        self._verify_connector_push_time()
+
+    def _verify_connector_push_time(self):
+        res = self.driver.snowflake_conn.cursor().execute(f'select count(*) from {self.topic} where not is_null_value(record_metadata:SnowflakeConnectorPushTime)').fetchone()[0]
+
+        if res != self.recordNum * self.partitionNum:
+            raise NonRetryableError('Empty ConnectorPushTime detected')
 
     def clean(self):
         # dropping of stage and pipe doesnt apply for snowpipe streaming. (It executes drop if exists)

@@ -1,8 +1,9 @@
 from test_suit.test_utils import RetryableError, NonRetryableError
 import json
+from test_suit.base_e2e import BaseE2eTest
 
 
-class TestNativeComplexSmt:
+class TestNativeComplexSmt(BaseE2eTest):
     def __init__(self, driver, nameSalt):
         self.driver = driver
         self.fileName = "travis_correct_native_complex_smt"
@@ -30,7 +31,7 @@ class TestNativeComplexSmt:
         res = self.driver.snowflake_conn.cursor().execute(
             "Select * from {} limit 1".format(self.table)).fetchone()
         goldMeta = r'{"CreateTime":\d*,"key":{"int":"\d"},"offset":\d,"partition":\d,' \
-                   r'"topic":"travis_correct_native_complex_smt....."}'
+                   r'"topic":"travis_correct_native_complex_smt_\w*"}'
         goldContent = r'{"c1":{"int":"\d"}}'
         self.driver.regexMatchOneLine(res, goldMeta, goldContent)
 
