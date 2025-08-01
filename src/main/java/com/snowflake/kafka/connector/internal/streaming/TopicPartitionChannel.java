@@ -271,6 +271,7 @@ public class TopicPartitionChannel {
           this.tableName, channelNameFormatV2, this.channelNameFormatV1);
     }
 
+    LOGGER.info("Opening streaming channel for table: {}", this.tableName);
     // Open channel and reset the offset in kafka
     this.channel = Preconditions.checkNotNull(openChannelForTable());
     final long lastCommittedOffsetToken = fetchOffsetTokenWithRetry();
@@ -298,12 +299,24 @@ public class TopicPartitionChannel {
 
     if (lastCommittedOffsetToken != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
       this.sinkTaskContext.offset(this.topicPartition, lastCommittedOffsetToken + 1L);
+      LOGGER.info(
+          "Set sinkTaskOffset for topic: {}, partition: {} to: {}",
+          this.topicPartition.topic(),
+          this.topicPartition.partition(),
+          lastCommittedOffsetToken + 1L);
     } else {
       LOGGER.info(
           "TopicPartitionChannel:{}, offset token is NULL, will rely on Kafka to send us the"
               + " correct offset instead",
           this.getChannelNameFormatV1());
     }
+    
+    LOGGER.info(
+        "TopicPartitionChannel initialization completed for table: {}, topic: {}, partition: {} in {} ms",
+        tableName,
+        topicPartition.topic(),
+        topicPartition.partition(),
+        System.currentTimeMillis() - startTime);
   }
 
   /**

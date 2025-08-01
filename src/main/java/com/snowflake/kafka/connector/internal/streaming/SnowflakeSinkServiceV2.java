@@ -223,10 +223,12 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     partitions.forEach(
         tp -> {
           String tableName = Utils.tableName(tp.topic(), topic2Table);
+          LOGGER.info("Started processing " + tableName);
           createTableIfNotExists(tableName);
 
           createStreamingChannelForTopicPartition(
               tableName, tp, tableName2SchemaEvolutionPermission.get(tableName));
+          LOGGER.info("Finished processing " + tableName);
         });
   }
 
@@ -260,6 +262,12 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
             this.conn.getTelemetryClient(),
             this.enableCustomJMXMonitoring,
             this.metricsJmxReporter));
+            
+    LOGGER.info(
+        "Successfully created TopicPartitionChannel for table: {}, topic: {}, partition: {}",
+        tableName,
+        topicPartition.topic(),
+        topicPartition.partition());
   }
 
   /**
@@ -576,33 +584,47 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
 
   // ------ Streaming Ingest Related Functions ------ //
   private void createTableIfNotExists(final String tableName) {
+    LOGGER.info("Checking table existence for: {}", tableName);
+    
     if (this.conn.tableExist(tableName)) {
+      LOGGER.info("Table {} exists, checking compatibility", tableName);
+      
       if (!this.enableSchematization) {
         if (this.conn.isTableCompatible(tableName)) {
           LOGGER.info("Using existing table {}.", tableName);
         } else {
+          LOGGER.error("Table {} is not compatible with Snowflake Kafka Connector", tableName);
           throw SnowflakeErrors.ERROR_5003.getException(
               "table name: " + tableName, this.telemetryService);
         }
       } else {
+        LOGGER.info("Schematization is enabled, going to append metaCol for {}", tableName);
         this.conn.appendMetaColIfNotExist(tableName);
+        LOGGER.info("Successfully appended metaCol for {}", tableName);
       }
     } else {
-      LOGGER.info("Creating new table {}.", tableName);
+      LOGGER.info("Table {} does not exist, creating new table", tableName);
       if (this.enableSchematization) {
         // Always create the table with RECORD_METADATA only and rely on schema evolution to update
         // the schema
+        LOGGER.info("Creating table {} with only metadata column (schematization enabled)", tableName);
         this.conn.createTableWithOnlyMetadataColumn(tableName);
       } else {
+        LOGGER.info("Creating table {} with standard schema (schematization disabled)", tableName);
         this.conn.createTable(tableName);
       }
+      LOGGER.info("Successfully created table: {}", tableName);
     }
 
     // Populate schema evolution cache if needed
+    LOGGER.info("Going to populate schema evolution permissions for table {}", tableName);
     populateSchemaEvolutionPermissions(tableName);
+    LOGGER.info("Completed table setup for: {}", tableName);
   }
 
   private void populateSchemaEvolutionPermissions(String tableName) {
+    LOGGER.info("Checking schema evolution permissions for table: {}", tableName);
+    
     if (!tableName2SchemaEvolutionPermission.containsKey(tableName)) {
       if (enableSchematization) {
         tableName2SchemaEvolutionPermission.put(
@@ -611,6 +633,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
                 && conn.hasSchemaEvolutionPermission(
                     tableName, connectorConfig.get(SNOWFLAKE_ROLE)));
       } else {
+        LOGGER.info("Schematization is disabled, setting schema evolution permission to false for table: {}", tableName);
         tableName2SchemaEvolutionPermission.put(tableName, false);
       }
     }
