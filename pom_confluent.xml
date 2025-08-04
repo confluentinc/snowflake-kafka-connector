@@ -500,7 +500,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
-            <version>3.0.1-4</version>
+            <version>3.0.1-6</version>
             <exclusions>
                 <exclusion>
                     <groupId>net.snowflake</groupId>
