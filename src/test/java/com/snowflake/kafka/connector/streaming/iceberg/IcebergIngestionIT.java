@@ -10,6 +10,7 @@ import com.snowflake.kafka.connector.internal.SnowflakeSinkServiceFactory;
 import com.snowflake.kafka.connector.internal.TestUtils;
 import com.snowflake.kafka.connector.internal.streaming.InMemorySinkTaskContext;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
+import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import com.snowflake.kafka.connector.streaming.iceberg.sql.ComplexJsonRecord;
 import com.snowflake.kafka.connector.streaming.iceberg.sql.MetadataRecord.RecordWithMetadata;
 import com.snowflake.kafka.connector.streaming.iceberg.sql.PrimitiveJsonRecord;
@@ -54,6 +55,7 @@ public abstract class IcebergIngestionIT extends BaseIcebergIT {
     config.put(SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "1");
     config.put(ERRORS_TOLERANCE_CONFIG, SnowflakeSinkConnectorConfig.ErrorTolerance.ALL.toString());
     config.put(ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG, "test_DLQ");
+    config.put(SNOWFLAKE_STREAMING_METADATA_CONNECTOR_PUSH_TIME, "true");
 
     createIcebergTable();
     enableSchemaEvolution(tableName);
@@ -70,6 +72,7 @@ public abstract class IcebergIngestionIT extends BaseIcebergIT {
             .setSinkTaskContext(new InMemorySinkTaskContext(Collections.singleton(topicPartition)))
             .setTopic2TableMap(topic2Table)
             .addTask(tableName, topicPartition)
+            .setMetadataConfig(new SnowflakeMetadataConfig(config))
             .build();
   }
 
