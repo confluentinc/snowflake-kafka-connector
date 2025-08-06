@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 public class IcebergTableSchemaValidatorIT extends BaseIcebergIT {
 
-  private static final String TEST_ROLE = "testrole_kafka";
+  private static final String TEST_ROLE = "PUBLIC";
 
   private static IcebergTableSchemaValidator schemaValidator;
 
