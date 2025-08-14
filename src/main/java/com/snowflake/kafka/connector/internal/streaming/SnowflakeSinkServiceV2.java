@@ -280,9 +280,10 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   @Override
   public void startPartitions(
       Collection<TopicPartition> partitions, Map<String, String> topic2Table) {
-
-    LOGGER.info("Skipping perTopicActionsOnStartPartitions.");
-  
+    partitions.stream()
+            .map(TopicPartition::topic)
+            .distinct()
+            .forEach(topic -> perTopicActionsOnStartPartitions(topic, topic2Table));
     partitions.forEach(
         tp -> {
           String tableName = Utils.tableName(tp.topic(), topic2Table);
