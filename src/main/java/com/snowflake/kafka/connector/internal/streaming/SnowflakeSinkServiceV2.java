@@ -283,20 +283,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   public void startPartitions(
       Collection<TopicPartition> partitions, Map<String, String> topic2Table) {
 
-    List<String> tableNames = partitions.stream()
-            .map(tp -> Utils.tableName(tp.topic(), topic2Table))
-            .distinct()
-            .collect(Collectors.toList());
-
-    if (tableNames.size() <= 10){
-      partitions.stream()
-        .map(TopicPartition::topic)
-        .distinct()
-        .forEach(topic -> perTopicActionsOnStartPartitions(topic, topic2Table));
-    } else {
-      LOGGER.info("Skipping perTopicActionsOnStartPartitions. Too many tables -  {}", tableNames.size());
-    }
-
+    LOGGER.info("Skipping perTopicActionsOnStartPartitions.");
   
     partitions.forEach(
         tp -> {

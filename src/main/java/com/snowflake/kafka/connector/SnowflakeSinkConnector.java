@@ -344,20 +344,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
           e.getMessage(),
           e);
     }
-
-    if (shouldCheckTablePrivilege(connectorConfigs)) {
-      Map<String, String> topicsTablesMap =
-          Utils.parseTopicToTableMap(
-              connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
-      if (topicsTablesMap != null) {
-        if (topicsTablesMap.size() <= 10 ){
-          checkTablePrivilege(topicsTablesMap, testConnection);
-        } else {
-          LOGGER.info("Skipping table validation checks. Too many tables - {}", topicsTablesMap.size());
-        }
-
-      }
-    }
+    LOGGER.info("Skipping table validation checks. Will be introduced later at task level.");
 
     LOGGER.info("Validated config with no error");
     return result;
