@@ -288,7 +288,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
             .distinct()
             .collect(Collectors.toList());
 
-    if (tableNames.size()< 10){
+    if (tableNames.size() <= 10){
       partitions.stream()
         .map(TopicPartition::topic)
         .distinct()
