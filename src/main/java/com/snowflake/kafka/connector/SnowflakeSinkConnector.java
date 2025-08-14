@@ -204,7 +204,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   @Override
   public Config validate(Map<String, String> connectorConfigs) {
-    LOGGER.debug("Validating connector Config: Start");
+    LOGGER.info("Validating connector Config: Start");
     // cross-fields validation here
     Config result = super.validate(connectorConfigs);
 
@@ -344,15 +344,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
           e.getMessage(),
           e);
     }
-
-    if (shouldCheckTablePrivilege(connectorConfigs)) {
-      Map<String, String> topicsTablesMap =
-          Utils.parseTopicToTableMap(
-              connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
-      if (topicsTablesMap != null) {
-        checkTablePrivilege(topicsTablesMap, testConnection);
-      }
-    }
+    LOGGER.info("Skipping table validation checks. Will be introduced later at task level.");
 
     LOGGER.info("Validated config with no error");
     return result;

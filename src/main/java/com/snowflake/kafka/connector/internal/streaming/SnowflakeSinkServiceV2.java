@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+
 import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -279,10 +280,9 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   @Override
   public void startPartitions(
       Collection<TopicPartition> partitions, Map<String, String> topic2Table) {
-    partitions.stream()
-        .map(TopicPartition::topic)
-        .distinct()
-        .forEach(topic -> perTopicActionsOnStartPartitions(topic, topic2Table));
+
+    LOGGER.info("Skipping perTopicActionsOnStartPartitions.");
+  
     partitions.forEach(
         tp -> {
           String tableName = Utils.tableName(tp.topic(), topic2Table);
