@@ -188,7 +188,7 @@ public class Utils {
       if (latestVersion == null) {
         throw new Exception("can't retrieve version number from Maven repo");
       } else if (!latestVersion.equals(VERSION)) {
-        LOGGER.warn(
+        LOGGER.debug(
             "Connector update is available, please upgrade Snowflake Kafka Connector ({} -> {}) ",
             VERSION,
             latestVersion);
