@@ -35,10 +35,13 @@ import com.snowflake.kafka.connector.streaming.iceberg.IcebergTableSchemaValidat
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
 import net.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -279,10 +282,22 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   @Override
   public void startPartitions(
       Collection<TopicPartition> partitions, Map<String, String> topic2Table) {
-    partitions.stream()
+
+    List<String> tableNames = partitions.stream()
+            .map(tp -> Utils.tableName(tp.topic(), topic2Table))
+            .distinct()
+            .collect(Collectors.toList());
+
+    if (tableNames.size()< 10){
+      partitions.stream()
         .map(TopicPartition::topic)
         .distinct()
         .forEach(topic -> perTopicActionsOnStartPartitions(topic, topic2Table));
+    } else {
+      LOGGER.info("Skipping perTopicActionsOnStartPartitions. Too many tables -  {}", tableNames.size());
+    }
+
+  
     partitions.forEach(
         tp -> {
           String tableName = Utils.tableName(tp.topic(), topic2Table);
