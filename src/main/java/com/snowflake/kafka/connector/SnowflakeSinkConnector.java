@@ -344,7 +344,15 @@ public class SnowflakeSinkConnector extends SinkConnector {
           e.getMessage(),
           e);
     }
-    LOGGER.info("Skipping table validation checks. Will be introduced later at task level.");
+
+    if (shouldCheckTablePrivilege(connectorConfigs)) {
+      Map<String, String> topicsTablesMap =
+          Utils.parseTopicToTableMap(
+              connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
+      if (topicsTablesMap != null) {
+        checkTablePrivilege(topicsTablesMap, testConnection);
+      }
+    }
 
     LOGGER.info("Validated config with no error");
     return result;
