@@ -407,4 +407,26 @@ public class ConnectorIT {
     Thread.sleep(6000);
     testThread.shutdownNow();
   }
+
+  @Test
+  public void testInvalidTopicToTableConfigValues() {
+    Map<String, String> config = getCorrectConfig();
+
+    String[] invalidValues = {
+            "topic1:table1,topic1:table2",  // duplicate topic
+            "topic1:!@#@!#!@",              // invalid table name
+            "topic1:a",                     // too short table name
+            "$@#$#@%^$12312"                // invalid format
+    };
+
+    for (String invalidValue : invalidValues) {
+      config.put(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP, invalidValue);
+      Map<String, ConfigValue> validateMap = toValidateMap(config);
+
+      assertPropHasError(
+              validateMap,
+              new String[] { SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP }
+      );
+    }
+  }
 }
