@@ -337,31 +337,6 @@ public class SnowflakeSinkConnectorConfig {
     }
   }
 
-  public static class TopicToTableValidator implements ConfigDef.Validator {
-    public TopicToTableValidator() {}
-
-    public void ensureValid(String name, Object value) {
-      String s = (String) value;
-      if (s != null && !s.isEmpty()) // this value is optional and can be empty
-      {
-        try {
-          if (Utils.parseTopicToTableMap(s) == null) {
-            throw new ConfigException(
-                name, value, "Format: <topic-1>:<table-1>,<topic-2>:<table-2>,...");
-          }
-        } catch (SnowflakeKafkaConnectorException e) {
-          throw new ConfigException(
-              name, value, "Format: <topic-1>:<table-1>,<topic-2>:<table-2>,...");
-        }
-      }
-    }
-
-    public String toString() {
-      return "Topic to table map format : comma-separated tuples, e.g."
-          + " <topic-1>:<table-1>,<topic-2>:<table-2>,... ";
-    }
-  }
-
   /* Validator to validate Kafka Provider values which says where kafka is hosted */
   public static class KafkaProviderValidator implements ConfigDef.Validator {
     public KafkaProviderValidator() {}
