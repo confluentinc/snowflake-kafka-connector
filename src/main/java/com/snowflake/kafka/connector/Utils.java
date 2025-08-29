@@ -67,7 +67,7 @@ import org.apache.kafka.common.utils.ThreadUtils;
 public class Utils {
 
   // Connector version, change every release
-  public static final String VERSION = "3.1.0";
+  public static final String VERSION = "3.1.0-rc-1f72ece4";
 
   // connector parameter list
   public static final String NAME = "name";
