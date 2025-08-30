@@ -18,7 +18,6 @@ class TopicToTableValidator implements ConfigDef.Validator {
               name, value, "Format: <topic-1>:<table-1>,<topic-2>:<table-2>,...");
         }
       } catch (SnowflakeKafkaConnectorException e) {
-        System.out.println(e.getExceptionUserMessage());
         throw new ConfigException(
             name, value, e.getExceptionUserMessage());
       }
