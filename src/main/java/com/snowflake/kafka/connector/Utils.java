@@ -590,14 +590,14 @@ public class Utils {
       String table = tt[1].trim();
 
       if (!isValidSnowflakeTableName(table)) {
-        errorMessage = "table name " + table + " should have at least 2 characters, " +
+        errorMessage = "Table name " + table + " should have at least 2 characters, " +
                 "start with _a-zA-Z, and only contains _$a-zA-z0-9";
         LOGGER.error(errorMessage);
         isInvalid = true;
       }
 
       if (topic2Table.containsKey(topic)) {
-        errorMessage = "topic name " + topic + "is duplicated";
+        errorMessage = "Topic name " + topic + " is duplicated";
         LOGGER.error(errorMessage);
         isInvalid = true;
       }
@@ -605,7 +605,7 @@ public class Utils {
       // check that regexes don't overlap
       for (String parsedTopic : topic2Table.keySet()) {
         if (parsedTopic.matches(topic) || topic.matches(parsedTopic)) {
-          errorMessage = "topic regexes cannot overlap. overlapping regexes: " + parsedTopic + ", " + topic;
+          errorMessage = "Topic regexes cannot overlap. overlapping regexes: " + parsedTopic + ", " + topic;
           LOGGER.error(errorMessage);
           isInvalid = true;
         }
