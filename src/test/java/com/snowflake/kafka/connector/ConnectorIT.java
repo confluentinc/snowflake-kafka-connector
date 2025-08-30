@@ -413,6 +413,7 @@ public class ConnectorIT {
     Map<String, String> config = getCorrectConfig();
 
     String[] invalidValues = {
+            "topic1:t1;topic2:t2",          // invalid separator
             "topic1:table1,topic1:table2",  // duplicate topic
             "topic1:!@#@!#!@",              // invalid table name
             "topic1:a",                     // too short table name

@@ -614,7 +614,7 @@ public class Utils {
       topic2Table.put(tt[0].trim(), tt[1].trim());
     }
     if (isInvalid) {
-      throw SnowflakeErrors.ERROR_0021.getException(errorMessage);
+      throw SnowflakeErrors.ERROR_0021.getException(errorMessage, null, errorMessage);
     }
     return topic2Table;
   }
