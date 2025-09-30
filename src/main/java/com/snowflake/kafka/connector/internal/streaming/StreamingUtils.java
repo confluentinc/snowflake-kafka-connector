@@ -219,6 +219,20 @@ public class StreamingUtils {
         });
 
     connectorConfig.computeIfPresent(
+        Utils.TASK_ID,
+        (key, value) -> {
+          streamingProperties.put(Utils.TASK_ID, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+        Utils.NAME,
+        (key, value) -> {
+          streamingProperties.put(Utils.CONNECTOR_NAME, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
         SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES,
         (key, value) -> {
           streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES, value);

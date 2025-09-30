@@ -71,6 +71,7 @@ public class Utils {
 
   // connector parameter list
   public static final String NAME = "name";
+  public static final String CONNECTOR_NAME = "connector_name";
   public static final String SF_DATABASE = "snowflake.database.name";
   public static final String SF_SCHEMA = "snowflake.schema.name";
   public static final String SF_USER = "snowflake.user.name";
