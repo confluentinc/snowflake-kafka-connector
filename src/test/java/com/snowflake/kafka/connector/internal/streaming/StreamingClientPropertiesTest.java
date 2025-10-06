@@ -346,6 +346,7 @@ public class StreamingClientPropertiesTest {
     config1.put(Utils.NAME, "dogConnector");
     config1.put(SnowflakeSinkConnectorConfig.BUFFER_COUNT_RECORDS, "1000000");
 
+    config2.put(Utils.NAME, "dogConnector");
     // get properties
     StreamingClientProperties prop1 = new StreamingClientProperties(config1);
     StreamingClientProperties prop2 = new StreamingClientProperties(config2);
