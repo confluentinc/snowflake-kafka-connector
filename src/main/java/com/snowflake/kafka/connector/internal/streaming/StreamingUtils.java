@@ -228,7 +228,12 @@ public class StreamingUtils {
     connectorConfig.computeIfPresent(
         Utils.NAME,
         (key, value) -> {
-          streamingProperties.put(Utils.CONNECTOR_NAME, value);
+          String connectorName = value;
+          int lastUnderscore = connectorName.lastIndexOf('_');
+          if (lastUnderscore != -1) {
+            connectorName = connectorName.substring(0, lastUnderscore);
+          }
+          streamingProperties.put(Utils.CONNECTOR_NAME, connectorName);
           return value;
         });
 
