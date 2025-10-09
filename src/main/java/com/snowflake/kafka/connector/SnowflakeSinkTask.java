@@ -152,7 +152,6 @@ public class SnowflakeSinkTask extends SinkTask {
   @Override
   public void start(final Map<String, String> parsedConfig) {
     this.DYNAMIC_LOGGER.info("starting task...");
-    this.DYNAMIC_LOGGER.info("Parsed config: {}", parsedConfig);
 
     // get task id and start time
     this.taskStartTime = System.currentTimeMillis();
