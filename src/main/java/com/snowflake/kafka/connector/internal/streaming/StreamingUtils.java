@@ -228,10 +228,10 @@ public class StreamingUtils {
     connectorConfig.computeIfPresent(
         Utils.NAME,
         (key, value) -> {
-          String connectorName = value;
-          int lastUnderscore = connectorName.lastIndexOf('_');
-          if (lastUnderscore != -1) {
-            connectorName = connectorName.substring(0, lastUnderscore);
+          String connectorName = value.replace('_', '-');
+          int lastHyphen = connectorName.lastIndexOf('-');
+          if (lastHyphen != -1) {
+            connectorName = connectorName.substring(0, lastHyphen);
           }
           streamingProperties.put(Utils.CONNECTOR_NAME, connectorName);
           return value;
