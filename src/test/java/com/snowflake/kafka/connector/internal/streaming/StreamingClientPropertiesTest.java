@@ -346,6 +346,7 @@ public class StreamingClientPropertiesTest {
     config1.put(Utils.NAME, "dogConnector");
     config1.put(SnowflakeSinkConnectorConfig.BUFFER_COUNT_RECORDS, "1000000");
 
+    config2.put(Utils.NAME, "dogConnector");
     // get properties
     StreamingClientProperties prop1 = new StreamingClientProperties(config1);
     StreamingClientProperties prop2 = new StreamingClientProperties(config2);
@@ -361,5 +362,16 @@ public class StreamingClientPropertiesTest {
 
     assert !prop1.equals(prop2);
     assert prop1.hashCode() != prop2.hashCode();
+  }
+
+  @Test
+  public void testStreamingClientPropertyConnectorName() {
+    Map<String, String> config1 = TestUtils.getConfForStreaming();
+    config1.put(Utils.NAME, "lcc1234_0_connector");
+    StreamingClientProperties prop1 = new StreamingClientProperties(config1);
+    assert "lcc1234-0".equals(prop1.clientProperties.getProperty(Utils.CONNECTOR_NAME));
+    config1.put(Utils.NAME, "catConnector");
+    prop1 = new StreamingClientProperties(config1);
+    assert "catConnector".equals(prop1.clientProperties.getProperty(Utils.CONNECTOR_NAME));
   }
 }

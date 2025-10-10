@@ -219,6 +219,25 @@ public class StreamingUtils {
         });
 
     connectorConfig.computeIfPresent(
+        Utils.TASK_ID,
+        (key, value) -> {
+          streamingProperties.put(Utils.TASK_ID, value);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
+        Utils.NAME,
+        (key, value) -> {
+          String connectorName = value.replace('_', '-');
+          int lastHyphen = connectorName.lastIndexOf('-');
+          if (lastHyphen != -1) {
+            connectorName = connectorName.substring(0, lastHyphen);
+          }
+          streamingProperties.put(Utils.CONNECTOR_NAME, connectorName);
+          return value;
+        });
+
+    connectorConfig.computeIfPresent(
         SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES,
         (key, value) -> {
           streamingProperties.put(SnowflakeSinkConnectorConfig.DISALLOW_CIDR_RANGES, value);
