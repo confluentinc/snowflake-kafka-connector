@@ -482,7 +482,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>3.23.0-6</version>
+            <version>3.23.0-7</version>
         </dependency>
 
         <dependency>
