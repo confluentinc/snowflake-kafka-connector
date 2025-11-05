@@ -658,6 +658,16 @@ public class ConnectorConfigDefinition {
             ConfigDef.Type.LONG,
             TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT,
             ConfigDef.Importance.LOW,
-            "Maximum total buffer size in bytes per task.");
+            "Maximum total buffer size in bytes per task.")
+        .define(
+            SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG,
+            ConfigDef.Type.BOOLEAN,
+            SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_DEFAULT,
+            ConfigDef.Importance.LOW,
+            SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_DOC,
+            CONNECTOR_CONFIG_DOC,
+            12,
+            ConfigDef.Width.NONE,
+            SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_DISPLAY);
   }
 }
