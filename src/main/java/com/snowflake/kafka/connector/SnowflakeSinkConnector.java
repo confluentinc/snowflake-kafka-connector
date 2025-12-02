@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
@@ -96,6 +98,30 @@ public class SnowflakeSinkConnector extends SinkConnector {
     setupComplete = false;
     connectorStartTime = System.currentTimeMillis();
     config = new HashMap<>(parsedConfig);
+    LOGGER.info("printing configs");
+    for (Map.Entry<String, String> entry : config.entrySet()) {
+      LOGGER.info("Config Key: {}, Config Value: {}", entry.getKey(), entry.getValue());
+    }
+
+    try {
+      Properties props = new Properties();
+      if (config != null) {
+        // Handle admin.override.* properties
+        for (Map.Entry<String, String> entry : config.entrySet()) {
+          String key = entry.getKey();
+          if (key.startsWith("admin.override.")) {
+            // Strip the prefix and use the rest of the key
+            props.put(key.substring("admin.override.".length()), entry.getValue());
+          }
+        }
+      }
+      try (AdminClient admin = AdminClient.create(props)) {
+        ListTopicsResult listTopicsResult = admin.listTopics();
+        System.out.println(listTopicsResult.names());
+      }
+    } catch (Exception e) {
+      LOGGER.error("Failed to create Kafka Admin Client: {}", e.getMessage());
+    }
 
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
 
