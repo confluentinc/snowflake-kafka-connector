@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ListTopicsResult;
@@ -117,7 +119,10 @@ public class SnowflakeSinkConnector extends SinkConnector {
       }
       try (AdminClient admin = AdminClient.create(props)) {
         ListTopicsResult listTopicsResult = admin.listTopics();
-        System.out.println(listTopicsResult.names());
+        Set<String> topicNames = listTopicsResult.names().get();
+        for (String topic : topicNames) {
+          LOGGER.info("topic" + topic);
+        }
       }
     } catch (Exception e) {
       LOGGER.error("Failed to create Kafka Admin Client: {}", e.getMessage());
