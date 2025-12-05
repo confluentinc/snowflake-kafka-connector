@@ -22,6 +22,7 @@ import com.snowflake.kafka.connector.config.ConnectorConfigDefinition;
 import com.snowflake.kafka.connector.config.IcebergConfigValidator;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
+import com.snowflake.kafka.connector.internal.TaskToTopicPartitionValidator;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
@@ -31,11 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 import java.util.regex.Pattern;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
@@ -77,6 +74,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
   private final ConnectorConfigValidator connectorConfigValidator =
       new DefaultConnectorConfigValidator(
           new DefaultStreamingConfigValidator(), new IcebergConfigValidator());
+  private TaskToTopicPartitionValidator taskToTopicPartitionValidator;
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
@@ -105,29 +103,6 @@ public class SnowflakeSinkConnector extends SinkConnector {
       LOGGER.info("Config Key: {}, Config Value: {}", entry.getKey(), entry.getValue());
     }
 
-    try {
-      Properties props = new Properties();
-      if (config != null) {
-        // Handle admin.override.* properties
-        for (Map.Entry<String, String> entry : config.entrySet()) {
-          String key = entry.getKey();
-          if (key.startsWith("admin.override.")) {
-            // Strip the prefix and use the rest of the key
-            props.put(key.substring("admin.override.".length()), entry.getValue());
-          }
-        }
-      }
-      try (AdminClient admin = AdminClient.create(props)) {
-        ListTopicsResult listTopicsResult = admin.listTopics();
-        Set<String> topicNames = listTopicsResult.names().get();
-        for (String topic : topicNames) {
-          LOGGER.info("topic" + topic);
-        }
-      }
-    } catch (Exception e) {
-      LOGGER.error("Failed to create Kafka Admin Client: {}", e.getMessage());
-    }
-
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
 
     // modify invalid connector name
@@ -149,6 +124,10 @@ public class SnowflakeSinkConnector extends SinkConnector {
     // config as a side effect
     conn = SnowflakeConnectionServiceFactory.builder().setProperties(config).build();
 
+    // Start task to topic partition validator
+    taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(config);
+    taskToTopicPartitionValidator.start();
+
     telemetryClient = conn.getTelemetryClient();
 
     telemetryClient.reportKafkaConnectStart(connectorStartTime, this.config);
@@ -168,6 +147,9 @@ public class SnowflakeSinkConnector extends SinkConnector {
    */
   @Override
   public void stop() {
+    if (taskToTopicPartitionValidator != null) {
+      taskToTopicPartitionValidator.stop();
+    }
     setupComplete = false;
     LOGGER.info("SnowflakeSinkConnector:stopped");
     telemetryClient.reportKafkaConnectStop(connectorStartTime);
