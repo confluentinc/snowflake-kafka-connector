@@ -1,71 +1,90 @@
 package com.snowflake.kafka.connector.internal;
 
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
-
-import java.net.ConnectException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.*;
-
-import net.snowflake.client.jdbc.internal.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.connect.connector.ConnectorContext;
+import org.apache.kafka.connect.errors.ConnectException;
 
 /**
- * Periodically validates that the total memory usage (partitions * buffer size) does not exceed a
- * safety threshold.
+ * Thread that periodically validates that the total memory usage (partitions * buffer size) does
+ * not exceed a safety threshold.
  *
  * <p>This class handles its own Kafka AdminClient lifecycle for checking partition counts.
  */
-public class TaskToTopicPartitionValidator {
+public class TaskToTopicPartitionValidator extends Thread {
   private static final KCLogger LOGGER =
       new KCLogger(TaskToTopicPartitionValidator.class.getName());
   private static final long MEMORY_LIMIT_BYTES = 500 * 1024 * 1024; // 500MB
-  private static final long VALIDATION_INTERVAL_MINUTES = 5; // Run every 5 minutes
+  private static final long DEFAULT_VALIDATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-  private final ScheduledExecutorService scheduler;
   private final Map<String, String> config;
+  private final ConnectorContext context;
+  private final CountDownLatch shutdownLatch;
+  private final long validationIntervalMs;
   private AdminClient adminClient;
 
-  public TaskToTopicPartitionValidator(Map<String, String> config) {
-    this(config, null);
+  public TaskToTopicPartitionValidator(Map<String, String> config, ConnectorContext context) {
+    this(config, context, null, DEFAULT_VALIDATION_INTERVAL_MS);
   }
 
-  public TaskToTopicPartitionValidator(Map<String, String> config, AdminClient adminClient) {
+  // Constructor for testing with custom interval
+  public TaskToTopicPartitionValidator(
+      Map<String, String> config,
+      ConnectorContext context,
+      AdminClient adminClient,
+      long validationIntervalMs) {
     this.config = config;
-    this.scheduler = Executors.newSingleThreadScheduledExecutor(
-        new ThreadFactoryBuilder().setNameFormat("task-to-topic-partitions-validator").build()
-    );
+    this.context = context;
     this.adminClient = adminClient;
+    this.validationIntervalMs = validationIntervalMs;
+    this.shutdownLatch = new CountDownLatch(1);
+    this.setName("task-to-topic-partitions-validator");
   }
 
-  public void start() {
-    LOGGER.info("Starting TaskToTopicPartitionValidator scheduler");
+  @Override
+  public void run() {
+    LOGGER.info("Starting TaskToTopicPartitionValidator thread.");
     // Initialize AdminClient if not provided
     if (this.adminClient == null) {
-      initializeAdminClient();
+      try {
+        initializeAdminClient();
+      } catch (Exception e) {
+        throw fail(e);
+      }
     }
 
-    scheduler.scheduleAtFixedRate(
-        this::validateTaskToTopicPartitions, 0, VALIDATION_INTERVAL_MINUTES, TimeUnit.MINUTES);
+    while (shutdownLatch.getCount() > 0) {
+      try {
+        validateTaskToTopicPartitions();
+      } catch (ConnectException e) {
+        throw fail(e);
+      }
+
+      try {
+        LOGGER.debug("Waiting {} ms to check for buffer size validation.", validationIntervalMs);
+        boolean shuttingDown = shutdownLatch.await(validationIntervalMs, TimeUnit.MILLISECONDS);
+        if (shuttingDown) {
+          return;
+        }
+      } catch (InterruptedException e) {
+        LOGGER.error("Unexpected InterruptedException, ignoring: ", e);
+      }
+    }
   }
 
-  public void stop() {
-    LOGGER.info("Stopping TaskToTopicPartitionValidator scheduler");
-    scheduler.shutdown();
-    try {
-      if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
-        scheduler.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      scheduler.shutdownNow();
-      Thread.currentThread().interrupt();
-    }
+  public void shutdown() {
+    LOGGER.info("Shutting down TaskToTopicPartitionValidator thread.");
+    shutdownLatch.countDown();
     closeAdminClient();
   }
 
@@ -106,94 +125,102 @@ public class TaskToTopicPartitionValidator {
     try {
       DescribeTopicsResult result = adminClient.describeTopics(topicNames);
       return result.allTopicNames().get();
-    } catch (InterruptedException | ExecutionException e) {
+    } catch (Exception e) {
       LOGGER.error("Failed to describe topics: {}", e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
-      // We don't throw here to avoid killing the scheduler thread entirely,
-      // just return null or empty so we can retry next time
       return null;
     }
   }
 
   // Visible for testing
   void validateTaskToTopicPartitions() {
-    try {
-      LOGGER.info("Validating buffer size configuration...");
+    LOGGER.info("Validating buffer size configuration...");
 
-      // Get topics from config
-      String topicsStr = config.get(SnowflakeSinkConnectorConfig.TOPICS);
-      if (topicsStr == null || topicsStr.isEmpty()) {
-        LOGGER.debug("No topics configured, skipping validation");
-        return;
-      }
-      List<String> topics = Arrays.asList(topicsStr.split(","));
-
-      // Get buffer size from config
-      long bufferSizeBytes = SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
-      String bufferSizeStr = config.get(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES);
-      if (bufferSizeStr != null) {
-        try {
-          bufferSizeBytes = Long.parseLong(bufferSizeStr);
-        } catch (NumberFormatException e) {
-          LOGGER.warn("Invalid buffer.size.bytes value: {}, using default", bufferSizeStr);
-        }
-      }
-
-      // Get tasks.max from config
-      int maxTasks = 1;
-      String maxTasksStr = config.get("tasks.max");
-      if (maxTasksStr != null) {
-        try {
-          maxTasks = Integer.parseInt(maxTasksStr);
-        } catch (NumberFormatException e) {
-          LOGGER.warn("Invalid tasks.max value: {}, using default 1", maxTasksStr);
-        }
-      }
-      // remove this condition ( not needed probably )
-      if (maxTasks < 1) {
-        maxTasks = 1;
-      }
-
-      // Get partition counts
-      Map<String, TopicDescription> descriptions = describeTopics(topics);
-      if (descriptions == null) {
-        LOGGER.warn("Could not describe topics, skipping validating TaskToTopicPartitions.");
-        return;
-      }
-
-      int totalPartitions = 0;
-      for (TopicDescription desc : descriptions.values()) {
-        totalPartitions += desc.partitions().size();
-      }
-
-      // Calculate total memory usage
-      long totalMemoryUsage = (totalPartitions * bufferSizeBytes) / maxTasks;
-      LOGGER.info(
-          "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Total memory usage: {} bytes",
-          totalPartitions,
-          bufferSizeBytes,
-          maxTasks,
-          totalMemoryUsage);
-
-      if (totalMemoryUsage > MEMORY_LIMIT_BYTES) {
-        long requiredTasks = (totalPartitions * bufferSizeBytes + MEMORY_LIMIT_BYTES - 1) / MEMORY_LIMIT_BYTES;
-        String errorMessage =
-            String.format(
-                "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
-                    + "Please increase tasks.max to at least %d or decrease buffer.size.bytes",
-                totalMemoryUsage, MEMORY_LIMIT_BYTES, requiredTasks);
-
-        LOGGER.error(errorMessage);
-        throw new RuntimeException(errorMessage);
-      }
-
-    } catch (RuntimeException ce) {
-      // MUST rethrow so the connector actually stops
-      throw ce;
-    } catch (Exception e) {
-      LOGGER.error("Error during buffer size validation: {}", e.getMessage());
+    // Get topics from config
+    String topicsStr = config.get(SnowflakeSinkConnectorConfig.TOPICS);
+    if (topicsStr == null || topicsStr.isEmpty()) {
+      LOGGER.debug("No topics configured, skipping validation");
+      return;
     }
+    List<String> topics = Arrays.asList(topicsStr.split(","));
+
+    // Get buffer size from config
+    long bufferSizeBytes = SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
+    String bufferSizeStr = config.get(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES);
+    if (bufferSizeStr != null) {
+      try {
+        bufferSizeBytes = Long.parseLong(bufferSizeStr);
+      } catch (NumberFormatException e) {
+        LOGGER.warn("Invalid buffer.size.bytes value: {}, using default", bufferSizeStr);
+      }
+    }
+
+    // Get tasks.max from config
+    int maxTasks = 1;
+    String maxTasksStr = config.get("tasks.max");
+    if (maxTasksStr != null) {
+      try {
+        maxTasks = Integer.parseInt(maxTasksStr);
+      } catch (NumberFormatException e) {
+        LOGGER.warn("Invalid tasks.max value: {}, using default 1", maxTasksStr);
+      }
+    }
+
+    // Get partition counts
+    Map<String, TopicDescription> descriptions = describeTopics(topics);
+    if (descriptions == null) {
+      LOGGER.warn("Could not describe topics, skipping validating TaskToTopicPartitions.");
+      return;
+    }
+
+    int totalPartitions = 0;
+    for (TopicDescription desc : descriptions.values()) {
+      totalPartitions += desc.partitions().size();
+    }
+
+    // Calculate total memory usage
+    long totalMemoryUsage = (totalPartitions * bufferSizeBytes) / maxTasks;
+    LOGGER.info(
+        "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Total potential memory usage per task: {} bytes",
+        totalPartitions,
+        bufferSizeBytes,
+        maxTasks,
+        totalMemoryUsage);
+
+    if (totalMemoryUsage > MEMORY_LIMIT_BYTES) {
+      long requiredTasks =
+          (totalPartitions * bufferSizeBytes + MEMORY_LIMIT_BYTES - 1) / MEMORY_LIMIT_BYTES;
+      String errorMessage =
+          String.format(
+              "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
+                  + "Please increase tasks.max to at least %d or decrease buffer.size.bytes",
+              totalMemoryUsage, MEMORY_LIMIT_BYTES, requiredTasks);
+
+      // This will be caught by the run() loop and call fail()
+      throw new ConnectException(errorMessage);
+    }
+  }
+
+  /**
+   * Fail the connector with an unrecoverable error and stop the validator thread
+   *
+   * @param t the cause of the failure
+   * @return a {@link RuntimeException} that can be thrown from the calling method
+   */
+  private RuntimeException fail(Throwable t) {
+    String message = "Encountered an unrecoverable error during task to topic partition validation";
+    LOGGER.error(message, t);
+    RuntimeException exception = new ConnectException(message, t);
+    
+    // Raise error to the ConnectorContext if available
+    if (context != null) {
+        context.raiseError(exception);
+    }
+    
+    // Preemptively shut down the monitoring thread
+    shutdownLatch.countDown();
+    return exception;
   }
 }

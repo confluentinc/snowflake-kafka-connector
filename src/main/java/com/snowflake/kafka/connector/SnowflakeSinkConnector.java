@@ -125,7 +125,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
     conn = SnowflakeConnectionServiceFactory.builder().setProperties(config).build();
 
     // Start task to topic partition validator
-    taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(config);
+    taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(config, context);
     taskToTopicPartitionValidator.start();
 
     telemetryClient = conn.getTelemetryClient();
@@ -148,7 +148,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
   @Override
   public void stop() {
     if (taskToTopicPartitionValidator != null) {
-      taskToTopicPartitionValidator.stop();
+      taskToTopicPartitionValidator.shutdown();
     }
     setupComplete = false;
     LOGGER.info("SnowflakeSinkConnector:stopped");
