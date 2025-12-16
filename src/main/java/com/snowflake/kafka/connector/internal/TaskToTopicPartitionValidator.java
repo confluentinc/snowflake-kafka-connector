@@ -217,6 +217,7 @@ public class TaskToTopicPartitionValidator extends Thread {
     // Raise error to the ConnectorContext if available
     if (context != null) {
         context.raiseError(exception);
+        context.requestTaskReconfiguration();
     }
     
     // Preemptively shut down the monitoring thread
