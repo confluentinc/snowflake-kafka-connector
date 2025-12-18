@@ -129,6 +129,9 @@ public class SnowflakeSinkConnectorConfig {
   // JDBC properties map
   public static final String SNOWFLAKE_JDBC_MAP = "snowflake.jdbc.map";
 
+  // OCSP configuration to be injected to the JDBC properties map
+  public static final String SNOWFLAKE_DISABLE_OCSP_CHECKS = "snowflake.disable.ocsp.checks";
+
   // Snowflake Metadata Flags
   public static final String SNOWFLAKE_METADATA_CREATETIME = "snowflake.metadata.createtime";
   public static final String SNOWFLAKE_METADATA_TOPIC = "snowflake.metadata.topic";
