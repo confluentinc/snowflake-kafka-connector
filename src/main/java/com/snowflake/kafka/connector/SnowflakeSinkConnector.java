@@ -22,7 +22,6 @@ import com.snowflake.kafka.connector.config.ConnectorConfigDefinition;
 import com.snowflake.kafka.connector.config.IcebergConfigValidator;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
-import com.snowflake.kafka.connector.internal.TaskToTopicPartitionValidator;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
@@ -74,7 +73,6 @@ public class SnowflakeSinkConnector extends SinkConnector {
   private final ConnectorConfigValidator connectorConfigValidator =
       new DefaultConnectorConfigValidator(
           new DefaultStreamingConfigValidator(), new IcebergConfigValidator());
-  private TaskToTopicPartitionValidator taskToTopicPartitionValidator;
 
   /** No-Arg constructor. Required by Kafka Connect framework */
   public SnowflakeSinkConnector() {
@@ -124,10 +122,6 @@ public class SnowflakeSinkConnector extends SinkConnector {
     // config as a side effect
     conn = SnowflakeConnectionServiceFactory.builder().setProperties(config).build();
 
-    // Start task to topic partition validator
-    taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(config, context);
-    taskToTopicPartitionValidator.start();
-
     telemetryClient = conn.getTelemetryClient();
 
     telemetryClient.reportKafkaConnectStart(connectorStartTime, this.config);
@@ -147,9 +141,6 @@ public class SnowflakeSinkConnector extends SinkConnector {
    */
   @Override
   public void stop() {
-    if (taskToTopicPartitionValidator != null) {
-      taskToTopicPartitionValidator.shutdown();
-    }
     setupComplete = false;
     LOGGER.info("SnowflakeSinkConnector:stopped");
     telemetryClient.reportKafkaConnectStop(connectorStartTime);

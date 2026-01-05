@@ -1,10 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
 import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -15,12 +12,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartitionInfo;
-import org.apache.kafka.connect.connector.ConnectorContext;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -35,13 +32,14 @@ import org.mockito.invocation.InvocationOnMock;
 public class TaskToTopicPartitionValidatorTest {
 
   private static final long DEFAULT_VALIDATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  private static final String TEST_TASK_CONFIG_ID = "test-task-0";
 
   @Mock private AdminClient adminClient;
   @Mock private DescribeTopicsResult describeTopicsResult;
   @Mock private KafkaFuture<Map<String, TopicDescription>> kafkaFuture;
-  @Mock private ConnectorContext connectorContext;
 
   private Map<String, String> config;
+  private AtomicReference<Throwable> failure;
   private TaskToTopicPartitionValidator validator;
 
   @BeforeEach
@@ -52,9 +50,10 @@ public class TaskToTopicPartitionValidatorTest {
     config.put(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES, "10000000"); // 10MB
     config.put("tasks.max", "1");
 
+    failure = new AtomicReference<>();
     validator =
         new TaskToTopicPartitionValidator(
-            config, connectorContext, adminClient, DEFAULT_VALIDATION_INTERVAL_MS);
+            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
   }
 
   @AfterEach
@@ -84,6 +83,9 @@ public class TaskToTopicPartitionValidatorTest {
 
     // Verify interactions
     verify(adminClient).describeTopics(anyCollection());
+
+    // Verify no failure was set
+    Assertions.assertNull(failure.get(), "No failure should be set for valid configuration");
   }
 
   @Test
@@ -101,7 +103,7 @@ public class TaskToTopicPartitionValidatorTest {
     when(describeTopicsResult.allTopicNames()).thenReturn(kafkaFuture);
     when(kafkaFuture.get()).thenReturn(descriptions);
 
-    // Execute validation (should log error)
+    // Execute validation (should throw exception)
     assertThrows(ConnectException.class, validator::validateTaskToTopicPartitions);
 
     // Verify interactions
@@ -110,11 +112,11 @@ public class TaskToTopicPartitionValidatorTest {
 
   @Test
   public void testValidate_HighUsageWithEnoughTasks() throws Exception {
-    // 60 partitions * 10MB = 600MB > 500MB
+    // 60 partitions * 10MB = 600MB, but with 2 tasks: 600MB / 2 = 300MB < 500MB
     config.put("tasks.max", "2");
     validator =
         new TaskToTopicPartitionValidator(
-            config, connectorContext, adminClient, DEFAULT_VALIDATION_INTERVAL_MS);
+            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
 
     TopicDescription topicDescription =
         new TopicDescription(
@@ -132,6 +134,9 @@ public class TaskToTopicPartitionValidatorTest {
 
     // Verify interactions
     verify(adminClient).describeTopics(anyCollection());
+
+    // Verify no failure was set
+    Assertions.assertNull(failure.get(), "No failure should be set when tasks.max is sufficient");
   }
 
   @Test
@@ -139,7 +144,7 @@ public class TaskToTopicPartitionValidatorTest {
     config.put("tasks.max", "invalid");
     validator =
         new TaskToTopicPartitionValidator(
-            config, connectorContext, adminClient, DEFAULT_VALIDATION_INTERVAL_MS);
+            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
 
     TopicDescription topicDescription =
         new TopicDescription(
@@ -188,9 +193,10 @@ public class TaskToTopicPartitionValidatorTest {
     // Setup config with specified buffer size
     config.put(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES, String.valueOf(bufferSize));
     config.put("tasks.max", "1");
+    failure = new AtomicReference<>();
     validator =
         new TaskToTopicPartitionValidator(
-            config, connectorContext, adminClient, DEFAULT_VALIDATION_INTERVAL_MS);
+            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
 
     // Create topic description with specified partition count
     TopicDescription topicDescription =
@@ -214,10 +220,8 @@ public class TaskToTopicPartitionValidatorTest {
           assertThrows(ConnectException.class, validator::validateTaskToTopicPartitions);
 
       String expectedMessage = "tasks.max to at least " + expectedRequiredTasks;
-      assertTrue(
-          "Exception message should contain 'tasks.max to at least " + expectedRequiredTasks + "' but was: "
-              + exception.getMessage(),
-          exception.getMessage().contains(expectedMessage));
+      Assertions.assertTrue(exception.getMessage().contains(expectedMessage), "Exception message should contain 'tasks.max to at least " + expectedRequiredTasks + "' but was: "
+          + exception.getMessage());
     } else {
       // Should pass without exception
       validator.validateTaskToTopicPartitions();
@@ -233,14 +237,16 @@ public class TaskToTopicPartitionValidatorTest {
    * 1. Thread starts with a short validation interval (500ms)
    * 2. First validation call returns 10 partitions (passes - 10 * 10MB = 100MB < 500MB)
    * 3. Second validation call returns 100 partitions (fails - 100 * 10MB = 1000MB > 500MB)
-   * 4. Verify context.raiseError() is called
+   * 4. Verify failure AtomicReference is set
    */
   @Test
   public void testThreadLifecycle_PartitionCountIncreases_FailsConnector() throws Exception {
     // Use a short validation interval for testing (500ms)
     long shortIntervalMs = 500;
+    failure = new AtomicReference<>();
     validator =
-        new TaskToTopicPartitionValidator(config, connectorContext, adminClient, shortIntervalMs);
+        new TaskToTopicPartitionValidator(
+            config, adminClient, shortIntervalMs, failure, TEST_TASK_CONFIG_ID);
 
     // Track how many times describeTopics is called
     AtomicInteger callCount = new AtomicInteger(0);
@@ -274,21 +280,22 @@ public class TaskToTopicPartitionValidatorTest {
     // Start the validator thread
     validator.start();
 
-    // Wait for context.raiseError to be called (with timeout)
+    // Wait for the thread to process at least 2 validation cycles
     // The thread should:
     // 1. Run first validation (pass)
     // 2. Wait 500ms
     // 3. Run second validation (fail)
-    // 4. Call context.raiseError()
-    verify(connectorContext, timeout(3000)).raiseError(any(ConnectException.class));
+    // 4. Set failure and stop
+    verify(adminClient, timeout(3000).atLeast(2)).describeTopics(anyCollection());
 
-    // Verify that describeTopics was called at least twice
-    verify(adminClient, atLeast(2)).describeTopics(anyCollection());
+    // Wait for the thread to fully stop
+    validator.join(1000);
+
+    // Verify that failure was set
+    Assertions.assertNotNull(failure.get(), "Failure should be set when validation fails");
+    Assertions.assertInstanceOf(ConnectException.class, failure.get(), "Failure should be a ConnectException");
 
     // The thread should have stopped itself after failing
-    // Give it a moment to fully stop
-    Thread.sleep(100);
     Assertions.assertFalse(validator.isAlive(), "Validator thread should not be alive after failure");
   }
 }
-

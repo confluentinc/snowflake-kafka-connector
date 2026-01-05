@@ -27,6 +27,7 @@ import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkService;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkServiceFactory;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
+import com.snowflake.kafka.connector.internal.TaskToTopicPartitionValidator;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import java.util.Collection;
 import java.util.HashMap;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -43,7 +45,6 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
-
 /**
  * SnowflakeSinkTask implements SinkTask for Kafka Connect framework.
  *
@@ -92,6 +93,9 @@ public class SnowflakeSinkTask extends SinkTask {
 
   private final SnowflakeSinkTaskAuthorizationExceptionTracker authorizationExceptionTracker =
       new SnowflakeSinkTaskAuthorizationExceptionTracker();
+
+  private TaskToTopicPartitionValidator taskToTopicPartitionValidator;
+  private final AtomicReference<Throwable> taskToTopicPartitionValidatorFailure = new AtomicReference<>();
 
   /** default constructor, invoked by kafka connect framework */
   public SnowflakeSinkTask() {
@@ -239,6 +243,10 @@ public class SnowflakeSinkTask extends SinkTask {
             .setSinkTaskContext(this.context)
             .build();
 
+    // Start task to topic partition validator
+    taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
+    taskToTopicPartitionValidator.start();
+
     DYNAMIC_LOGGER.info(
         "task started, execution time: {} milliseconds",
         this.taskConfigId,
@@ -254,6 +262,10 @@ public class SnowflakeSinkTask extends SinkTask {
    */
   @Override
   public void stop() {
+    if (taskToTopicPartitionValidator != null) {
+      taskToTopicPartitionValidator.shutdown();
+    }
+
     if (this.sink != null) {
       this.sink.stop();
     }
@@ -307,6 +319,10 @@ public class SnowflakeSinkTask extends SinkTask {
   @Override
   public void put(final Collection<SinkRecord> records) {
     this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
+    Throwable t = this.taskToTopicPartitionValidatorFailure.get();
+    if (t != null) {
+      throw new ConnectException("taskToTopicPartitionValidator thread failed", t);
+    }
 
     final long recordSize = records.size();
     if (enableRebalancing && recordSize > 0) {

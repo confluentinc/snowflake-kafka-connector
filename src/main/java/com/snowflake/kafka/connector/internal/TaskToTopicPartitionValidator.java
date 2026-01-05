@@ -8,11 +8,13 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.snowflake.kafka.connector.Utils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.connect.connector.ConnectorContext;
 import org.apache.kafka.connect.errors.ConnectException;
 
 /**
@@ -28,27 +30,28 @@ public class TaskToTopicPartitionValidator extends Thread {
   private static final long DEFAULT_VALIDATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   private final Map<String, String> config;
-  private final ConnectorContext context;
+  private final AtomicReference<Throwable> failure;
   private final CountDownLatch shutdownLatch;
   private final long validationIntervalMs;
   private AdminClient adminClient;
 
-  public TaskToTopicPartitionValidator(Map<String, String> config, ConnectorContext context) {
-    this(config, context, null, DEFAULT_VALIDATION_INTERVAL_MS);
+  public TaskToTopicPartitionValidator(Map<String, String> config, AtomicReference<Throwable> failure, String taskConfigId) {
+    this(config, null, DEFAULT_VALIDATION_INTERVAL_MS, failure, taskConfigId);
   }
 
   // Constructor for testing with custom interval
   public TaskToTopicPartitionValidator(
       Map<String, String> config,
-      ConnectorContext context,
       AdminClient adminClient,
-      long validationIntervalMs) {
+      long validationIntervalMs,
+      AtomicReference<Throwable> failure,
+      String taskConfigId) {
     this.config = config;
-    this.context = context;
     this.adminClient = adminClient;
     this.validationIntervalMs = validationIntervalMs;
     this.shutdownLatch = new CountDownLatch(1);
-    this.setName("task-to-topic-partitions-validator");
+    this.setName(config.get(Utils.NAME) + "-" + taskConfigId + "-task-to-topic-partitions-validator");
+    this.failure = failure;
   }
 
   @Override
@@ -213,13 +216,7 @@ public class TaskToTopicPartitionValidator extends Thread {
     String message = "Encountered an unrecoverable error during task to topic partition validation";
     LOGGER.error(message, t);
     RuntimeException exception = new ConnectException(message, t);
-    
-    // Raise error to the ConnectorContext if available
-    if (context != null) {
-        context.raiseError(exception);
-        context.requestTaskReconfiguration();
-    }
-    
+    failure.set(t);
     // Preemptively shut down the monitoring thread
     shutdownLatch.countDown();
     return exception;
