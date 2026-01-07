@@ -17,6 +17,9 @@ import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.connect.errors.ConnectException;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
+
 /**
  * Thread that periodically validates that the total memory usage (partitions * buffer size) does
  * not exceed a safety threshold.
@@ -26,29 +29,40 @@ import org.apache.kafka.connect.errors.ConnectException;
 public class TaskToTopicPartitionValidator extends Thread {
   private static final KCLogger LOGGER =
       new KCLogger(TaskToTopicPartitionValidator.class.getName());
-  private static final long MEMORY_LIMIT_BYTES = 500 * 1024 * 1024; // 500MB
+  private static final long DEFAULT_MEMORY_LIMIT_BYTES = 500 * 1024 * 1024; // 500MB
   private static final long DEFAULT_VALIDATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   private final Map<String, String> config;
   private final AtomicReference<Throwable> failure;
   private final CountDownLatch shutdownLatch;
   private final long validationIntervalMs;
+  private final long memoryLimitBytes;
   private AdminClient adminClient;
 
   public TaskToTopicPartitionValidator(Map<String, String> config, AtomicReference<Throwable> failure, String taskConfigId) {
-    this(config, null, DEFAULT_VALIDATION_INTERVAL_MS, failure, taskConfigId);
+    this(config, null, failure, taskConfigId);
   }
 
   // Constructor for testing with custom interval
   public TaskToTopicPartitionValidator(
       Map<String, String> config,
       AdminClient adminClient,
-      long validationIntervalMs,
       AtomicReference<Throwable> failure,
       String taskConfigId) {
     this.config = config;
     this.adminClient = adminClient;
-    this.validationIntervalMs = validationIntervalMs;
+    this.validationIntervalMs = Long.parseLong(
+        config.getOrDefault(
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
+            String.valueOf(DEFAULT_VALIDATION_INTERVAL_MS)
+        )
+    );
+    this.memoryLimitBytes = Long.parseLong(
+        config.getOrDefault(
+            TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
+            String.valueOf(DEFAULT_MEMORY_LIMIT_BYTES)
+        )
+    );
     this.shutdownLatch = new CountDownLatch(1);
     this.setName(config.get(Utils.NAME) + "-" + taskConfigId + "-task-to-topic-partitions-validator");
     this.failure = failure;
@@ -89,6 +103,26 @@ public class TaskToTopicPartitionValidator extends Thread {
     LOGGER.info("Shutting down TaskToTopicPartitionValidator thread.");
     shutdownLatch.countDown();
     closeAdminClient();
+  }
+
+  /**
+   * Run initial validation synchronously before starting the thread.
+   * This method should be called before start() to fail fast if validation fails.
+   *
+   * @throws ConnectException if validation fails
+   */
+  public void runInitialValidation() {
+    LOGGER.info("Running initial TaskToTopicPartition validation...");
+    
+    // Initialize AdminClient if not already provided (for testing)
+    if (this.adminClient == null) {
+      initializeAdminClient();
+    }
+    
+    // Run validation - will throw ConnectException if it fails
+    validateTaskToTopicPartitions();
+    
+    LOGGER.info("Initial TaskToTopicPartition validation passed.");
   }
 
   private void initializeAdminClient() {
@@ -192,14 +226,14 @@ public class TaskToTopicPartitionValidator extends Thread {
         maxTasks,
         totalMemoryUsage);
 
-    if (totalMemoryUsage > MEMORY_LIMIT_BYTES) {
+    if (totalMemoryUsage > this.memoryLimitBytes) {
       long requiredTasks =
-          (totalPartitions * bufferSizeBytes + MEMORY_LIMIT_BYTES - 1) / MEMORY_LIMIT_BYTES;
+          (totalPartitions * bufferSizeBytes + this.memoryLimitBytes - 1) / this.memoryLimitBytes;
       String errorMessage =
           String.format(
               "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
                   + "Please increase tasks.max to at least %d or decrease buffer.size.bytes",
-              totalMemoryUsage, MEMORY_LIMIT_BYTES, requiredTasks);
+              totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
 
       // This will be caught by the run() loop and call fail()
       throw new ConnectException(errorMessage);

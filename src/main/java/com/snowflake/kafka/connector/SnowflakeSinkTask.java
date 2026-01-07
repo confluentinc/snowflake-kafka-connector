@@ -245,6 +245,7 @@ public class SnowflakeSinkTask extends SinkTask {
 
     // Start task to topic partition validator
     taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
+    taskToTopicPartitionValidator.runInitialValidation();
     taskToTopicPartitionValidator.start();
 
     DYNAMIC_LOGGER.info(

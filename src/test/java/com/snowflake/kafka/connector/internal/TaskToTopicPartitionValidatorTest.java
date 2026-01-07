@@ -1,5 +1,6 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
@@ -53,7 +54,7 @@ public class TaskToTopicPartitionValidatorTest {
     failure = new AtomicReference<>();
     validator =
         new TaskToTopicPartitionValidator(
-            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
+            config, adminClient, failure, TEST_TASK_CONFIG_ID);
   }
 
   @AfterEach
@@ -116,7 +117,7 @@ public class TaskToTopicPartitionValidatorTest {
     config.put("tasks.max", "2");
     validator =
         new TaskToTopicPartitionValidator(
-            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
+            config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     TopicDescription topicDescription =
         new TopicDescription(
@@ -144,7 +145,7 @@ public class TaskToTopicPartitionValidatorTest {
     config.put("tasks.max", "invalid");
     validator =
         new TaskToTopicPartitionValidator(
-            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
+            config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     TopicDescription topicDescription =
         new TopicDescription(
@@ -196,7 +197,7 @@ public class TaskToTopicPartitionValidatorTest {
     failure = new AtomicReference<>();
     validator =
         new TaskToTopicPartitionValidator(
-            config, adminClient, DEFAULT_VALIDATION_INTERVAL_MS, failure, TEST_TASK_CONFIG_ID);
+            config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     // Create topic description with specified partition count
     TopicDescription topicDescription =
@@ -242,11 +243,11 @@ public class TaskToTopicPartitionValidatorTest {
   @Test
   public void testThreadLifecycle_PartitionCountIncreases_FailsConnector() throws Exception {
     // Use a short validation interval for testing (500ms)
-    long shortIntervalMs = 500;
     failure = new AtomicReference<>();
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS, String.valueOf(500));
     validator =
         new TaskToTopicPartitionValidator(
-            config, adminClient, shortIntervalMs, failure, TEST_TASK_CONFIG_ID);
+            config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     // Track how many times describeTopics is called
     AtomicInteger callCount = new AtomicInteger(0);

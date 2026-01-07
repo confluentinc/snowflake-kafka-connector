@@ -291,6 +291,11 @@ public class SnowflakeSinkConnectorConfig {
           "com.snowflake.kafka.connector.records.SnowflakeAvroConverterWithoutSchemaRegistry",
           "com.snowflake.kafka.connector.records.SnowflakeAvroConverter");
 
+  public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS =
+      "task.to.topic.partitions.validation.interval.ms";
+  public static final String TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES =
+      "task.to.topic.partitions.memory.limit.bytes";
+
   public static void setDefaultValues(Map<String, String> config) {
     setFieldToDefaultValues(config, BUFFER_COUNT_RECORDS, BUFFER_COUNT_RECORDS_DEFAULT, "");
 
