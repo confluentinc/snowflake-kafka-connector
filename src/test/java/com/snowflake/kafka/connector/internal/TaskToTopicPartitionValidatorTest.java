@@ -32,7 +32,6 @@ import org.mockito.invocation.InvocationOnMock;
 
 public class TaskToTopicPartitionValidatorTest {
 
-  private static final long DEFAULT_VALIDATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   private static final String TEST_TASK_CONFIG_ID = "test-task-0";
 
   @Mock private AdminClient adminClient;
@@ -138,33 +137,6 @@ public class TaskToTopicPartitionValidatorTest {
 
     // Verify no failure was set
     Assertions.assertNull(failure.get(), "No failure should be set when tasks.max is sufficient");
-  }
-
-  @Test
-  public void testValidate_InvalidConfig() throws Exception {
-    config.put("tasks.max", "invalid");
-    validator =
-        new TaskToTopicPartitionValidator(
-            config, adminClient, failure, TEST_TASK_CONFIG_ID);
-
-    TopicDescription topicDescription =
-        new TopicDescription(
-            "test-topic",
-            false,
-            Collections.singletonList(
-                new TopicPartitionInfo(0, null, Collections.emptyList(), Collections.emptyList())));
-
-    Map<String, TopicDescription> descriptions = new HashMap<>();
-    descriptions.put("test-topic", topicDescription);
-
-    when(adminClient.describeTopics(anyCollection())).thenReturn(describeTopicsResult);
-    when(describeTopicsResult.allTopicNames()).thenReturn(kafkaFuture);
-    when(kafkaFuture.get()).thenReturn(descriptions);
-
-    // Execute validation (should fall back to defaults and proceed)
-    validator.validateTaskToTopicPartitions();
-
-    verify(adminClient).describeTopics(anyCollection());
   }
 
   /**

@@ -113,15 +113,11 @@ public class TaskToTopicPartitionValidator extends Thread {
    */
   public void runInitialValidation() {
     LOGGER.info("Running initial TaskToTopicPartition validation...");
-    
-    // Initialize AdminClient if not already provided (for testing)
     if (this.adminClient == null) {
       initializeAdminClient();
     }
-    
     // Run validation - will throw ConnectException if it fails
     validateTaskToTopicPartitions();
-    
     LOGGER.info("Initial TaskToTopicPartition validation passed.");
   }
 
@@ -173,7 +169,7 @@ public class TaskToTopicPartitionValidator extends Thread {
 
   // Visible for testing
   void validateTaskToTopicPartitions() {
-    LOGGER.info("Validating buffer size configuration...");
+    LOGGER.debug("Validating buffer size configuration...");
 
     // Get topics from config
     String topicsStr = config.get(SnowflakeSinkConnectorConfig.TOPICS);

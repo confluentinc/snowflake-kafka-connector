@@ -96,10 +96,6 @@ public class SnowflakeSinkConnector extends SinkConnector {
     setupComplete = false;
     connectorStartTime = System.currentTimeMillis();
     config = new HashMap<>(parsedConfig);
-    LOGGER.info("printing configs");
-    for (Map.Entry<String, String> entry : config.entrySet()) {
-      LOGGER.info("Config Key: {}, Config Value: {}", entry.getKey(), entry.getValue());
-    }
 
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
 

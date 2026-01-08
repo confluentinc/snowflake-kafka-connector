@@ -45,6 +45,7 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
+
 /**
  * SnowflakeSinkTask implements SinkTask for Kafka Connect framework.
  *
@@ -95,7 +96,8 @@ public class SnowflakeSinkTask extends SinkTask {
       new SnowflakeSinkTaskAuthorizationExceptionTracker();
 
   private TaskToTopicPartitionValidator taskToTopicPartitionValidator;
-  private final AtomicReference<Throwable> taskToTopicPartitionValidatorFailure = new AtomicReference<>();
+  private final AtomicReference<Throwable> taskToTopicPartitionValidatorFailure =
+      new AtomicReference<>();
 
   /** default constructor, invoked by kafka connect framework */
   public SnowflakeSinkTask() {
@@ -156,10 +158,6 @@ public class SnowflakeSinkTask extends SinkTask {
   @Override
   public void start(final Map<String, String> parsedConfig) {
     this.DYNAMIC_LOGGER.info("starting task...");
-    this.DYNAMIC_LOGGER.info("printing configs");
-    for (Map.Entry<String, String> entry : parsedConfig.entrySet()) {
-      this.DYNAMIC_LOGGER.info("Config Key: {}, Config Value: {}", entry.getKey(), entry.getValue());
-    }
 
     // get task id and start time
     this.taskStartTime = System.currentTimeMillis();
@@ -244,7 +242,9 @@ public class SnowflakeSinkTask extends SinkTask {
             .build();
 
     // Start task to topic partition validator
-    taskToTopicPartitionValidator = new TaskToTopicPartitionValidator(parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
+    taskToTopicPartitionValidator =
+        new TaskToTopicPartitionValidator(
+            parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
     taskToTopicPartitionValidator.runInitialValidation();
     taskToTopicPartitionValidator.start();
 
@@ -320,9 +320,9 @@ public class SnowflakeSinkTask extends SinkTask {
   @Override
   public void put(final Collection<SinkRecord> records) {
     this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
-    Throwable t = this.taskToTopicPartitionValidatorFailure.get();
-    if (t != null) {
-      throw new ConnectException("taskToTopicPartitionValidator thread failed", t);
+    Throwable taskToTopicPartitionValidationFailure = this.taskToTopicPartitionValidatorFailure.get();
+    if (taskToTopicPartitionValidationFailure != null) {
+      throw new ConnectException(taskToTopicPartitionValidationFailure);
     }
 
     final long recordSize = records.size();
