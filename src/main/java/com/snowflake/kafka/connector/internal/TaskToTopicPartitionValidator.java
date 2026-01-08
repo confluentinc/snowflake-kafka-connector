@@ -18,7 +18,9 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.connect.errors.ConnectException;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT;
 
 /**
  * Thread that periodically validates that the total memory usage (partitions * buffer size) does
@@ -54,13 +56,13 @@ public class TaskToTopicPartitionValidator extends Thread {
     this.validationIntervalMs = Long.parseLong(
         config.getOrDefault(
             TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
-            String.valueOf(DEFAULT_VALIDATION_INTERVAL_MS)
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT
         )
     );
     this.memoryLimitBytes = Long.parseLong(
         config.getOrDefault(
             TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
-            String.valueOf(DEFAULT_MEMORY_LIMIT_BYTES)
+            TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT
         )
     );
     this.shutdownLatch = new CountDownLatch(1);
