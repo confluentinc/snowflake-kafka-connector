@@ -31,9 +31,6 @@ import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO
 public class TaskToTopicPartitionValidator extends Thread {
   private static final KCLogger LOGGER =
       new KCLogger(TaskToTopicPartitionValidator.class.getName());
-  private static final long DEFAULT_MEMORY_LIMIT_BYTES = 500 * 1024 * 1024; // 500MB
-  private static final long DEFAULT_VALIDATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
   private final Map<String, String> config;
   private final AtomicReference<Throwable> failure;
   private final CountDownLatch shutdownLatch;
@@ -56,13 +53,13 @@ public class TaskToTopicPartitionValidator extends Thread {
     this.validationIntervalMs = Long.parseLong(
         config.getOrDefault(
             TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
-            TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT
+            String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT)
         )
     );
     this.memoryLimitBytes = Long.parseLong(
         config.getOrDefault(
             TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
-            TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT
+            String.valueOf(TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT)
         )
     );
     this.shutdownLatch = new CountDownLatch(1);

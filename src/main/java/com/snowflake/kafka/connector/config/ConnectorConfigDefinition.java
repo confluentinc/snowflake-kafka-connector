@@ -620,13 +620,13 @@ public class ConnectorConfigDefinition {
             ENABLE_CHANNEL_OFFSET_TOKEN_VERIFICATION_FUNCTION_DISPLAY)
         .define(
             TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
-            ConfigDef.Type.STRING,
+            ConfigDef.Type.LONG,
             TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT,
             ConfigDef.Importance.LOW,
             "The interval (in milliseconds) at which the task-to-topic-partitions validator runs.")
         .define(
             TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
-            ConfigDef.Type.STRING,
+            ConfigDef.Type.LONG,
             TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT,
             ConfigDef.Importance.LOW,
             "The maximum amount of memory (in bytes) allocated per task for validating task-to-topic-partitions.");
