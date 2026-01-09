@@ -150,4 +150,64 @@ public class InternalUtilsTest {
     // then
     assertEquals(jdbcPropertiesMap.size(), 5);
   }
+
+  @Test
+  public void parseJdbcPropertiesMapWithOCSPPropertiesTest() {
+    String key = "snowflake.jdbc.map";
+    String input = "ocspFailOpen:true, disableOCSPChecks:false, ocspResponseCacheSize:1000";
+    Map<String, String> config = new HashMap<>();
+    config.put(key, input);
+    Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(config);
+    assertEquals(jdbcPropertiesMap.size(), 3);
+    assertEquals("true", jdbcPropertiesMap.getProperty("ocspFailOpen"));
+    assertEquals("false", jdbcPropertiesMap.getProperty("disableOCSPChecks"));
+    assertEquals("1000", jdbcPropertiesMap.getProperty("ocspResponseCacheSize"));
+  }
+
+  @Test
+  public void parseJdbcPropertiesMapWithDisableOCSPChecksConfigTest() {
+    Map<String, String> config = new HashMap<>();
+    config.put(
+        com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWFLAKE_DISABLE_OCSP_CHECKS,
+        "true");
+    Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(config);
+    assertEquals("true", jdbcPropertiesMap.getProperty("disableOCSPChecks"));
+  }
+
+  @Test
+  public void parseJdbcPropertiesMapWithDisableOCSPChecksConfigFalseTest() {
+    Map<String, String> config = new HashMap<>();
+    config.put(
+        com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWFLAKE_DISABLE_OCSP_CHECKS,
+        "false");
+    Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(config);
+    assertEquals(0, jdbcPropertiesMap.size());
+    assertEquals(null, jdbcPropertiesMap.getProperty("disableOCSPChecks"));
+  }
+
+  @Test
+  public void parseJdbcPropertiesMapWithOCSPConflictTest() {
+    // explicit config should override jdbc.map when both are set
+    String key = "snowflake.jdbc.map";
+    String input = "disableOCSPChecks:false";
+    Map<String, String> config = new HashMap<>();
+    config.put(key, input);
+    config.put(
+        com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWFLAKE_DISABLE_OCSP_CHECKS,
+        "true");
+    Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(config);
+    assertEquals("true", jdbcPropertiesMap.getProperty("disableOCSPChecks"));
+  }
+
+  @Test
+  public void parseJdbcPropertiesMapWithOCSPInJdbcMapOnlyTest() {
+    String key = "snowflake.jdbc.map";
+    String input = "disableOCSPChecks:true, ocspFailOpen:false";
+    Map<String, String> config = new HashMap<>();
+    config.put(key, input);
+    Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(config);
+    assertEquals(2, jdbcPropertiesMap.size());
+    assertEquals("true", jdbcPropertiesMap.getProperty("disableOCSPChecks"));
+    assertEquals("false", jdbcPropertiesMap.getProperty("ocspFailOpen"));
+  }
 }
