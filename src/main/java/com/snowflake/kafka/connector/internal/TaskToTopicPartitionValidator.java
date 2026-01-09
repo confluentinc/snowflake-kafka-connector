@@ -1,6 +1,12 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT;
+
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
+import com.snowflake.kafka.connector.Utils;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -9,18 +15,11 @@ import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.snowflake.kafka.connector.Utils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.connect.errors.ConnectException;
-
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT;
 
 /**
  * Thread that periodically validates that the total memory usage (partitions * buffer size) does
@@ -38,7 +37,8 @@ public class TaskToTopicPartitionValidator extends Thread {
   private final long memoryLimitBytes;
   private AdminClient adminClient;
 
-  public TaskToTopicPartitionValidator(Map<String, String> config, AtomicReference<Throwable> failure, String taskConfigId) {
+  public TaskToTopicPartitionValidator(
+      Map<String, String> config, AtomicReference<Throwable> failure, String taskConfigId) {
     this(config, null, failure, taskConfigId);
   }
 
@@ -50,20 +50,19 @@ public class TaskToTopicPartitionValidator extends Thread {
       String taskConfigId) {
     this.config = config;
     this.adminClient = adminClient;
-    this.validationIntervalMs = Long.parseLong(
-        config.getOrDefault(
-            TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
-            String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT)
-        )
-    );
-    this.memoryLimitBytes = Long.parseLong(
-        config.getOrDefault(
-            TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
-            String.valueOf(TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT)
-        )
-    );
+    this.validationIntervalMs =
+        Long.parseLong(
+            config.getOrDefault(
+                TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
+                String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT)));
+    this.memoryLimitBytes =
+        Long.parseLong(
+            config.getOrDefault(
+                TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
+                String.valueOf(TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT)));
     this.shutdownLatch = new CountDownLatch(1);
-    this.setName(config.get(Utils.NAME) + "-" + taskConfigId + "-task-to-topic-partitions-validator");
+    this.setName(
+        config.get(Utils.NAME) + "-" + taskConfigId + "-task-to-topic-partitions-validator");
     this.failure = failure;
   }
 
@@ -105,8 +104,8 @@ public class TaskToTopicPartitionValidator extends Thread {
   }
 
   /**
-   * Run initial validation synchronously before starting the thread.
-   * This method should be called before start() to fail fast if validation fails.
+   * Run initial validation synchronously before starting the thread. This method should be called
+   * before start() to fail fast if validation fails.
    *
    * @throws ConnectException if validation fails
    */
@@ -215,7 +214,8 @@ public class TaskToTopicPartitionValidator extends Thread {
     // Calculate total memory usage
     long totalMemoryUsage = (totalPartitions * bufferSizeBytes) / maxTasks;
     LOGGER.info(
-        "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Total potential memory usage per task: {} bytes",
+        "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Total potential memory usage per"
+            + " task: {} bytes",
         totalPartitions,
         bufferSizeBytes,
         maxTasks,

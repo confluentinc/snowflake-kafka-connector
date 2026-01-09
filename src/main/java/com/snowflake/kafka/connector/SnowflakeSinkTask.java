@@ -26,8 +26,8 @@ import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkService;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkServiceFactory;
-import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.TaskToTopicPartitionValidator;
+import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import java.util.Collection;
 import java.util.HashMap;
@@ -320,7 +320,8 @@ public class SnowflakeSinkTask extends SinkTask {
   @Override
   public void put(final Collection<SinkRecord> records) {
     this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
-    Throwable taskToTopicPartitionValidationFailure = this.taskToTopicPartitionValidatorFailure.get();
+    Throwable taskToTopicPartitionValidationFailure =
+        this.taskToTopicPartitionValidatorFailure.get();
     if (taskToTopicPartitionValidationFailure != null) {
       throw new ConnectException(taskToTopicPartitionValidationFailure);
     }

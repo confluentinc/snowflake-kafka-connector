@@ -52,8 +52,7 @@ public class TaskToTopicPartitionValidatorTest {
 
     failure = new AtomicReference<>();
     validator =
-        new TaskToTopicPartitionValidator(
-            config, adminClient, failure, TEST_TASK_CONFIG_ID);
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
   }
 
   @AfterEach
@@ -115,8 +114,7 @@ public class TaskToTopicPartitionValidatorTest {
     // 60 partitions * 10MB = 600MB, but with 2 tasks: 600MB / 2 = 300MB < 500MB
     config.put("tasks.max", "2");
     validator =
-        new TaskToTopicPartitionValidator(
-            config, adminClient, failure, TEST_TASK_CONFIG_ID);
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     TopicDescription topicDescription =
         new TopicDescription(
@@ -140,36 +138,34 @@ public class TaskToTopicPartitionValidatorTest {
   }
 
   /**
-   * Test the requiredTasks calculation formula:
-   * requiredTasks = (totalPartitions * bufferSizeBytes + MEMORY_LIMIT_BYTES - 1) / MEMORY_LIMIT_BYTES
+   * Test the requiredTasks calculation formula: requiredTasks = (totalPartitions * bufferSizeBytes
+   * + MEMORY_LIMIT_BYTES - 1) / MEMORY_LIMIT_BYTES
    *
-   * This is a ceiling division that calculates the minimum number of tasks needed
-   * to keep per-task memory usage under 500MB.
+   * <p>This is a ceiling division that calculates the minimum number of tasks needed to keep
+   * per-task memory usage under 500MB.
    *
-   * Examples:
-   * - 100 partitions * 10MB = 1000MB, requiredTasks = ceil(1000/500) = 2
-   * - 150 partitions * 10MB = 1500MB, requiredTasks = ceil(1500/500) = 3
-   * - 51 partitions * 10MB = 510MB, requiredTasks = ceil(510/500) = 2
-   * - 500 partitions * 10MB = 5000MB, requiredTasks = ceil(5000/500) = 10
+   * <p>Examples: - 100 partitions * 10MB = 1000MB, requiredTasks = ceil(1000/500) = 2 - 150
+   * partitions * 10MB = 1500MB, requiredTasks = ceil(1500/500) = 3 - 51 partitions * 10MB = 510MB,
+   * requiredTasks = ceil(510/500) = 2 - 500 partitions * 10MB = 5000MB, requiredTasks =
+   * ceil(5000/500) = 10
    */
   @ParameterizedTest
   @CsvSource({
-      "100, 10000000, 2",   // 100 partitions * 10MB = 1000MB -> ceil(1000/500) = 2
-      "150, 10000000, 3",   // 150 partitions * 10MB = 1500MB -> ceil(1500/500) = 3
-      "51, 10000000, 2",    // 51 partitions * 10MB = 510MB -> ceil(510/500) = 2 (just over limit)
-      "500, 10000000, 10",  // 500 partitions * 10MB = 5000MB -> ceil(5000/500) = 10
-      "100, 50000000, 10",  // 100 partitions * 50MB = 5000MB -> ceil(5000/500) = 10
-      "50, 10000000, 1",    // 50 partitions * 10MB = 500MB -> ceil(500/500) = 1 (exactly at limit)
+    "100, 10000000, 2", // 100 partitions * 10MB = 1000MB -> ceil(1000/500) = 2
+    "150, 10000000, 3", // 150 partitions * 10MB = 1500MB -> ceil(1500/500) = 3
+    "51, 10000000, 2", // 51 partitions * 10MB = 510MB -> ceil(510/500) = 2 (just over limit)
+    "500, 10000000, 10", // 500 partitions * 10MB = 5000MB -> ceil(5000/500) = 10
+    "100, 50000000, 10", // 100 partitions * 50MB = 5000MB -> ceil(5000/500) = 10
+    "50, 10000000, 1", // 50 partitions * 10MB = 500MB -> ceil(500/500) = 1 (exactly at limit)
   })
-  public void testRequiredTasksCalculation(int partitions, long bufferSize, long expectedRequiredTasks)
-      throws Exception {
+  public void testRequiredTasksCalculation(
+      int partitions, long bufferSize, long expectedRequiredTasks) throws Exception {
     // Setup config with specified buffer size
     config.put(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES, String.valueOf(bufferSize));
     config.put("tasks.max", "1");
     failure = new AtomicReference<>();
     validator =
-        new TaskToTopicPartitionValidator(
-            config, adminClient, failure, TEST_TASK_CONFIG_ID);
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     // Create topic description with specified partition count
     TopicDescription topicDescription =
@@ -193,8 +189,12 @@ public class TaskToTopicPartitionValidatorTest {
           assertThrows(ConnectException.class, validator::validateTaskToTopicPartitions);
 
       String expectedMessage = "tasks.max to at least " + expectedRequiredTasks;
-      Assertions.assertTrue(exception.getMessage().contains(expectedMessage), "Exception message should contain 'tasks.max to at least " + expectedRequiredTasks + "' but was: "
-          + exception.getMessage());
+      Assertions.assertTrue(
+          exception.getMessage().contains(expectedMessage),
+          "Exception message should contain 'tasks.max to at least "
+              + expectedRequiredTasks
+              + "' but was: "
+              + exception.getMessage());
     } else {
       // Should pass without exception
       validator.validateTaskToTopicPartitions();
@@ -206,11 +206,9 @@ public class TaskToTopicPartitionValidatorTest {
   /**
    * Test the full thread lifecycle where partition count increases mid-run and fails the connector.
    *
-   * <p>Scenario:
-   * 1. Thread starts with a short validation interval (500ms)
-   * 2. First validation call returns 10 partitions (passes - 10 * 10MB = 100MB < 500MB)
-   * 3. Second validation call returns 100 partitions (fails - 100 * 10MB = 1000MB > 500MB)
-   * 4. Verify failure AtomicReference is set
+   * <p>Scenario: 1. Thread starts with a short validation interval (500ms) 2. First validation call
+   * returns 10 partitions (passes - 10 * 10MB = 100MB < 500MB) 3. Second validation call returns
+   * 100 partitions (fails - 100 * 10MB = 1000MB > 500MB) 4. Verify failure AtomicReference is set
    */
   @Test
   public void testThreadLifecycle_PartitionCountIncreases_FailsConnector() throws Exception {
@@ -218,8 +216,7 @@ public class TaskToTopicPartitionValidatorTest {
     failure = new AtomicReference<>();
     config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS, String.valueOf(500));
     validator =
-        new TaskToTopicPartitionValidator(
-            config, adminClient, failure, TEST_TASK_CONFIG_ID);
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
     // Track how many times describeTopics is called
     AtomicInteger callCount = new AtomicInteger(0);
@@ -266,9 +263,11 @@ public class TaskToTopicPartitionValidatorTest {
 
     // Verify that failure was set
     Assertions.assertNotNull(failure.get(), "Failure should be set when validation fails");
-    Assertions.assertInstanceOf(ConnectException.class, failure.get(), "Failure should be a ConnectException");
+    Assertions.assertInstanceOf(
+        ConnectException.class, failure.get(), "Failure should be a ConnectException");
 
     // The thread should have stopped itself after failing
-    Assertions.assertFalse(validator.isAlive(), "Validator thread should not be alive after failure");
+    Assertions.assertFalse(
+        validator.isAlive(), "Validator thread should not be alive after failure");
   }
 }
