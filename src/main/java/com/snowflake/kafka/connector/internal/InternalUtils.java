@@ -392,12 +392,33 @@ public class InternalUtils {
 
   protected static Properties parseJdbcPropertiesMap(Map<String, String> conf) {
     String jdbcConfigMapInput = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_JDBC_MAP);
-    if (jdbcConfigMapInput == null) {
-      return new Properties();
-    }
-    Map<String, String> jdbcMap = Utils.parseCommaSeparatedKeyValuePairs(jdbcConfigMapInput);
     Properties properties = new Properties();
-    properties.putAll(jdbcMap);
+    
+    // Parse user-provided jdbc map if present
+    if (jdbcConfigMapInput != null) {
+      Map<String, String> jdbcMap = Utils.parseCommaSeparatedKeyValuePairs(jdbcConfigMapInput);
+      properties.putAll(jdbcMap);
+    }
+
+    String disableOCSPChecks = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_DISABLE_OCSP_CHECKS);
+    if (Boolean.parseBoolean(disableOCSPChecks)) {
+      String disableOCSPChecksKey = "disableOCSPChecks";
+      // If user already set this in jdbc.map, log a warning and override with explicit config
+      boolean keyAlreadyExists = properties.containsKey(disableOCSPChecksKey);
+      if (keyAlreadyExists) {
+        LOGGER.warn(
+            "Property {} is set in both {} and {}. "
+                + "The explicit config {} will override the value from {}.",
+            disableOCSPChecksKey,
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_DISABLE_OCSP_CHECKS,
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_JDBC_MAP,
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_DISABLE_OCSP_CHECKS,
+            SnowflakeSinkConnectorConfig.SNOWFLAKE_JDBC_MAP);
+      }
+      // override with explicit config value
+      properties.put(disableOCSPChecksKey, Boolean.TRUE.toString());
+    }
+    
     return properties;
   }
 
