@@ -323,7 +323,7 @@ public class SnowflakeSinkTask extends SinkTask {
     Throwable taskToTopicPartitionValidationFailure =
         this.taskToTopicPartitionValidatorFailure.get();
     if (taskToTopicPartitionValidationFailure != null) {
-      throw new ConnectException(taskToTopicPartitionValidationFailure);
+      throw (RuntimeException) taskToTopicPartitionValidationFailure;
     }
 
     final long recordSize = records.size();

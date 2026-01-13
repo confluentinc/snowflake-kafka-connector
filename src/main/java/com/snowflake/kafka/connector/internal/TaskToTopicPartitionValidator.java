@@ -5,6 +5,7 @@ import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import java.util.Arrays;
@@ -74,33 +75,36 @@ public class TaskToTopicPartitionValidator extends Thread {
       try {
         initializeAdminClient();
       } catch (Exception e) {
-        throw fail(e);
+        throw fail(e, "Error while initializing AdminClient for TaskToTopicPartitionValidator");
       }
     }
-
-    while (shutdownLatch.getCount() > 0) {
-      try {
-        validateTaskToTopicPartitions();
-      } catch (ConnectException e) {
-        throw fail(e);
-      }
-
-      try {
-        LOGGER.debug("Waiting {} ms to check for buffer size validation.", validationIntervalMs);
-        boolean shuttingDown = shutdownLatch.await(validationIntervalMs, TimeUnit.MILLISECONDS);
-        if (shuttingDown) {
+    try {
+      while (true) {
+        try {
+          validateTaskToTopicPartitions();
+        } catch (ConnectException e) {
+          throw fail(e, "Error while running TaskToTopicPartition validation");
+        }
+        try {
+          LOGGER.debug("Waiting {} ms to check for buffer size validation.", validationIntervalMs);
+          boolean shuttingDown = shutdownLatch.await(validationIntervalMs, TimeUnit.MILLISECONDS);
+          if (shuttingDown) {
+            return;
+          }
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          LOGGER.info("Validator thread interrupted, shutting down");
           return;
         }
-      } catch (InterruptedException e) {
-        LOGGER.error("Unexpected InterruptedException, ignoring: ", e);
       }
+    } finally {
+      closeAdminClient();
     }
   }
 
   public void shutdown() {
     LOGGER.info("Shutting down TaskToTopicPartitionValidator thread.");
     shutdownLatch.countDown();
-    closeAdminClient();
   }
 
   /**
@@ -111,11 +115,15 @@ public class TaskToTopicPartitionValidator extends Thread {
    */
   public void runInitialValidation() {
     LOGGER.info("Running initial TaskToTopicPartition validation...");
-    if (this.adminClient == null) {
-      initializeAdminClient();
+    try {
+      if (this.adminClient == null) {
+        initializeAdminClient();
+      }
+      validateTaskToTopicPartitions();
+    } catch (ConnectException e) {
+      closeAdminClient();
+      throw e;
     }
-    // Run validation - will throw ConnectException if it fails
-    validateTaskToTopicPartitions();
     LOGGER.info("Initial TaskToTopicPartition validation passed.");
   }
 
@@ -165,7 +173,7 @@ public class TaskToTopicPartitionValidator extends Thread {
     }
   }
 
-  // Visible for testing
+  @VisibleForTesting
   void validateTaskToTopicPartitions() {
     LOGGER.debug("Validating buffer size configuration...");
 
@@ -202,7 +210,7 @@ public class TaskToTopicPartitionValidator extends Thread {
     // Get partition counts
     Map<String, TopicDescription> descriptions = describeTopics(topics);
     if (descriptions == null) {
-      LOGGER.warn("Could not describe topics, skipping validating TaskToTopicPartitions.");
+      LOGGER.error("Could not describe topics, skipping validating TaskToTopicPartitions.");
       return;
     }
 
@@ -211,10 +219,10 @@ public class TaskToTopicPartitionValidator extends Thread {
       totalPartitions += desc.partitions().size();
     }
 
-    // Calculate total memory usage
+    // Calculate average memory usage, assumes even partition distribution across tasks
     long totalMemoryUsage = (totalPartitions * bufferSizeBytes) / maxTasks;
     LOGGER.info(
-        "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Total potential memory usage per"
+        "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Estimated average memory usage per"
             + " task: {} bytes",
         totalPartitions,
         bufferSizeBytes,
@@ -241,11 +249,10 @@ public class TaskToTopicPartitionValidator extends Thread {
    * @param t the cause of the failure
    * @return a {@link RuntimeException} that can be thrown from the calling method
    */
-  private RuntimeException fail(Throwable t) {
-    String message = "Encountered an unrecoverable error during task to topic partition validation";
+  private RuntimeException fail(Throwable t, String message) {
     LOGGER.error(message, t);
     RuntimeException exception = new ConnectException(message, t);
-    failure.set(t);
+    failure.set(exception);
     // Preemptively shut down the monitoring thread
     shutdownLatch.countDown();
     return exception;
