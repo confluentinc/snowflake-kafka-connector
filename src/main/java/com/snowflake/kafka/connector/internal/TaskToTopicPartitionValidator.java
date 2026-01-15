@@ -8,14 +8,13 @@ import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO
 import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -178,12 +177,7 @@ public class TaskToTopicPartitionValidator extends Thread {
     LOGGER.debug("Validating buffer size configuration...");
 
     // Get topics from config
-    String topicsStr = config.get(SnowflakeSinkConnectorConfig.TOPICS);
-    if (topicsStr == null || topicsStr.isEmpty()) {
-      LOGGER.debug("No topics configured, skipping validation");
-      return;
-    }
-    List<String> topics = Arrays.asList(topicsStr.split(","));
+    List<String> topics = getTopicsFromConfig();
 
     // Get buffer size from config
     long bufferSizeBytes = SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
@@ -241,6 +235,44 @@ public class TaskToTopicPartitionValidator extends Thread {
       // This will be caught by the run() loop and call fail()
       throw new ConnectException(errorMessage);
     }
+  }
+
+  private List<String> getTopicsFromConfig() {
+    String topicsStr = config.get(SnowflakeSinkConnectorConfig.TOPICS);
+    // Case 1: Explicit topics are configured
+    if (topicsStr != null && !topicsStr.trim().isEmpty()) {
+      return Arrays.stream(topicsStr.split(","))
+          .map(String::trim)
+          .filter(s -> !s.isEmpty())
+          .collect(Collectors.toList());
+    }
+
+    // Case 2: Fall back to regex-based topic discovery
+    LOGGER.debug("No topics configured, trying with {}", SnowflakeSinkConnectorConfig.TOPICS_REGEX);
+    String topicsRegex = config.get(SnowflakeSinkConnectorConfig.TOPICS_REGEX);
+    if (topicsRegex == null || topicsRegex.trim().isEmpty()) {
+      LOGGER.warn("Neither TOPICS nor TOPICS_REGEX is configured");
+      return Collections.emptyList();
+    }
+
+    try {
+      Set<String> topics = adminClient.listTopics().names().get();
+      Pattern pattern = Pattern.compile(topicsRegex);
+
+      List<String> matchingTopics = new ArrayList<>();
+      for (String topic : topics) {
+        if (pattern.matcher(topic).matches()) {
+          matchingTopics.add(topic);
+        }
+      }
+      return matchingTopics;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOGGER.error("Interrupted while listing topics for regex matching", e);
+    } catch (ExecutionException e) {
+      LOGGER.error("Error listing topics for regex matching", e);
+    }
+    return Collections.emptyList();
   }
 
   /**

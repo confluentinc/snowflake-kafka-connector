@@ -36,6 +36,7 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String NAME = Utils.NAME;
   public static final String TOPICS = "topics";
+  public static final String TOPICS_REGEX = "topics.regex";
 
   // Connector config
   public static final String TOPICS_TABLES_MAP = "snowflake.topic2table.map";
