@@ -291,6 +291,9 @@ public class SnowflakeSinkConnectorConfig {
           "com.snowflake.kafka.connector.records.SnowflakeAvroConverterWithoutSchemaRegistry",
           "com.snowflake.kafka.connector.records.SnowflakeAvroConverter");
 
+  public static final String ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION =
+      "enable.task.to.topic.partitions.validation";
+  public static final Boolean ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT = true;
   public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS =
       "task.to.topic.partitions.validation.interval.ms";
   public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT =

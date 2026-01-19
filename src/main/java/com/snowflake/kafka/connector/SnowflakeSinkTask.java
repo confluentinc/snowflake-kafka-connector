@@ -242,11 +242,22 @@ public class SnowflakeSinkTask extends SinkTask {
             .build();
 
     // Start task to topic partition validator
-    taskToTopicPartitionValidator =
-        new TaskToTopicPartitionValidator(
-            parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
-    taskToTopicPartitionValidator.runInitialValidation();
-    taskToTopicPartitionValidator.start();
+    boolean enableTaskToTopicPartitionsValidation =
+        SnowflakeSinkConnectorConfig.ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT;
+    if (parsedConfig.containsKey(
+        SnowflakeSinkConnectorConfig.ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION)) {
+      enableTaskToTopicPartitionsValidation =
+          Boolean.parseBoolean(
+              parsedConfig.get(
+                  SnowflakeSinkConnectorConfig.ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION));
+    }
+    if (enableTaskToTopicPartitionsValidation) {
+      taskToTopicPartitionValidator =
+          new TaskToTopicPartitionValidator(
+              parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
+      taskToTopicPartitionValidator.runInitialValidation();
+      taskToTopicPartitionValidator.start();
+    }
 
     DYNAMIC_LOGGER.info(
         "task started, execution time: {} milliseconds",
@@ -322,7 +333,7 @@ public class SnowflakeSinkTask extends SinkTask {
     this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
     Throwable taskToTopicPartitionValidationFailure =
         this.taskToTopicPartitionValidatorFailure.get();
-    if (taskToTopicPartitionValidationFailure != null) {
+    if (taskToTopicPartitionValidationFailure != null && taskToTopicPartitionValidator != null) {
       throw (RuntimeException) taskToTopicPartitionValidationFailure;
     }
 
