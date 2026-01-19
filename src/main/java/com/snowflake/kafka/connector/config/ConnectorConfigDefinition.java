@@ -630,6 +630,13 @@ public class ConnectorConfigDefinition {
             TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT,
             ConfigDef.Importance.LOW,
             "The maximum amount of memory (in bytes) allocated per task for validating"
-                + " task-to-topic-partitions.");
+                + " task-to-topic-partitions.")
+        .define(
+            ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION,
+            ConfigDef.Type.BOOLEAN,
+            ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT,
+            ConfigDef.Importance.LOW,
+            "Enable task to topic partitions validation to detect any misconfiguration between the number"
+                + " of tasks and assigned topic partitions.");
   }
 }
