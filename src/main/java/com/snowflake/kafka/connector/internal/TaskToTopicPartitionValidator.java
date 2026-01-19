@@ -229,7 +229,7 @@ public class TaskToTopicPartitionValidator extends Thread {
       String errorMessage =
           String.format(
               "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
-                  + "Please increase tasks.max to at least %d or decrease buffer.size.bytes",
+                  + "Please increase the tasks.max to at least %d.",
               totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
 
       // This will be caught by the run() loop and call fail()

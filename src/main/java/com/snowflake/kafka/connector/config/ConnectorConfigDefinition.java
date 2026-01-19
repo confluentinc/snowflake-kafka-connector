@@ -636,7 +636,7 @@ public class ConnectorConfigDefinition {
             ConfigDef.Type.BOOLEAN,
             ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT,
             ConfigDef.Importance.LOW,
-            "Enable task to topic partitions validation to detect any misconfiguration between the number"
-                + " of tasks and assigned topic partitions.");
+            "Enable task to topic partitions validation to detect any misconfiguration between the"
+                + " number of tasks and assigned topic partitions.");
   }
 }
