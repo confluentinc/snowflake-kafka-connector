@@ -21,7 +21,6 @@ import static com.snowflake.kafka.connector.Utils.isSnowpipeStreamingIngestion;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.snowflake.kafka.connector.internal.KCLogger;
-import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +36,7 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String NAME = Utils.NAME;
   public static final String TOPICS = "topics";
+  public static final String TOPICS_REGEX = "topics.regex";
 
   // Connector config
   public static final String TOPICS_TABLES_MAP = "snowflake.topic2table.map";
@@ -293,6 +293,18 @@ public class SnowflakeSinkConnectorConfig {
           "com.snowflake.kafka.connector.records.SnowflakeJsonConverter",
           "com.snowflake.kafka.connector.records.SnowflakeAvroConverterWithoutSchemaRegistry",
           "com.snowflake.kafka.connector.records.SnowflakeAvroConverter");
+
+  public static final String ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION =
+      "enable.task.to.topic.partitions.validation";
+  public static final Boolean ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT = true;
+  public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS =
+      "task.to.topic.partitions.validation.interval.ms";
+  public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT =
+      300000; // 5 minutes
+  public static final String TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES =
+      "task.to.topic.partitions.memory.limit.bytes";
+  public static final long TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT =
+      524288000; // 500MB
 
   public static void setDefaultValues(Map<String, String> config) {
     setFieldToDefaultValues(config, BUFFER_COUNT_RECORDS, BUFFER_COUNT_RECORDS_DEFAULT, "");

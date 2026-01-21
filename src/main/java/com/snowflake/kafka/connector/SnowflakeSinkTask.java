@@ -26,6 +26,7 @@ import com.snowflake.kafka.connector.internal.SnowflakeConnectionServiceFactory;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkService;
 import com.snowflake.kafka.connector.internal.SnowflakeSinkServiceFactory;
+import com.snowflake.kafka.connector.internal.TaskToTopicPartitionValidator;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.records.SnowflakeMetadataConfig;
 import java.util.Collection;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -92,6 +94,10 @@ public class SnowflakeSinkTask extends SinkTask {
 
   private final SnowflakeSinkTaskAuthorizationExceptionTracker authorizationExceptionTracker =
       new SnowflakeSinkTaskAuthorizationExceptionTracker();
+
+  private TaskToTopicPartitionValidator taskToTopicPartitionValidator;
+  private final AtomicReference<Throwable> taskToTopicPartitionValidatorFailure =
+      new AtomicReference<>();
 
   /** default constructor, invoked by kafka connect framework */
   public SnowflakeSinkTask() {
@@ -235,6 +241,24 @@ public class SnowflakeSinkTask extends SinkTask {
             .setSinkTaskContext(this.context)
             .build();
 
+    // Start task to topic partition validator
+    boolean enableTaskToTopicPartitionsValidation =
+        SnowflakeSinkConnectorConfig.ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT;
+    if (parsedConfig.containsKey(
+        SnowflakeSinkConnectorConfig.ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION)) {
+      enableTaskToTopicPartitionsValidation =
+          Boolean.parseBoolean(
+              parsedConfig.get(
+                  SnowflakeSinkConnectorConfig.ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION));
+    }
+    if (enableTaskToTopicPartitionsValidation) {
+      taskToTopicPartitionValidator =
+          new TaskToTopicPartitionValidator(
+              parsedConfig, taskToTopicPartitionValidatorFailure, this.taskConfigId);
+      taskToTopicPartitionValidator.runInitialValidation();
+      taskToTopicPartitionValidator.start();
+    }
+
     DYNAMIC_LOGGER.info(
         "task started, execution time: {} milliseconds",
         this.taskConfigId,
@@ -250,6 +274,10 @@ public class SnowflakeSinkTask extends SinkTask {
    */
   @Override
   public void stop() {
+    if (taskToTopicPartitionValidator != null) {
+      taskToTopicPartitionValidator.shutdown();
+    }
+
     if (this.sink != null) {
       this.sink.stop();
     }
@@ -303,6 +331,11 @@ public class SnowflakeSinkTask extends SinkTask {
   @Override
   public void put(final Collection<SinkRecord> records) {
     this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
+    Throwable taskToTopicPartitionValidationFailure =
+        this.taskToTopicPartitionValidatorFailure.get();
+    if (taskToTopicPartitionValidator != null && taskToTopicPartitionValidationFailure != null) {
+      throw (RuntimeException) taskToTopicPartitionValidationFailure;
+    }
 
     final long recordSize = records.size();
     if (enableRebalancing && recordSize > 0) {
