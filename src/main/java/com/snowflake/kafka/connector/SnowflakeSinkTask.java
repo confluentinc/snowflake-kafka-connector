@@ -333,7 +333,7 @@ public class SnowflakeSinkTask extends SinkTask {
     this.authorizationExceptionTracker.throwExceptionIfAuthorizationFailed();
     Throwable taskToTopicPartitionValidationFailure =
         this.taskToTopicPartitionValidatorFailure.get();
-    if (taskToTopicPartitionValidationFailure != null && taskToTopicPartitionValidator != null) {
+    if (taskToTopicPartitionValidator != null && taskToTopicPartitionValidationFailure != null) {
       throw (RuntimeException) taskToTopicPartitionValidationFailure;
     }
 
