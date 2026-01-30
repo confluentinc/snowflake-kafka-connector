@@ -296,7 +296,7 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION =
       "enable.task.to.topic.partitions.validation";
-  public static final Boolean ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT = true;
+  public static final Boolean ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT = false;
   public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS =
       "task.to.topic.partitions.validation.interval.ms";
   public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT =
