@@ -15,6 +15,7 @@ import java.util.Map;
 
 class SnowflakeTableStreamingRecordMapper extends StreamingRecordMapper {
   private final KCLogger LOGGER = new KCLogger(RecordService.class.getName());
+
   public SnowflakeTableStreamingRecordMapper(ObjectMapper mapper, boolean schematizationEnabled) {
     super(mapper, schematizationEnabled);
   }
@@ -29,12 +30,15 @@ class SnowflakeTableStreamingRecordMapper extends StreamingRecordMapper {
         try {
           streamingIngestRow.putAll(getMapFromJsonNodeForStreamingIngest(node));
         } catch (StringIndexOutOfBoundsException e) {
-          LOGGER.trace("Record data that caused StringIndexOutOfBoundsException: {}", node.toString());
-          LOGGER.info("StringIndexOutOfBoundsException occurred while processing record, metadata " +
-                  mapper.writeValueAsString(row.getMetadata()));
+          LOGGER.trace(
+              "Record data that caused StringIndexOutOfBoundsException: {}", node.toString());
+          LOGGER.info(
+              "StringIndexOutOfBoundsException occurred while processing record, metadata "
+                  + mapper.writeValueAsString(row.getMetadata()));
 
           throw SnowflakeErrors.ERROR_0010.getException(
-                  "Invalid column name encountered during streaming ingest processing: " + e.getMessage());
+              "Invalid column name encountered during streaming ingest processing: "
+                  + e.getMessage());
         }
       } else {
         streamingIngestRow.put(TABLE_COLUMN_CONTENT, mapper.writeValueAsString(node));

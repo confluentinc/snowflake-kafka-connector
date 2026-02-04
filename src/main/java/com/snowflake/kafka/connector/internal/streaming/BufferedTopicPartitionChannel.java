@@ -1018,9 +1018,9 @@ public class BufferedTopicPartitionChannel implements TopicPartitionChannel {
    */
   private SnowflakeStreamingIngestChannel openChannelForTable(boolean schemaEvolutionEnabled) {
     OpenChannelRequest.OnErrorOption onErrorOption =
-            schemaEvolutionEnabled
-                    ? OpenChannelRequest.OnErrorOption.SKIP_BATCH
-                    : OpenChannelRequest.OnErrorOption.CONTINUE;
+        schemaEvolutionEnabled
+            ? OpenChannelRequest.OnErrorOption.SKIP_BATCH
+            : OpenChannelRequest.OnErrorOption.CONTINUE;
 
     OpenChannelRequest channelRequest =
         OpenChannelRequest.builder(this.channelNameFormatV1)

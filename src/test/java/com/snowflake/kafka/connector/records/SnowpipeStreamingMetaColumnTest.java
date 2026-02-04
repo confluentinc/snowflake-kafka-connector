@@ -54,7 +54,7 @@ class SnowpipeStreamingMetaColumnTest extends AbstractMetaColumnTest {
             fixedClock, new SnowflakeTableStreamingRecordMapper(mapper, false), mapper);
 
     Map<String, String> config =
-            ImmutableMap.of(SNOWFLAKE_STREAMING_METADATA_CONNECTOR_PUSH_TIME, "true");
+        ImmutableMap.of(SNOWFLAKE_STREAMING_METADATA_CONNECTOR_PUSH_TIME, "true");
     service.setMetadataConfig(new SnowflakeMetadataConfig(config));
     // when
     Map<String, Object> recordData = service.getProcessedRecordForStreamingIngest(record);

@@ -48,7 +48,6 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -279,7 +278,8 @@ public class SnowflakeSinkServiceV2IT {
 
   @ParameterizedTest(name = "useSingleBuffer: {0}")
   @MethodSource("singleBufferParameters")
-  public void testStreamingIngest_multipleChannelPartitions_withMetrics(boolean useSingleBuffer) throws Exception {
+  public void testStreamingIngest_multipleChannelPartitions_withMetrics(boolean useSingleBuffer)
+      throws Exception {
     conn = getConn(false);
     Map<String, String> config = getConfig(false, useSingleBuffer);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);

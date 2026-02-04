@@ -85,7 +85,8 @@ public class SnowflakeConnectionServiceFactory {
 
       Properties proxyProperties = InternalUtils.generateProxyParametersIfRequired(conf);
       Properties connectionProperties =
-          InternalUtils.createProperties(conf, this.networkTimeOut, this.loginTimeOut, this.url, ingestionMethodConfig);
+          InternalUtils.createProperties(
+              conf, this.networkTimeOut, this.loginTimeOut, this.url, ingestionMethodConfig);
       Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(conf);
       this.jdbcProperties =
           JdbcProperties.create(connectionProperties, proxyProperties, jdbcPropertiesMap);
