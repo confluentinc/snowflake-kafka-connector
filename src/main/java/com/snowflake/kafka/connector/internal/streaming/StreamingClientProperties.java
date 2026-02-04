@@ -38,6 +38,7 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.snowflake.ingest.utils.Constants;
+import net.snowflake.ingest.utils.ParameterProvider;
 
 /**
  * Object to convert and store properties for {@link
@@ -99,6 +100,19 @@ public class StreamingClientProperties {
     snowpipeStreamingMaxClientLag.ifPresent(
         overriddenValue ->
             parameterOverrides.put(MAX_CLIENT_LAG, String.format("%s second", overriddenValue)));
+
+    Optional<String> enableDynamicFlush =
+        Optional.ofNullable(connectorConfig.get(ENABLE_DYNAMIC_FLUSH));
+    enableDynamicFlush.ifPresent(
+        overriddenValue ->
+            parameterOverrides.put(ParameterProvider.ENABLE_DYNAMIC_FLUSH, overriddenValue));
+
+    Optional<String> taskBufferLimitBytes =
+        Optional.ofNullable(connectorConfig.get(TASK_BUFFER_TOTAL_LIMIT_BYTES));
+    taskBufferLimitBytes.ifPresent(
+        overriddenValue ->
+            parameterOverrides.put(
+                ParameterProvider.TASK_BUFFER_TOTAL_LIMIT_BYTES, overriddenValue));
 
     if (InternalBufferParameters.isSingleBufferEnabled(connectorConfig)) {
       Optional<String> bufferMaxSizeBytes =
@@ -181,6 +195,14 @@ public class StreamingClientProperties {
               clientOverridePropertiesMap,
               MAX_MEMORY_LIMIT_IN_BYTES,
               SNOWPIPE_STREAMING_MAX_MEMORY_LIMIT_IN_BYTES);
+          overrideStreamingClientPropertyIfSet(
+              clientOverridePropertiesMap,
+              ParameterProvider.ENABLE_DYNAMIC_FLUSH,
+              ENABLE_DYNAMIC_FLUSH);
+          overrideStreamingClientPropertyIfSet(
+              clientOverridePropertiesMap,
+              ParameterProvider.TASK_BUFFER_TOTAL_LIMIT_BYTES,
+              TASK_BUFFER_TOTAL_LIMIT_BYTES);
           parameterOverrides.putAll(clientOverridePropertiesMap);
         });
     parameterOverrides.forEach(

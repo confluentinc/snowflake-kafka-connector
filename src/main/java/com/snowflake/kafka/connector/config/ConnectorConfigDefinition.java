@@ -646,6 +646,18 @@ public class ConnectorConfigDefinition {
             ConfigDef.Importance.LOW,
             "Action to take when task to topic partitions validation fails. "
                 + "Allowed values are: 'fail' (throw exception and fail the task) or "
-                + "'warn' (log a warning message only).");
+                + "'warn' (log a warning message only).")
+        .define(
+            ENABLE_DYNAMIC_FLUSH,
+            ConfigDef.Type.BOOLEAN,
+            ENABLE_DYNAMIC_FLUSH_DEFAULT,
+            ConfigDef.Importance.LOW,
+            "Enable dynamic flush to optimize task to topic partition usage.")
+        .define(
+            TASK_BUFFER_TOTAL_LIMIT_BYTES,
+            ConfigDef.Type.LONG,
+            TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT,
+            ConfigDef.Importance.LOW,
+            "Maximum total buffer size in bytes per task.");
   }
 }
