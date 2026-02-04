@@ -1,6 +1,8 @@
 package com.snowflake.kafka.connector.internal;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH_DEFAULT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT;
 import static com.snowflake.kafka.connector.Utils.createNamedThreadFactory;
 import static com.snowflake.kafka.connector.internal.FileNameUtils.searchForMissingOffsets;
 import static com.snowflake.kafka.connector.internal.metrics.MetricsUtil.BUFFER_RECORD_COUNT;
@@ -30,6 +32,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -102,6 +105,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
   // CC-30278 if enabled cleaner won't delete reprocess files on stage
   private boolean disableReprocessFilesCleanup = false;
+
+  private boolean enableDynamicFlush = ENABLE_DYNAMIC_FLUSH_DEFAULT;
+  private long taskBufferLimitBytes = TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT;
 
   private final Set<String> perTableWarningNotifications = new HashSet<>();
   private final String V1CleanerThreadType = "v1-cleaner";
@@ -214,6 +220,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       if (pipe.shouldFlush()) {
         pipe.flushBuffer();
       }
+    }
+    if (enableDynamicFlush) {
+      // check total buffer size across all pipes and flush if exceeds task buffer limit
+      enforceTaskBufferLimit();
     }
   }
 
@@ -463,6 +473,57 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
   public void configureDisableReprocessFilesCleanup(boolean disable) {
     disableReprocessFilesCleanup = disable;
+  }
+
+  public void configureEnableDynamicFlush(boolean enable) {
+    enableDynamicFlush = enable;
+  }
+
+  public void configureTaskBufferLimitBytes(long taskBufferLimitBytes) {
+    this.taskBufferLimitBytes = taskBufferLimitBytes;
+  }
+
+  /**
+   * Check total buffer across all pipes and flush largest ones
+   * until total is under the configured limit.
+   */
+  private void enforceTaskBufferLimit() {
+    // Calculate total buffer size first
+    long totalBufferSize = pipes.values().stream()
+        .mapToLong(pipe -> pipe.buffer.getBufferSizeBytes())
+        .sum();
+
+    if (totalBufferSize <= taskBufferLimitBytes) {
+      return; // Under limit, nothing to do
+    }
+
+    LOGGER.info("Total buffer size {} bytes across pipes exceeds limit {} bytes, initiating flush",
+        totalBufferSize, taskBufferLimitBytes);
+
+    // Sort pipes by buffer size (descending) - largest first
+    List<ServiceContext> sortedPipes = pipes.values().stream()
+        .sorted(Comparator.comparingLong(
+            (ServiceContext pipe) -> pipe.buffer.getBufferSizeBytes()).reversed())
+        .collect(Collectors.toList());
+
+    int flushedCount = 0;
+    long originalSize = totalBufferSize;
+
+    for (ServiceContext pipe : sortedPipes) {
+      if (totalBufferSize <= taskBufferLimitBytes) {
+        break;
+      }
+
+      long pipeBufferSize = pipe.buffer.getBufferSizeBytes();
+      if (pipeBufferSize > 0) {
+        pipe.flushBuffer();
+        totalBufferSize -= pipeBufferSize;
+        flushedCount++;
+      }
+    }
+
+    LOGGER.info("Flushed {} pipes, reduced buffer from {} to {} bytes",
+        flushedCount, originalSize, totalBufferSize);
   }
 
   private class ServiceContext {
@@ -1229,6 +1290,14 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       if (enableCustomJMXMonitoring) {
         metricsJmxReporter.removeMetricsFromRegistry(this.pipeName);
       }
+    }
+
+    /**
+     * Get the current buffer size in bytes for this pipe.
+     * @return buffer size in bytes
+     */
+    public long getBufferSizeBytes() {
+      return buffer.getBufferSizeBytes();
     }
 
     /**
