@@ -280,9 +280,9 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
   public void startPartitions(
       Collection<TopicPartition> partitions, Map<String, String> topic2Table) {
     partitions.stream()
-            .map(TopicPartition::topic)
-            .distinct()
-            .forEach(topic -> perTopicActionsOnStartPartitions(topic, topic2Table));
+        .map(TopicPartition::topic)
+        .distinct()
+        .forEach(topic -> perTopicActionsOnStartPartitions(topic, topic2Table));
     partitions.forEach(
         tp -> {
           String tableName = Utils.tableName(tp.topic(), topic2Table);

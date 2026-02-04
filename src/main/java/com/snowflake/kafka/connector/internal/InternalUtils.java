@@ -359,8 +359,8 @@ public class InternalUtils {
 
       if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS)) {
         proxyProperties.put(
-                SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
-                conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS));
+            SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS,
+            conf.get(SnowflakeSinkConnectorConfig.DISALLOW_LOCAL_IPS));
       }
 
       if (conf.containsKey(SnowflakeSinkConnectorConfig.DISALLOW_PRIVATE_IPS)) {
@@ -386,14 +386,13 @@ public class InternalUtils {
       }
     }
 
-
     return proxyProperties;
   }
 
   protected static Properties parseJdbcPropertiesMap(Map<String, String> conf) {
     String jdbcConfigMapInput = conf.get(SnowflakeSinkConnectorConfig.SNOWFLAKE_JDBC_MAP);
     Properties properties = new Properties();
-    
+
     // Parse user-provided jdbc map if present
     if (jdbcConfigMapInput != null) {
       Map<String, String> jdbcMap = Utils.parseCommaSeparatedKeyValuePairs(jdbcConfigMapInput);
@@ -418,7 +417,7 @@ public class InternalUtils {
       // override with explicit config value
       properties.put(disableOCSPChecksKey, Boolean.TRUE.toString());
     }
-    
+
     return properties;
   }
 
