@@ -339,11 +339,15 @@
 
         <!-- Ingest SDK for copy staged file into snowflake table -->
         <dependency>
-            <groupId>io.confluent</groupId>
+            <groupId>net.snowflake</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
             <version>3.0.1</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/snowflake-ingest-sdk.jar</systemPath>
+            <exclusions>
+                <exclusion>
+                    <groupId>net.snowflake</groupId>
+                    <artifactId>snowflake-jdbc</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
