@@ -11,6 +11,7 @@ import com.snowflake.kafka.connector.Utils;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
@@ -85,8 +86,12 @@ public class TaskToTopicPartitionValidator extends Thread {
           throw fail(e, "Error while running TaskToTopicPartition validation");
         }
         try {
-          LOGGER.debug("Waiting {} ms to check for buffer size validation.", validationIntervalMs);
-          boolean shuttingDown = shutdownLatch.await(validationIntervalMs, TimeUnit.MILLISECONDS);
+          long jitterMs = ThreadLocalRandom.current().nextLong(0, 5000);
+          LOGGER.debug(
+              "Waiting {} ms to check for buffer size validation.",
+              validationIntervalMs + jitterMs);
+          boolean shuttingDown =
+              shutdownLatch.await(validationIntervalMs + jitterMs, TimeUnit.MILLISECONDS);
           if (shuttingDown) {
             return;
           }
@@ -231,9 +236,10 @@ public class TaskToTopicPartitionValidator extends Thread {
               "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
                   + "Please increase the tasks.max to at least %d.",
               totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
-
+      LOGGER.warn(errorMessage);
       // This will be caught by the run() loop and call fail()
-      throw new ConnectException(errorMessage);
+      // TODO throw this exception later, warn as of now!
+      // throw new ConnectException(errorMessage);
     }
   }
 
@@ -284,7 +290,8 @@ public class TaskToTopicPartitionValidator extends Thread {
   private RuntimeException fail(Throwable t, String message) {
     LOGGER.error(message, t);
     RuntimeException exception = new ConnectException(message, t);
-    failure.set(exception);
+    // TODO do not set failure here to avoid connector failure
+    // failure.set(exception);
     // Preemptively shut down the monitoring thread
     shutdownLatch.countDown();
     return exception;

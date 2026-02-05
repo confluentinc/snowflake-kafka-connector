@@ -300,7 +300,7 @@ public class SnowflakeSinkConnectorConfig {
   public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS =
       "task.to.topic.partitions.validation.interval.ms";
   public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT =
-      300000; // 5 minutes
+      3600000; // 1 hour
   public static final String TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES =
       "task.to.topic.partitions.memory.limit.bytes";
   public static final long TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT =
