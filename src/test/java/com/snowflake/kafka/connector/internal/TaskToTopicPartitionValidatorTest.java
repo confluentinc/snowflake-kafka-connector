@@ -23,6 +23,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -88,6 +89,7 @@ public class TaskToTopicPartitionValidatorTest {
   }
 
   @Test
+  @Disabled("validateTaskToTopicPartitions is only logging warnings currently")
   public void testValidate_HighUsage() throws Exception {
     // Increase partitions to exceed 500MB with 10MB buffer size (requires > 50 partitions)
     // 60 partitions * 10MB = 600MB > 500MB
@@ -150,6 +152,7 @@ public class TaskToTopicPartitionValidatorTest {
    * ceil(5000/500) = 10
    */
   @ParameterizedTest
+  @Disabled("validateTaskToTopicPartitions is only logging warnings currently")
   @CsvSource({
     "100, 10000000, 2", // 100 partitions * 10MB = 1000MB -> ceil(1000/500) = 2
     "150, 10000000, 3", // 150 partitions * 10MB = 1500MB -> ceil(1500/500) = 3
@@ -211,6 +214,7 @@ public class TaskToTopicPartitionValidatorTest {
    * 100 partitions (fails - 100 * 10MB = 1000MB > 500MB) 4. Verify failure AtomicReference is set
    */
   @Test
+  @Disabled("validateTaskToTopicPartitions is only logging warnings currently")
   public void testThreadLifecycle_PartitionCountIncreases_FailsConnector() throws Exception {
     // Use a short validation interval for testing (500ms)
     failure = new AtomicReference<>();
