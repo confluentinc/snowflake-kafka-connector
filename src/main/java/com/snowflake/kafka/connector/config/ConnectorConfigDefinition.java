@@ -625,18 +625,20 @@ public class ConnectorConfigDefinition {
             ConfigDef.Importance.LOW,
             "The interval (in milliseconds) at which the task-to-topic-partitions validator runs.")
         .define(
-            TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES,
             ConfigDef.Type.LONG,
-            TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT,
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT,
             ConfigDef.Importance.LOW,
             "The maximum amount of memory (in bytes) allocated per task for validating"
                 + " task-to-topic-partitions.")
         .define(
-            ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION,
-            ConfigDef.Type.BOOLEAN,
-            ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT,
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION,
+            ConfigDef.Type.STRING,
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION_DEFAULT,
+            SnowflakeSinkConnectorConfig.TaskToTopicPartitionValidatorFailureAction.VALIDATOR,
             ConfigDef.Importance.LOW,
-            "Enable task to topic partitions validation to detect any misconfiguration between the"
-                + " number of tasks and assigned topic partitions.");
+            "Action to take when task to topic partitions validation fails. "
+                + "Allowed values are: 'fail' (throw exception and fail the task) or "
+                + "'warn' (log a warning message only).");
   }
 }

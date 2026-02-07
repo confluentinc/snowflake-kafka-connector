@@ -1,12 +1,15 @@
 package com.snowflake.kafka.connector.internal;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES;
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
+import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TaskToTopicPartitionValidatorFailureAction;
 import com.snowflake.kafka.connector.Utils;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -36,6 +39,7 @@ public class TaskToTopicPartitionValidator extends Thread {
   private final CountDownLatch shutdownLatch;
   private final long validationIntervalMs;
   private final long memoryLimitBytes;
+  private final TaskToTopicPartitionValidatorFailureAction failureAction;
   private AdminClient adminClient;
 
   public TaskToTopicPartitionValidator(
@@ -59,8 +63,14 @@ public class TaskToTopicPartitionValidator extends Thread {
     this.memoryLimitBytes =
         Long.parseLong(
             config.getOrDefault(
-                TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES,
-                String.valueOf(TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT)));
+                TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES,
+                String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT)));
+    String failureActionStr =
+        config.getOrDefault(
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION,
+            TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION_DEFAULT);
+    this.failureAction =
+        TaskToTopicPartitionValidatorFailureAction.valueOf(failureActionStr.toUpperCase());
     this.shutdownLatch = new CountDownLatch(1);
     this.setName(
         config.get(Utils.NAME) + "-" + taskConfigId + "-task-to-topic-partitions-validator");
@@ -236,10 +246,14 @@ public class TaskToTopicPartitionValidator extends Thread {
               "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
                   + "Please increase the tasks.max to at least %d.",
               totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
-      LOGGER.warn(errorMessage);
-      // This will be caught by the run() loop and call fail()
-      // TODO throw this exception later, warn as of now!
-      // throw new ConnectException(errorMessage);
+
+      if (this.failureAction == TaskToTopicPartitionValidatorFailureAction.FAIL) {
+        LOGGER.error(errorMessage);
+        // This will be caught by the run() loop and call fail()
+        throw new ConnectException(errorMessage);
+      } else {
+        LOGGER.warn(errorMessage);
+      }
     }
   }
 
@@ -288,10 +302,13 @@ public class TaskToTopicPartitionValidator extends Thread {
    * @return a {@link RuntimeException} that can be thrown from the calling method
    */
   private RuntimeException fail(Throwable t, String message) {
-    LOGGER.error(message, t);
     RuntimeException exception = new ConnectException(message, t);
-    // TODO do not set failure here to avoid connector failure
-    // failure.set(exception);
+    if (this.failureAction == TaskToTopicPartitionValidatorFailureAction.FAIL) {
+      LOGGER.error(message, t);
+      failure.set(exception);
+    } else {
+      LOGGER.warn(message, t);
+    }
     // Preemptively shut down the monitoring thread
     shutdownLatch.countDown();
     return exception;
