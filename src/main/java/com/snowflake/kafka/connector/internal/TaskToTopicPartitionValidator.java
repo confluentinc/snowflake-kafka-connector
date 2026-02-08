@@ -134,12 +134,9 @@ public class TaskToTopicPartitionValidator extends Thread {
         initializeAdminClient();
       }
       validateTaskToTopicPartitions();
-    } catch (ConnectException e) {
-      closeAdminClient();
-      throw fail(e, "Initial TaskToTopicPartition validation failed");
     } catch (Exception e) {
       closeAdminClient();
-      throw fail(e, "Error while running initial TaskToTopicPartition validation");
+      throw fail(e, "Error while running initial TaskToTopicPartition validation.");
     }
     LOGGER.info("Initial TaskToTopicPartition validation passed.");
   }
