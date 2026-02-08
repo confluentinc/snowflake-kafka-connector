@@ -85,7 +85,7 @@ public class TaskToTopicPartitionValidator extends Thread {
       try {
         initializeAdminClient();
       } catch (Exception e) {
-        throw fail(e, "Error while initializing AdminClient for TaskToTopicPartitionValidator");
+        fail(e, "Error while initializing AdminClient for TaskToTopicPartitionValidator");
       }
     }
     try {
@@ -93,7 +93,7 @@ public class TaskToTopicPartitionValidator extends Thread {
         try {
           validateTaskToTopicPartitions();
         } catch (ConnectException e) {
-          throw fail(e, "Error while running TaskToTopicPartition validation");
+          fail(e, "Error while running TaskToTopicPartition validation");
         }
         try {
           long jitterMs = ThreadLocalRandom.current().nextLong(0, 5000);
@@ -125,7 +125,7 @@ public class TaskToTopicPartitionValidator extends Thread {
    * Run initial validation synchronously before starting the thread. This method should be called
    * before start() to fail fast if validation fails.
    *
-   * @throws ConnectException if validation fails
+   * @throws ConnectException if validation fails and failure action is set to FAIL.
    */
   public void runInitialValidation() {
     LOGGER.info("Running initial TaskToTopicPartition validation...");
@@ -134,11 +134,11 @@ public class TaskToTopicPartitionValidator extends Thread {
         initializeAdminClient();
       }
       validateTaskToTopicPartitions();
+      LOGGER.info("Initial TaskToTopicPartition validation passed.");
     } catch (Exception e) {
       closeAdminClient();
-      throw fail(e, "Error while running initial TaskToTopicPartition validation.");
+      fail(e, "Error while running initial TaskToTopicPartition validation.");
     }
-    LOGGER.info("Initial TaskToTopicPartition validation passed.");
   }
 
   private void initializeAdminClient() {
@@ -297,20 +297,19 @@ public class TaskToTopicPartitionValidator extends Thread {
 
   /**
    * Fail the connector with an unrecoverable error and stop the validator thread
-   *
+   * if the failure action is set to FAIL. Otherwise, just log the error.
    * @param t the cause of the failure
-   * @return a {@link RuntimeException} that can be thrown from the calling method
+   * @param message additional message to log with the error
    */
-  private RuntimeException fail(Throwable t, String message) {
-    RuntimeException exception = new ConnectException(message, t);
+  private void fail(Throwable t, String message) {
+    shutdownLatch.countDown();
     if (this.failureAction == TaskToTopicPartitionValidatorFailureAction.FAIL) {
       LOGGER.error(message, t);
+      RuntimeException exception = new ConnectException(message, t);
       failure.set(exception);
+      throw exception;
     } else {
       LOGGER.warn(message, t);
     }
-    // Preemptively shut down the monitoring thread
-    shutdownLatch.countDown();
-    return exception;
   }
 }
