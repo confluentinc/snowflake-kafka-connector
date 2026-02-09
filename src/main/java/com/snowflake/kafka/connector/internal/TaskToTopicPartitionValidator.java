@@ -302,8 +302,8 @@ public class TaskToTopicPartitionValidator extends Thread {
    * @param message additional message to log with the error
    */
   private void fail(Throwable t, String message) {
-    shutdownLatch.countDown();
     if (this.failureAction == TaskToTopicPartitionValidatorFailureAction.FAIL) {
+      shutdownLatch.countDown();
       LOGGER.error(message, t);
       RuntimeException exception = new ConnectException(message, t);
       failure.set(exception);
