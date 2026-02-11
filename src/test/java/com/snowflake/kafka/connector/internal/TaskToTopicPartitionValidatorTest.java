@@ -1,5 +1,6 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -88,7 +89,12 @@ public class TaskToTopicPartitionValidatorTest {
   }
 
   @Test
-  public void testValidate_HighUsage() throws Exception {
+  public void testValidate_HighUsage_WithFailAction() throws Exception {
+    // Set failure action to FAIL
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION, "fail");
+    validator =
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
+
     // Increase partitions to exceed 500MB with 10MB buffer size (requires > 50 partitions)
     // 60 partitions * 10MB = 600MB > 500MB
     TopicDescription topicDescription =
@@ -107,6 +113,36 @@ public class TaskToTopicPartitionValidatorTest {
 
     // Verify interactions
     verify(adminClient).describeTopics(anyCollection());
+  }
+
+  @Test
+  public void testValidate_HighUsage_WithWarnAction() throws Exception {
+    // Set failure action to WARN (default)
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION, "warn");
+    validator =
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
+
+    // Increase partitions to exceed 500MB with 10MB buffer size (requires > 50 partitions)
+    // 60 partitions * 10MB = 600MB > 500MB
+    TopicDescription topicDescription =
+        new TopicDescription(
+            "test-topic", false, Collections.nCopies(60, mock(TopicPartitionInfo.class)));
+
+    Map<String, TopicDescription> descriptions = new HashMap<>();
+    descriptions.put("test-topic", topicDescription);
+
+    when(adminClient.describeTopics(anyCollection())).thenReturn(describeTopicsResult);
+    when(describeTopicsResult.allTopicNames()).thenReturn(kafkaFuture);
+    when(kafkaFuture.get()).thenReturn(descriptions);
+
+    // Execute validation (should NOT throw exception, only warn)
+    validator.validateTaskToTopicPartitions();
+
+    // Verify interactions
+    verify(adminClient).describeTopics(anyCollection());
+
+    // Verify no failure was set
+    Assertions.assertNull(failure.get(), "No failure should be set for warn action");
   }
 
   @Test
@@ -160,9 +196,10 @@ public class TaskToTopicPartitionValidatorTest {
   })
   public void testRequiredTasksCalculation(
       int partitions, long bufferSize, long expectedRequiredTasks) throws Exception {
-    // Setup config with specified buffer size
+    // Setup config with specified buffer size and FAIL action
     config.put(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES, String.valueOf(bufferSize));
     config.put("tasks.max", "1");
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION, "fail");
     failure = new AtomicReference<>();
     validator =
         new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
@@ -206,15 +243,16 @@ public class TaskToTopicPartitionValidatorTest {
   /**
    * Test the full thread lifecycle where partition count increases mid-run and fails the connector.
    *
-   * <p>Scenario: 1. Thread starts with a short validation interval (500ms) 2. First validation call
+   * <p>Scenario: 1. Thread starts with a short validation interval (200ms) 2. First validation call
    * returns 10 partitions (passes - 10 * 10MB = 100MB < 500MB) 3. Second validation call returns
    * 100 partitions (fails - 100 * 10MB = 1000MB > 500MB) 4. Verify failure AtomicReference is set
    */
   @Test
   public void testThreadLifecycle_PartitionCountIncreases_FailsConnector() throws Exception {
-    // Use a short validation interval for testing (500ms)
+    // Use a short validation interval for testing (200ms) and FAIL action
     failure = new AtomicReference<>();
-    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS, String.valueOf(500));
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS, String.valueOf(200));
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION, "fail");
     validator =
         new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
 
@@ -253,10 +291,10 @@ public class TaskToTopicPartitionValidatorTest {
     // Wait for the thread to process at least 2 validation cycles
     // The thread should:
     // 1. Run first validation (pass)
-    // 2. Wait 500ms
+    // 2. Wait 200ms
     // 3. Run second validation (fail)
     // 4. Set failure and stop
-    verify(adminClient, timeout(3000).atLeast(2)).describeTopics(anyCollection());
+    verify(adminClient, timeout(10000).atLeast(2)).describeTopics(anyCollection());
 
     // Wait for the thread to fully stop
     validator.join(1000);
@@ -269,5 +307,66 @@ public class TaskToTopicPartitionValidatorTest {
     // The thread should have stopped itself after failing
     Assertions.assertFalse(
         validator.isAlive(), "Validator thread should not be alive after failure");
+  }
+
+  /**
+   * Test the full thread lifecycle with WARN action - connector should not fail even when
+   * validation fails.
+   */
+  @Test
+  public void testThreadLifecycle_PartitionCountIncreases_WarnOnly() throws Exception {
+    // Use a short validation interval for testing (200ms) and WARN action
+    failure = new AtomicReference<>();
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS, String.valueOf(200));
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION, "warn");
+    validator =
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
+
+    // Track how many times describeTopics is called
+    AtomicInteger callCount = new AtomicInteger(0);
+
+    // Create topic descriptions - first call has few partitions, second has many
+    TopicDescription fewPartitions =
+        new TopicDescription(
+            "test-topic", false, Collections.nCopies(10, mock(TopicPartitionInfo.class)));
+    TopicDescription manyPartitions =
+        new TopicDescription(
+            "test-topic", false, Collections.nCopies(100, mock(TopicPartitionInfo.class)));
+
+    // Setup mock to return different partition counts on successive calls
+    when(adminClient.describeTopics(anyCollection())).thenReturn(describeTopicsResult);
+    when(describeTopicsResult.allTopicNames()).thenReturn(kafkaFuture);
+    when(kafkaFuture.get())
+        .thenAnswer(
+            (InvocationOnMock invocation) -> {
+              int count = callCount.incrementAndGet();
+              Map<String, TopicDescription> descriptions = new HashMap<>();
+              if (count == 1) {
+                // First call: few partitions (passes)
+                descriptions.put("test-topic", fewPartitions);
+              } else {
+                // Second call onwards: many partitions (would fail with FAIL action, but only
+                // warns)
+                descriptions.put("test-topic", manyPartitions);
+              }
+              return descriptions;
+            });
+
+    // Start the validator thread
+    validator.start();
+
+    // Wait for the thread to process at least 2 validation cycles
+    verify(adminClient, timeout(5000).atLeast(2)).describeTopics(anyCollection());
+
+    // Thread should still be alive since WARN action doesn't stop the thread
+    Assertions.assertTrue(
+        validator.isAlive(), "Validator thread should still be alive with warn action");
+
+    // Verify that failure was NOT set
+    Assertions.assertNull(failure.get(), "No failure should be set for warn action");
+
+    // Shutdown the validator
+    validator.shutdown();
+    validator.join(1000);
   }
 }

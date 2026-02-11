@@ -296,14 +296,18 @@ public class SnowflakeSinkConnectorConfig {
 
   public static final String ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION =
       "enable.task.to.topic.partitions.validation";
-  public static final Boolean ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT = false;
+  public static final Boolean ENABLE_TASK_TO_TOPIC_PARTITIONS_VALIDATION_DEFAULT = true;
+  public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION =
+      "task.to.topic.partitions.validation.failure.action";
+  public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION_DEFAULT =
+      TaskToTopicPartitionValidatorFailureAction.WARN.toString();
   public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS =
       "task.to.topic.partitions.validation.interval.ms";
   public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT =
-      300000; // 5 minutes
-  public static final String TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES =
-      "task.to.topic.partitions.memory.limit.bytes";
-  public static final long TASK_TO_TOPIC_PARTITIONS_MEMORY_LIMIT_IN_BYTES_DEFAULT =
+      3600000; // 1 hour
+  public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES =
+      "task.to.topic.partitions.validation.memory.limit.bytes";
+  public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT =
       524288000; // 500MB
 
   public static void setDefaultValues(Map<String, String> config) {
@@ -533,4 +537,50 @@ public class SnowflakeSinkConnectorConfig {
           this.validator.ensureValid(name, value);
         }
       };
+
+  /** Enum for task to topic partition validator failure action. */
+  public enum TaskToTopicPartitionValidatorFailureAction {
+    /** Fail the task when validation fails. */
+    FAIL,
+
+    /** Only log a warning when validation fails. */
+    WARN;
+
+    /** Validator for the failure action config. */
+    public static final ConfigDef.Validator VALIDATOR =
+        new ConfigDef.Validator() {
+          private final ConfigDef.ValidString validator =
+              ConfigDef.ValidString.in(TaskToTopicPartitionValidatorFailureAction.names());
+
+          @Override
+          public void ensureValid(String name, Object value) {
+            if (value instanceof String) {
+              value = ((String) value).toLowerCase(Locale.ROOT);
+            }
+            validator.ensureValid(name, value);
+          }
+
+          @Override
+          public String toString() {
+            return validator.toString();
+          }
+        };
+
+    /** @return All valid enum values as lowercase strings */
+    public static String[] names() {
+      TaskToTopicPartitionValidatorFailureAction[] actions = values();
+      String[] result = new String[actions.length];
+
+      for (int i = 0; i < actions.length; i++) {
+        result[i] = actions[i].toString();
+      }
+
+      return result;
+    }
+
+    @Override
+    public String toString() {
+      return name().toLowerCase(Locale.ROOT);
+    }
+  }
 }
