@@ -25,11 +25,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import net.snowflake.client.jdbc.SnowflakeConnectionV1;
@@ -883,6 +886,119 @@ public class SnowflakeConnectionServiceV1 implements SnowflakeConnectionService 
 
     } catch (SQLException e) {
       throw SnowflakeErrors.ERROR_2001.getException(e);
+    }
+  }
+
+  @Override
+  public void checkTablesExistenceAndPrivileges(Collection<String> tableNames) {
+    checkConnection();
+    if (tableNames == null || tableNames.isEmpty()) {
+      return;
+    }
+
+    // Deduplicate and normalize table names to uppercase for matching
+    Set<String> normalizedTargetTables = new HashSet<>();
+    for (String table : tableNames) {
+      normalizedTargetTables.add(table.toUpperCase());
+    }
+
+    // 1. Get current role (single query instead of N queries)
+    String currentRole = getCurrentRole(conn);
+
+    // Resolve the configured database and schema for fully-qualified matching
+    String configuredDb = jdbcProperties.getProperty(InternalUtils.JDBC_DATABASE).toUpperCase();
+    String configuredSchema = jdbcProperties.getProperty(InternalUtils.JDBC_SCHEMA).toUpperCase();
+
+    // 2. Check table existence using SHOW TABLES IN SCHEMA
+    // SHOW TABLES errors if >10,000 rows without LIMIT, so use LIMIT 10000 with pagination
+    Set<String> existingTables = new HashSet<>();
+    try {
+      String lastTableName = null;
+      boolean hasMore = true;
+      while (hasMore) {
+        String query =
+            lastTableName == null
+                ? "SHOW TABLES IN SCHEMA LIMIT 10000"
+                : "SHOW TABLES IN SCHEMA LIMIT 10000 FROM '" + lastTableName + "'";
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery(query);
+        int rowCount = 0;
+        while (rs.next()) {
+          rowCount++;
+          String tableName = rs.getString("name").toUpperCase();
+          lastTableName = tableName;
+          if (normalizedTargetTables.contains(tableName)) {
+            existingTables.add(tableName);
+          }
+        }
+        rs.close();
+        stmt.close();
+        // If we got fewer than 10000 rows, there are no more pages
+        hasMore = rowCount == 10000;
+      }
+    } catch (SQLException e) {
+      LOGGER.warn(
+          "Failed to batch check table existence, skipping table validation: {}", e.getMessage());
+      return;
+    }
+
+    for (String table : normalizedTargetTables) {
+      if (!existingTables.contains(table)) {
+        LOGGER.info("Table {} does not exist, skipping privilege check", table);
+      }
+    }
+
+    if (existingTables.isEmpty()) {
+      LOGGER.info("None of the target tables exist, skipping privilege check");
+      return;
+    }
+
+    // 3. Check privileges using SHOW GRANTS TO ROLE
+    // SHOW GRANTS TO ROLE is account-wide, so we must match the full DB.SCHEMA.TABLE path
+    // against the connector's configured database and schema to avoid cross-schema false positives.
+    String expectedPrefix = configuredDb + "." + configuredSchema + ".";
+    Set<String> tablesWithPrivileges = new HashSet<>();
+    try {
+      Statement stmt = conn.createStatement();
+      ResultSet rs = stmt.executeQuery("SHOW GRANTS TO ROLE " + currentRole);
+      while (rs.next()) {
+        String grantedOn = rs.getString("granted_on");
+        if (!"TABLE".equalsIgnoreCase(grantedOn)) {
+          continue;
+        }
+        String privilege = rs.getString("privilege");
+        if (!privilege.equalsIgnoreCase("OWNERSHIP")
+            && !privilege.equalsIgnoreCase("ALL")
+            && !privilege.equalsIgnoreCase("INSERT")) {
+          continue;
+        }
+        // name column is fully-qualified: DB.SCHEMA.TABLE
+        String fullName = rs.getString("name").toUpperCase();
+        if (!fullName.startsWith(expectedPrefix)) {
+          continue;
+        }
+        String shortName = fullName.substring(expectedPrefix.length());
+        if (existingTables.contains(shortName)) {
+          tablesWithPrivileges.add(shortName);
+        }
+      }
+      rs.close();
+      stmt.close();
+    } catch (SQLException e) {
+      LOGGER.warn(
+          "Failed to batch check table privileges, skipping privilege validation: {}",
+          e.getMessage());
+      return;
+    }
+
+    for (String table : existingTables) {
+      if (tablesWithPrivileges.contains(table)) {
+        LOGGER.info("Table {} has required privileges", table);
+      } else {
+        LOGGER.error(
+            "Table {} exists but is missing required privileges (OWNERSHIP, ALL, or INSERT)",
+            table);
+      }
     }
   }
 
