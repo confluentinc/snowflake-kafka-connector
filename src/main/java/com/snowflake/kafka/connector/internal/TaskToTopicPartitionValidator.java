@@ -143,6 +143,7 @@ public class TaskToTopicPartitionValidator extends Thread {
 
   private void initializeAdminClient() {
     Properties props = new Properties();
+    LOGGER.info("Config for kafka AdminClient initialization: {}", config);
     if (config != null) {
       // Handle admin.override.* properties
       for (Map.Entry<String, String> entry : config.entrySet()) {
@@ -153,7 +154,7 @@ public class TaskToTopicPartitionValidator extends Thread {
         }
       }
     }
-    LOGGER.info("Initializing Kafka Admin Client for Validator");
+    LOGGER.info("Initializing Kafka Admin Client for Validator with props: {}", props);
     try {
       this.adminClient = AdminClient.create(props);
     } catch (Exception e) {
