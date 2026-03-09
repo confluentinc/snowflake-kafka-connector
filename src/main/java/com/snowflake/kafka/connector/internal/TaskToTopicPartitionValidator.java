@@ -1,5 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION;
@@ -40,7 +42,7 @@ public class TaskToTopicPartitionValidator extends Thread {
   private final AtomicReference<Throwable> failure;
   private final CountDownLatch shutdownLatch;
   private final long validationIntervalMs;
-  private final long memoryLimitBytes;
+  private final int maxTopicPartitionsPerTask;
   private final boolean enableDynamicFlush;
   private final TaskToTopicPartitionValidatorFailureAction failureAction;
   private AdminClient adminClient;
@@ -69,14 +71,19 @@ public class TaskToTopicPartitionValidator extends Thread {
             config.getOrDefault(
                 TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES,
                 String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT)));
-    // If dynamic flush is enabled, we allow up to 2x topic partitions before triggering
-    // validation failure, since dynamic flush can help keeping memory usage under control.
+    long bufferSizeBytes =
+        Long.parseLong(
+            config.getOrDefault(BUFFER_SIZE_BYTES, String.valueOf(BUFFER_SIZE_BYTES_DEFAULT)));
+    int baseMaxTopicPartitionsPerTask = (int) (baseMemoryLimitBytes / bufferSizeBytes);
     this.enableDynamicFlush =
         Boolean.parseBoolean(
             config.getOrDefault(
                 ENABLE_DYNAMIC_FLUSH, String.valueOf(ENABLE_DYNAMIC_FLUSH_DEFAULT)));
-    this.memoryLimitBytes =
-        enableDynamicFlush ? baseMemoryLimitBytes * RELAXED_MULTIPLIER : baseMemoryLimitBytes;
+    // If dynamic flush is enabled, we allow up to 2x topic partitions
+    this.maxTopicPartitionsPerTask =
+        enableDynamicFlush
+            ? baseMaxTopicPartitionsPerTask * RELAXED_MULTIPLIER
+            : baseMaxTopicPartitionsPerTask;
     String failureActionStr =
         config.getOrDefault(
             TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION,
@@ -201,21 +208,10 @@ public class TaskToTopicPartitionValidator extends Thread {
 
   @VisibleForTesting
   void validateTaskToTopicPartitions() {
-    LOGGER.debug("Validating buffer size configuration...");
+    LOGGER.debug("Validating task to topic partitions configuration...");
 
     // Get topics from config
     List<String> topics = getTopicsFromConfig();
-
-    // Get buffer size from config
-    long bufferSizeBytes = SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES_DEFAULT;
-    String bufferSizeStr = config.get(SnowflakeSinkConnectorConfig.BUFFER_SIZE_BYTES);
-    if (bufferSizeStr != null) {
-      try {
-        bufferSizeBytes = Long.parseLong(bufferSizeStr);
-      } catch (NumberFormatException e) {
-        LOGGER.warn("Invalid buffer.size.bytes value: {}, using default", bufferSizeStr);
-      }
-    }
 
     // Get tasks.max from config
     int maxTasks = 1;
@@ -240,43 +236,50 @@ public class TaskToTopicPartitionValidator extends Thread {
       totalPartitions += desc.partitions().size();
     }
 
-    // Calculate average memory usage, assumes even partition distribution across tasks
-    long totalMemoryUsage = (totalPartitions * bufferSizeBytes) / maxTasks;
+    // Calculate partitions per task, assumes even partition distribution across tasks
+    int partitionsPerTask = (totalPartitions + maxTasks - 1) / maxTasks; // Ceiling division
     LOGGER.info(
-        "Total partitions: {}, Buffer size: {}, Max Tasks: {}, Estimated average memory usage per"
-            + " task: {} bytes",
+        "Total partitions: {}, Max Tasks: {}, Partitions per task: {}, Max allowed partitions per"
+            + " task: {}",
         totalPartitions,
-        bufferSizeBytes,
         maxTasks,
-        totalMemoryUsage);
+        partitionsPerTask,
+        this.maxTopicPartitionsPerTask);
 
-    if (totalMemoryUsage > this.memoryLimitBytes) {
-      long requiredTasks =
-          (totalPartitions * bufferSizeBytes + this.memoryLimitBytes - 1) / this.memoryLimitBytes;
+    if (partitionsPerTask > this.maxTopicPartitionsPerTask) {
+      // Calculate minimum required tasks
+      int requiredTasks =
+          (totalPartitions + this.maxTopicPartitionsPerTask - 1) / this.maxTopicPartitionsPerTask;
       String errorMessage;
       if (this.enableDynamicFlush) {
         // Dynamic flush already enabled, just suggest increasing tasks
         errorMessage =
             String.format(
-                "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
-                    + "Please increase the tasks.max to at least %d.",
-                totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
+                "Partitions per task (%d) exceeds maximum allowed partitions (%d). Please increase"
+                    + " the tasks.max to at least %d to ensure each task handles at most %d"
+                    + " partitions.",
+                partitionsPerTask,
+                this.maxTopicPartitionsPerTask,
+                requiredTasks,
+                this.maxTopicPartitionsPerTask);
       } else {
         // Dynamic flush not enabled, suggest both options
-        long memoryLimitWithDynamicFlush = this.memoryLimitBytes * RELAXED_MULTIPLIER;
-        long requiredTasksWithDynamicFlush =
-            (totalPartitions * bufferSizeBytes + memoryLimitWithDynamicFlush - 1)
-                / memoryLimitWithDynamicFlush;
+        int maxTopicPartitionsWithDynamicFlush =
+            this.maxTopicPartitionsPerTask * RELAXED_MULTIPLIER;
+        int requiredTasksWithDynamicFlush =
+            (totalPartitions + maxTopicPartitionsWithDynamicFlush - 1)
+                / maxTopicPartitionsWithDynamicFlush;
         errorMessage =
             String.format(
-                "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
-                    + "Please increase the tasks.max to at least %d, "
-                    + "or reach out to Confluent to enable %s and ensure the "
-                    + "tasks.max is at least %d.",
-                totalMemoryUsage,
-                this.memoryLimitBytes,
+                "Partitions per task (%d) exceeds maximum allowed partitions (%d). Please increase"
+                    + " the tasks.max to at least %d, or reach out to Confluent to enable %s which"
+                    + " would allow %d partitions per task and ensure the tasks.max is at least"
+                    + " %d.",
+                partitionsPerTask,
+                this.maxTopicPartitionsPerTask,
                 requiredTasks,
                 ENABLE_DYNAMIC_FLUSH,
+                maxTopicPartitionsWithDynamicFlush,
                 requiredTasksWithDynamicFlush);
       }
       if (this.failureAction == TaskToTopicPartitionValidatorFailureAction.FAIL) {
