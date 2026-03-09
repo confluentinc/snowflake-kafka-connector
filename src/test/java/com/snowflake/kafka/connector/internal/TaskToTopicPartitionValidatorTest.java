@@ -225,12 +225,19 @@ public class TaskToTopicPartitionValidatorTest {
       ConnectException exception =
           assertThrows(ConnectException.class, validator::validateTaskToTopicPartitions);
 
+      // Verify message contains required tasks for current config
       String expectedMessage = "tasks.max to at least " + expectedRequiredTasks;
       Assertions.assertTrue(
           exception.getMessage().contains(expectedMessage),
           "Exception message should contain 'tasks.max to at least "
               + expectedRequiredTasks
               + "' but was: "
+              + exception.getMessage());
+
+      // Verify message suggests enabling dynamic flush (since it's not enabled)
+      Assertions.assertTrue(
+          exception.getMessage().contains("enable.dynamic.flush"),
+          "Exception message should suggest enabling dynamic flush but was: "
               + exception.getMessage());
     } else {
       // Should pass without exception
@@ -368,5 +375,45 @@ public class TaskToTopicPartitionValidatorTest {
     // Shutdown the validator
     validator.shutdown();
     validator.join(1000);
+  }
+
+  /**
+   * Test that when enable.dynamic.flush is true but memory still exceeds 2x limit, error message
+   * does NOT suggest enabling dynamic flush (already enabled). With 150 partitions * 10MB = 1500MB
+   * > 1000MB (2x limit) -> fails requiredTasks = ceil(1500/1000) = 2
+   */
+  @Test
+  public void testValidate_WithDynamicFlushEnabled_ExceedsLimit() throws Exception {
+    config.put(SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH, "true");
+    config.put(TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION, "fail");
+    validator =
+        new TaskToTopicPartitionValidator(config, adminClient, failure, TEST_TASK_CONFIG_ID);
+
+    // 150 partitions * 10MB = 1500MB > 1000MB (2x limit)
+    TopicDescription topicDescription =
+        new TopicDescription(
+            "test-topic", false, Collections.nCopies(150, mock(TopicPartitionInfo.class)));
+
+    Map<String, TopicDescription> descriptions = new HashMap<>();
+    descriptions.put("test-topic", topicDescription);
+
+    when(adminClient.describeTopics(anyCollection())).thenReturn(describeTopicsResult);
+    when(describeTopicsResult.allTopicNames()).thenReturn(kafkaFuture);
+    when(kafkaFuture.get()).thenReturn(descriptions);
+
+    // Should throw exception
+    ConnectException exception =
+        assertThrows(ConnectException.class, validator::validateTaskToTopicPartitions);
+
+    // Verify message contains required tasks (ceil(1500/1000) = 2)
+    Assertions.assertTrue(
+        exception.getMessage().contains("tasks.max to at least 2"),
+        "Exception message should suggest at least 2 tasks but was: " + exception.getMessage());
+
+    // Verify message does NOT suggest enabling dynamic flush (already enabled)
+    Assertions.assertFalse(
+        exception.getMessage().contains("or enable"),
+        "Exception message should NOT suggest enabling dynamic flush when already enabled but was: "
+            + exception.getMessage());
   }
 }

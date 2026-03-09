@@ -1,7 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH_DEFAULT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.SNOWPIPE_SINGLE_TABLE_MULTIPLE_TOPICS_FIX_ENABLED;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT;
 import static com.snowflake.kafka.connector.Utils.createNamedThreadFactory;
 import static com.snowflake.kafka.connector.internal.FileNameUtils.searchForMissingOffsets;
@@ -484,27 +484,30 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   }
 
   /**
-   * Check total buffer across all pipes and flush largest ones
-   * until total is under the configured limit.
+   * Check total buffer across all pipes and flush largest ones until total is under the configured
+   * limit.
    */
   private void enforceTaskBufferLimit() {
     // Calculate total buffer size first
-    long totalBufferSize = pipes.values().stream()
-        .mapToLong(pipe -> pipe.buffer.getBufferSizeBytes())
-        .sum();
+    long totalBufferSize =
+        pipes.values().stream().mapToLong(pipe -> pipe.buffer.getBufferSizeBytes()).sum();
 
     if (totalBufferSize <= taskBufferLimitBytes) {
       return; // Under limit, nothing to do
     }
 
-    LOGGER.info("Total buffer size {} bytes across pipes exceeds limit {} bytes, initiating flush",
-        totalBufferSize, taskBufferLimitBytes);
+    LOGGER.info(
+        "Total buffer size {} bytes across pipes exceeds limit {} bytes, initiating flush",
+        totalBufferSize,
+        taskBufferLimitBytes);
 
     // Sort pipes by buffer size (descending) - largest first
-    List<ServiceContext> sortedPipes = pipes.values().stream()
-        .sorted(Comparator.comparingLong(
-            (ServiceContext pipe) -> pipe.buffer.getBufferSizeBytes()).reversed())
-        .collect(Collectors.toList());
+    List<ServiceContext> sortedPipes =
+        pipes.values().stream()
+            .sorted(
+                Comparator.comparingLong((ServiceContext pipe) -> pipe.buffer.getBufferSizeBytes())
+                    .reversed())
+            .collect(Collectors.toList());
 
     int flushedCount = 0;
     long originalSize = totalBufferSize;
@@ -522,8 +525,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       }
     }
 
-    LOGGER.info("Flushed {} pipes, reduced buffer from {} to {} bytes",
-        flushedCount, originalSize, totalBufferSize);
+    LOGGER.info(
+        "Flushed {} pipes, reduced buffer from {} to {} bytes",
+        flushedCount,
+        originalSize,
+        totalBufferSize);
   }
 
   private class ServiceContext {
@@ -1294,6 +1300,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
     /**
      * Get the current buffer size in bytes for this pipe.
+     *
      * @return buffer size in bytes
      */
     public long getBufferSizeBytes() {

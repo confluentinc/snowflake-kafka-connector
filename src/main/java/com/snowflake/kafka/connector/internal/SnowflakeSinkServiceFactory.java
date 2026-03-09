@@ -99,22 +99,19 @@ public class SnowflakeSinkServiceFactory {
         svc.configureDisableReprocessFilesCleanup(disableReprocessFilesCleanup);
 
         if (connectorConfig != null
-            && connectorConfig.containsKey(
-            SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH)) {
+            && connectorConfig.containsKey(SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH)) {
           boolean enableDynamicFlush =
               Boolean.parseBoolean(
-                  connectorConfig.get(
-                      SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH));
+                  connectorConfig.get(SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH));
           svc.configureEnableDynamicFlush(enableDynamicFlush);
         }
 
         if (connectorConfig != null
             && connectorConfig.containsKey(
-            SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES)) {
+                SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES)) {
           long taskBufferLimitBytes =
               Long.parseLong(
-                  connectorConfig.get(
-                      SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES));
+                  connectorConfig.get(SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES));
           svc.configureTaskBufferLimitBytes(taskBufferLimitBytes);
         }
 

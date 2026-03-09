@@ -1,5 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_DYNAMIC_FLUSH_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS;
@@ -39,8 +41,10 @@ public class TaskToTopicPartitionValidator extends Thread {
   private final CountDownLatch shutdownLatch;
   private final long validationIntervalMs;
   private final long memoryLimitBytes;
+  private final boolean enableDynamicFlush;
   private final TaskToTopicPartitionValidatorFailureAction failureAction;
   private AdminClient adminClient;
+  private final int RELAXED_MULTIPLIER = 2;
 
   public TaskToTopicPartitionValidator(
       Map<String, String> config, AtomicReference<Throwable> failure, String taskConfigId) {
@@ -60,11 +64,19 @@ public class TaskToTopicPartitionValidator extends Thread {
             config.getOrDefault(
                 TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS,
                 String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_INTERVAL_MS_DEFAULT)));
-    this.memoryLimitBytes =
+    long baseMemoryLimitBytes =
         Long.parseLong(
             config.getOrDefault(
                 TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES,
                 String.valueOf(TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT)));
+    // If dynamic flush is enabled, we allow up to 2x topic partitions before triggering
+    // validation failure, since dynamic flush can help keeping memory usage under control.
+    this.enableDynamicFlush =
+        Boolean.parseBoolean(
+            config.getOrDefault(
+                ENABLE_DYNAMIC_FLUSH, String.valueOf(ENABLE_DYNAMIC_FLUSH_DEFAULT)));
+    this.memoryLimitBytes =
+        enableDynamicFlush ? baseMemoryLimitBytes * RELAXED_MULTIPLIER : baseMemoryLimitBytes;
     String failureActionStr =
         config.getOrDefault(
             TASK_TO_TOPIC_PARTITIONS_VALIDATION_FAILURE_ACTION,
@@ -241,12 +253,32 @@ public class TaskToTopicPartitionValidator extends Thread {
     if (totalMemoryUsage > this.memoryLimitBytes) {
       long requiredTasks =
           (totalPartitions * bufferSizeBytes + this.memoryLimitBytes - 1) / this.memoryLimitBytes;
-      String errorMessage =
-          String.format(
-              "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
-                  + "Please increase the tasks.max to at least %d.",
-              totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
-
+      String errorMessage;
+      if (this.enableDynamicFlush) {
+        // Dynamic flush already enabled, just suggest increasing tasks
+        errorMessage =
+            String.format(
+                "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
+                    + "Please increase the tasks.max to at least %d.",
+                totalMemoryUsage, this.memoryLimitBytes, requiredTasks);
+      } else {
+        // Dynamic flush not enabled, suggest both options
+        long memoryLimitWithDynamicFlush = this.memoryLimitBytes * RELAXED_MULTIPLIER;
+        long requiredTasksWithDynamicFlush =
+            (totalPartitions * bufferSizeBytes + memoryLimitWithDynamicFlush - 1)
+                / memoryLimitWithDynamicFlush;
+        errorMessage =
+            String.format(
+                "Total memory usage per task (%d bytes) exceeds limit (%d bytes). "
+                    + "Please increase the tasks.max to at least %d, "
+                    + "or reach out to Confluent to enable %s and ensure the "
+                    + "tasks.max is at least %d.",
+                totalMemoryUsage,
+                this.memoryLimitBytes,
+                requiredTasks,
+                ENABLE_DYNAMIC_FLUSH,
+                requiredTasksWithDynamicFlush);
+      }
       if (this.failureAction == TaskToTopicPartitionValidatorFailureAction.FAIL) {
         LOGGER.error(errorMessage);
         // This will be caught by the run() loop and call fail()
@@ -296,8 +328,9 @@ public class TaskToTopicPartitionValidator extends Thread {
   }
 
   /**
-   * Fail the connector with an unrecoverable error and stop the validator thread
-   * if the failure action is set to FAIL. Otherwise, just log the error.
+   * Fail the connector with an unrecoverable error and stop the validator thread if the failure
+   * action is set to FAIL. Otherwise, just log the error.
+   *
    * @param t the cause of the failure
    * @param message additional message to log with the error
    */
