@@ -272,7 +272,7 @@ public class TaskToTopicPartitionValidator extends Thread {
         errorMessage =
             String.format(
                 "Partitions per task (%d) exceeds maximum allowed partitions (%d). Please increase"
-                    + " the tasks.max to at least %d, or reach out to Confluent to enable %s which"
+                    + " the tasks.max to at least %d, or enable %s which"
                     + " would allow %d partitions per task and ensure the tasks.max is at least"
                     + " %d.",
                 partitionsPerTask,

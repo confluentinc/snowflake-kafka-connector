@@ -218,7 +218,7 @@ public class TaskToTopicPartitionValidatorTest {
 
     // Calculate expected memory usage
     long expectedMemoryUsage = partitions * bufferSize;
-    long memoryLimit = 500 * 1024 * 1024; // 500MB
+    long memoryLimit = 500 * 1000 * 1000;
 
     if (expectedMemoryUsage > memoryLimit) {
       // Should throw exception with correct requiredTasks in message
