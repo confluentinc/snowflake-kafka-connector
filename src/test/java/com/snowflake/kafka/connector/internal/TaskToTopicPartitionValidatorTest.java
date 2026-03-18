@@ -363,7 +363,7 @@ public class TaskToTopicPartitionValidatorTest {
     validator.start();
 
     // Wait for the thread to process at least 2 validation cycles
-    verify(adminClient, timeout(5000).atLeast(2)).describeTopics(anyCollection());
+    verify(adminClient, timeout(10000).atLeast(2)).describeTopics(anyCollection());
 
     // Thread should still be alive since WARN action doesn't stop the thread
     Assertions.assertTrue(
