@@ -27,6 +27,7 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.connect.errors.ConnectException;
 
 /**
@@ -194,16 +195,51 @@ public class TaskToTopicPartitionValidator extends Thread {
 
   private Map<String, TopicDescription> describeTopics(Collection<String> topicNames) {
     LOGGER.debug("Describing topics: {}", topicNames);
+
     try {
       DescribeTopicsResult result = adminClient.describeTopics(topicNames);
       return result.allTopicNames().get();
     } catch (Exception e) {
+      if (e.getCause() instanceof UnknownTopicOrPartitionException) {
+        LOGGER.debug("Some topics don't exist, checking individually");
+        return describeTopicsIndividually(topicNames);
+      }
+
       LOGGER.error("Failed to describe topics: {}", e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
       return null;
     }
+  }
+
+  private Map<String, TopicDescription> describeTopicsIndividually(Collection<String> topicNames) {
+    Map<String, TopicDescription> descriptions = new HashMap<>();
+
+    for (String topicName : topicNames) {
+      try {
+        DescribeTopicsResult result =
+            adminClient.describeTopics(Collections.singleton(topicName));
+        Map<String, TopicDescription> singleTopicDesc = result.allTopicNames().get();
+        descriptions.putAll(singleTopicDesc);
+      } catch (Exception e) {
+        if (e.getCause() instanceof UnknownTopicOrPartitionException) {
+          LOGGER.warn("Topic {} does not exist, skipping from validation", topicName);
+        } else if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+          LOGGER.error("Interrupted while describing topic: {}", topicName);
+          return descriptions;
+        } else {
+          LOGGER.warn("Failed to describe topic {}: {}", topicName, e.getMessage());
+        }
+      }
+    }
+
+    if (descriptions.isEmpty() && !topicNames.isEmpty()) {
+      LOGGER.warn("Could not describe any topics from the list: {}", topicNames);
+    }
+
+    return descriptions;
   }
 
   @VisibleForTesting
@@ -228,6 +264,11 @@ public class TaskToTopicPartitionValidator extends Thread {
     Map<String, TopicDescription> descriptions = describeTopics(topics);
     if (descriptions == null) {
       LOGGER.error("Could not describe topics, skipping validating TaskToTopicPartitions.");
+      return;
+    }
+
+    if (descriptions.isEmpty()) {
+      LOGGER.warn("No valid topics found for validation. Topics requested: {}", topics);
       return;
     }
 
