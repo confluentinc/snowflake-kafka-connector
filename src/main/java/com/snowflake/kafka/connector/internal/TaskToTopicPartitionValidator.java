@@ -234,11 +234,6 @@ public class TaskToTopicPartitionValidator extends Thread {
         }
       }
     }
-
-    if (descriptions.isEmpty() && !topicNames.isEmpty()) {
-      LOGGER.warn("Could not describe any topics from the list: {}", topicNames);
-    }
-
     return descriptions;
   }
 
