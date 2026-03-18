@@ -308,7 +308,11 @@ public class SnowflakeSinkConnectorConfig {
   public static final String TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES =
       "task.to.topic.partitions.validation.memory.limit.bytes";
   public static final long TASK_TO_TOPIC_PARTITIONS_VALIDATION_MEMORY_LIMIT_IN_BYTES_DEFAULT =
-      524288000; // 500MB
+      500000000;
+  public static final String ENABLE_DYNAMIC_FLUSH = "enable.dynamic.flush";
+  public static final Boolean ENABLE_DYNAMIC_FLUSH_DEFAULT = false;
+  public static final String TASK_BUFFER_TOTAL_LIMIT_BYTES = "task.buffer.total.limit.bytes";
+  public static final long TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT = 500000000;
 
   public static void setDefaultValues(Map<String, String> config) {
     setFieldToDefaultValues(config, BUFFER_COUNT_RECORDS, BUFFER_COUNT_RECORDS_DEFAULT, "");
