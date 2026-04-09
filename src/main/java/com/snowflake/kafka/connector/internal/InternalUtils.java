@@ -7,6 +7,7 @@ import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -43,6 +44,7 @@ public class InternalUtils {
   static final String JDBC_QUERY_RESULT_FORMAT = "JDBC_QUERY_RESULT_FORMAT";
   // internal parameters
   static final long MAX_RECOVERY_TIME = 10 * 24 * 3600 * 1000; // 10 days
+  static final int MIN_RSA_KEY_SIZE_BITS = 2048;
 
   private static final KCLogger LOGGER = new KCLogger(InternalUtils.class.getName());
 
@@ -92,9 +94,36 @@ public class InternalUtils {
     try {
       KeyFactory kf = KeyFactory.getInstance("RSA");
       PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
-      return kf.generatePrivate(keySpec);
+      PrivateKey privateKey = kf.generatePrivate(keySpec);
+      validateRsaKeySize(privateKey);
+      return privateKey;
+    } catch (SnowflakeKafkaConnectorException e) {
+      throw e;
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_0002.getException(e);
+    }
+  }
+
+  /**
+   * Validates that the RSA private key meets the minimum size requirement.
+   *
+   * @param privateKey the private key to validate
+   * @throws SnowflakeKafkaConnectorException if the key size is less than 2048 bits
+   */
+  static void validateRsaKeySize(PrivateKey privateKey) {
+    if (privateKey instanceof RSAPrivateKey) {
+      try {
+        RSAPrivateKey rsaKey = (RSAPrivateKey) privateKey;
+        int keySize = rsaKey.getModulus().bitLength();
+        if (keySize < MIN_RSA_KEY_SIZE_BITS) {
+          throw SnowflakeErrors.ERROR_0033.getException(
+              "Current key size: " + keySize + " bits, minimum required: " + MIN_RSA_KEY_SIZE_BITS);
+        }
+      } catch (SnowflakeKafkaConnectorException e) {
+        throw e;
+      } catch (Exception e) {
+        LOGGER.warn("Unable to validate RSA key size: {}", e.getMessage());
+      }
     }
   }
 

@@ -39,7 +39,11 @@ public class EncryptionUtils {
           new JcaPEMKeyConverter().setProvider(BouncyCastleFipsProvider.PROVIDER_NAME);
       PrivateKeyInfo decryptedPrivateKeyInfo =
           encryptedPrivateKeyInfo.decryptPrivateKeyInfo(pkcs8Prov);
-      return converter.getPrivateKey(decryptedPrivateKeyInfo);
+      PrivateKey privateKey = converter.getPrivateKey(decryptedPrivateKeyInfo);
+      InternalUtils.validateRsaKeySize(privateKey);
+      return privateKey;
+    } catch (SnowflakeKafkaConnectorException e) {
+      throw e;
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_0018.getException(e);
     }

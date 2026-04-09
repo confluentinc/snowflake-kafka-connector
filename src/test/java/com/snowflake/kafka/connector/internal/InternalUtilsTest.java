@@ -1,11 +1,17 @@
 package com.snowflake.kafka.connector.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.mock.MockResultSetForSizeTest;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -33,6 +39,37 @@ public class InternalUtilsTest {
     String originalKey = builder.toString();
     // no exception
     InternalUtils.parsePrivateKey(originalKey);
+  }
+
+  @Test
+  public void testPrivateKeyTooSmall() throws Exception {
+    // Generate a 1024-bit RSA key (below the 2048-bit minimum)
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+    keyGen.initialize(1024);
+    KeyPair keyPair = keyGen.generateKeyPair();
+    PrivateKey smallKey = keyPair.getPrivate();
+    String smallKeyPem = Base64.getEncoder().encodeToString(smallKey.getEncoded());
+
+    // Should throw ERROR_0033 for key size too small
+    SnowflakeKafkaConnectorException exception =
+        assertThrows(
+            SnowflakeKafkaConnectorException.class,
+            () -> InternalUtils.parsePrivateKey(smallKeyPem));
+    assertTrue(exception.checkErrorCode(SnowflakeErrors.ERROR_0033));
+    assertTrue(
+        exception.getMessage().contains("Current key size: 1024 bits, minimum required: 2048"));
+  }
+
+  @Test
+  public void testValidateRsaKeySize_ValidKey() throws Exception {
+    // Generate a 2048-bit RSA key (meets minimum requirement)
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+    keyGen.initialize(2048);
+    KeyPair keyPair = keyGen.generateKeyPair();
+    PrivateKey validKey = keyPair.getPrivate();
+
+    // Should not throw any exception
+    InternalUtils.validateRsaKeySize(validKey);
   }
 
   @Test
