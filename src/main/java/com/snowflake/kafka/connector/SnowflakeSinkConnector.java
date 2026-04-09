@@ -293,6 +293,12 @@ public class SnowflakeSinkConnector extends SinkConnector {
           Utils.updateConfigErrorMessage(
               result, Utils.SF_PRIVATE_KEY, " must be a valid PEM RSA private key");
           break;
+        case "0033":
+          Utils.updateConfigErrorMessage(
+              result,
+              Utils.SF_PRIVATE_KEY,
+              " RSA key size is too small. The minimum required key size is 2048 bits.");
+          break;
         default:
           throw e; // Shouldn't reach here, so crash.
       }
