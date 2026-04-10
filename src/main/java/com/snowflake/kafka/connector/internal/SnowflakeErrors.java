@@ -144,6 +144,11 @@ public enum SnowflakeErrors {
       "0032",
       "Iceberg table does not exist or is in invalid format",
       "Check Snowflake Kafka Connector docs for details"),
+  ERROR_0033(
+      "0033",
+      "RSA key size is too small",
+      "The RSA private key must be at least 2048 bits. Please generate a new key pair with 2048"
+          + " bits or larger."),
   // Snowflake connection issues 1---
   ERROR_1001(
       "1001",
