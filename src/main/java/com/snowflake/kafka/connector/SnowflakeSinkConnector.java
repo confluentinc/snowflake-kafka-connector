@@ -297,6 +297,19 @@ public class SnowflakeSinkConnector extends SinkConnector {
               Utils.SF_PRIVATE_KEY,
               " RSA key size is too small. The minimum required key size is 2048 bits.");
           break;
+        case "1004":
+          // OAuth token fetch failed (expired/invalid refresh token, wrong
+          // client id/secret, unreachable token endpoint, etc.). Surface as
+          // field-level validation errors on the OAuth fields rather than a 500.
+          String oauthErrorString =
+              String.format(
+                  ": Failed to fetch OAuth access token from Snowflake. %s",
+                  e.getExceptionUserMessage());
+          Utils.updateConfigErrorMessage(result, Utils.SF_OAUTH_CLIENT_ID, oauthErrorString);
+          Utils.updateConfigErrorMessage(result, Utils.SF_OAUTH_CLIENT_SECRET, oauthErrorString);
+          Utils.updateConfigErrorMessage(result, Utils.SF_OAUTH_REFRESH_TOKEN, oauthErrorString);
+          Utils.updateConfigErrorMessage(result, Utils.SF_OAUTH_TOKEN_ENDPOINT, oauthErrorString);
+          break;
         default:
           throw e; // Shouldn't reach here, so crash.
       }

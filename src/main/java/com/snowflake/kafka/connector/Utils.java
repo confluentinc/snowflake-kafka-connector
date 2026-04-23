@@ -25,6 +25,7 @@ import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.OAuthConstants;
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
 import com.snowflake.kafka.connector.internal.SnowflakeInternalOperations;
+import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import java.io.BufferedReader;
 import java.io.File;
@@ -57,8 +58,10 @@ import net.snowflake.client.jdbc.internal.apache.http.entity.StringEntity;
 import net.snowflake.client.jdbc.internal.apache.http.impl.client.CloseableHttpClient;
 import net.snowflake.client.jdbc.internal.apache.http.impl.client.HttpClientBuilder;
 import net.snowflake.client.jdbc.internal.apache.http.util.EntityUtils;
+import net.snowflake.client.jdbc.internal.google.gson.JsonElement;
 import net.snowflake.client.jdbc.internal.google.gson.JsonObject;
 import net.snowflake.client.jdbc.internal.google.gson.JsonParser;
+import net.snowflake.client.jdbc.internal.google.gson.JsonSyntaxException;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.utils.ThreadUtils;
@@ -797,10 +800,11 @@ public class Utils {
               SnowflakeInternalOperations.FETCH_OAUTH_TOKEN,
               () -> {
                 try (CloseableHttpResponse httpResponse = client.execute(post)) {
+                  int statusCode = httpResponse.getStatusLine().getStatusCode();
                   String respBodyString = EntityUtils.toString(httpResponse.getEntity());
-                  JsonObject respBody = JsonParser.parseString(respBodyString).getAsJsonObject();
-                  // Trim surrounding quotation marks
-                  return respBody.get(tokenType).toString().replaceAll("^\"|\"$", "");
+                  return parseOAuthTokenResponse(tokenType, statusCode, respBodyString);
+                } catch (SnowflakeKafkaConnectorException e) {
+                  throw e;
                 } catch (Exception e) {
                   throw SnowflakeErrors.ERROR_1004.getException(e);
                 }
@@ -809,6 +813,61 @@ public class Utils {
     } catch (Exception e) {
       throw SnowflakeErrors.ERROR_1004.getException(e);
     }
+  }
+
+  /**
+   * Parse the OAuth authorization server response body and extract the token of the given type.
+   * Throws a descriptive {@link SnowflakeKafkaConnectorException} with code 1004 when the response
+   * is not valid JSON or does not contain the expected token field (e.g. when the server returned
+   * an RFC 6749 error response). Visible for testing.
+   */
+  static String parseOAuthTokenResponse(String tokenType, int statusCode, String respBodyString) {
+    JsonObject respBody;
+    try {
+      respBody = JsonParser.parseString(respBodyString).getAsJsonObject();
+    } catch (IllegalStateException | JsonSyntaxException parseEx) {
+      throw SnowflakeErrors.ERROR_1004.getException(
+          "OAuth authorization server returned non-JSON response (HTTP " + statusCode + ").");
+    }
+    JsonElement tokenElement = respBody.get(tokenType);
+    if (tokenElement == null || tokenElement.isJsonNull()) {
+      throw SnowflakeErrors.ERROR_1004.getException(
+          buildOAuthErrorMessage(tokenType, statusCode, respBody));
+    }
+    // Trim surrounding quotation marks
+    return tokenElement.toString().replaceAll("^\"|\"$", "");
+  }
+
+  /**
+   * Build a descriptive message for the case where the OAuth authorization server response is
+   * missing the expected token field. Uses the standard RFC 6749 fields (error, error_description)
+   * when present so the caller gets actionable information instead of an NPE.
+   */
+  private static String buildOAuthErrorMessage(
+      String tokenType, int statusCode, JsonObject respBody) {
+    String oauthError = readStringField(respBody, "error");
+    String oauthErrorDescription = readStringField(respBody, "error_description");
+    StringBuilder message =
+        new StringBuilder("OAuth authorization server response did not include ")
+            .append(tokenType)
+            .append(" (HTTP ")
+            .append(statusCode)
+            .append(").");
+    if (oauthError != null) {
+      message.append(" error=").append(oauthError).append(".");
+    }
+    if (oauthErrorDescription != null) {
+      message.append(" error_description=").append(oauthErrorDescription).append(".");
+    }
+    return message.toString();
+  }
+
+  private static String readStringField(JsonObject obj, String name) {
+    JsonElement element = obj.get(name);
+    if (element == null || element.isJsonNull() || !element.isJsonPrimitive()) {
+      return null;
+    }
+    return element.getAsString();
   }
 
   /**
