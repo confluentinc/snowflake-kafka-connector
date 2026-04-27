@@ -16,8 +16,6 @@
  */
 package com.snowflake.kafka.connector;
 
-import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.INGESTION_METHOD_OPT;
-
 import com.snowflake.kafka.connector.config.ConnectorConfigDefinition;
 import com.snowflake.kafka.connector.config.IcebergConfigValidator;
 import com.snowflake.kafka.connector.internal.KCLogger;
@@ -330,34 +328,6 @@ public class SnowflakeSinkConnector extends SinkConnector {
         throw e;
       }
       return result;
-    }
-
-    try {
-      testConnection.hasSchemaPrivileges(
-          connectorConfigs.get(Utils.SF_SCHEMA),
-          connectorConfigs.getOrDefault(INGESTION_METHOD_OPT, "SNOWPIPE"));
-    } catch (SnowflakeKafkaConnectorException e) {
-      LOGGER.error("Validate Error msg:{}, errorCode:{}", e.getMessage(), e.getCode());
-      if (e.getCode().equals("2001")) {
-        LOGGER.error(
-            Utils.SF_SCHEMA
-                + ": provided role does not have one of the required privileges "
-                + "(CREATE TABLE, CREATE STAGE, CREATE PIPE) on the schema");
-      }
-    } catch (Exception e) {
-      LOGGER.error(
-          "Unexpected Exception in validate for schema privilege check msg:{}, errorCode:{}",
-          e.getMessage(),
-          e);
-    }
-
-    if (shouldCheckTablePrivilege(connectorConfigs)) {
-      Map<String, String> topicsTablesMap =
-          Utils.parseTopicToTableMap(
-              connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP));
-      if (topicsTablesMap != null) {
-        checkTablePrivilege(topicsTablesMap, testConnection);
-      }
     }
 
     LOGGER.info("Validated config with no error");
