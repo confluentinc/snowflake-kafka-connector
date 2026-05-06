@@ -74,8 +74,8 @@
         <jackson.version>2.18.2</jackson.version>
         <commons-compress.version>1.27.1</commons-compress.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
-        <snowflake-jdbc.version>3.26.1</snowflake-jdbc.version>
-        <snowflake-ingest-sdk.version>4.3.2</snowflake-ingest-sdk.version>
+        <snowflake-jdbc.version>3.26.1-1</snowflake-jdbc.version>
+        <snowflake-ingest-sdk.version>4.3.2-5</snowflake-ingest-sdk.version>
         <slf4j-api.version>2.0.17</slf4j-api.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
     </properties>
@@ -483,7 +483,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>3.23.0-7</version>
+            <version>snowflake-jdbc.version</version>
         </dependency>
 
         <dependency>
@@ -501,7 +501,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
-            <version>3.0.1-10</version>
+            <version>snowflake-ingest-sdk.version</version>
             <exclusions>
                 <exclusion>
                     <groupId>net.snowflake</groupId>
