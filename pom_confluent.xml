@@ -483,7 +483,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-jdbc</artifactId>
-            <version>snowflake-jdbc.version</version>
+            <version>${snowflake-jdbc.version}</version>
         </dependency>
 
         <dependency>
@@ -501,7 +501,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
-            <version>snowflake-ingest-sdk.version</version>
+            <version>${snowflake-ingest-sdk.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>net.snowflake</groupId>

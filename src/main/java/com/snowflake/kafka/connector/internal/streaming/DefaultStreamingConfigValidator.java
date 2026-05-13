@@ -120,6 +120,7 @@ public class DefaultStreamingConfigValidator implements StreamingConfigValidator
 
           if (inputConfig.containsKey(TASK_BUFFER_TOTAL_LIMIT_BYTES)) {
             ensureValidLong(inputConfig, TASK_BUFFER_TOTAL_LIMIT_BYTES, invalidParams);
+          }
 
           // Valid schematization for Snowpipe Streaming
           invalidParams.putAll(validateSchematizationConfig(inputConfig));
