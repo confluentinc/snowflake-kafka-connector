@@ -520,6 +520,15 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     this.taskBufferLimitBytes = taskBufferLimitBytes;
   }
 
+  @VisibleForTesting
+  boolean isPartitionBufferEmpty(String nameIndex) {
+    ServiceContext context = pipes.get(nameIndex);
+    if (context == null) {
+      return true;
+    }
+    return context.buffer.isEmpty();
+  }
+
   /**
    * Check total buffer across all pipes and flush largest ones until total is under the configured
    * limit.
