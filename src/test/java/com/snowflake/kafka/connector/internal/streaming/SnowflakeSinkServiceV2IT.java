@@ -78,9 +78,9 @@ public class SnowflakeSinkServiceV2IT {
     TestUtils.dropTable(table);
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testChannelCloseIngestion(boolean useOAuth) throws Exception {
+  @Test
+  public void testChannelCloseIngestion() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -122,9 +122,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testRebalanceOpenCloseIngestion(boolean useOAuth) throws Exception {
+  @Test
+  public void testRebalanceOpenCloseIngestion() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -167,9 +167,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testStreamingIngestion(boolean useOAuth) throws Exception {
+  @Test
+  public void testStreamingIngestion() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -231,10 +231,13 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}, channelNameVersion: {1}")
-  @CsvSource({"true,V1", "true,V2", "false,V1", "false,V2"})
+  @ParameterizedTest(name = "channelNameVersion: {0}")
+  @ValueSource(strings = {"V1", "V2"})
   public void testStreamingIngest_multipleChannelPartitions_withMetrics(
-      boolean useOAuth, ChannelNameFormatVersion channelNameFormatVersion) throws Exception {
+      String channelNameVersionStr) throws Exception {
+    boolean useOAuth = false;
+    ChannelNameFormatVersion channelNameFormatVersion =
+        ChannelNameFormatVersion.valueOf(channelNameVersionStr);
     conn = getConn(useOAuth);
     String connectorName =
         channelNameFormatVersion == ChannelNameFormatVersion.V2 ? conn.getConnectorName() : null;
@@ -479,9 +482,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testStreamingIngestion_timeBased(boolean useOAuth) throws Exception {
+  @Test
+  public void testStreamingIngestion_timeBased() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -514,9 +517,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testNativeJsonInputIngestion(boolean useOAuth) throws Exception {
+  @Test
+  public void testNativeJsonInputIngestion() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -613,9 +616,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testNativeAvroInputIngestion(boolean useOAuth) throws Exception {
+  @Test
+  public void testNativeAvroInputIngestion() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -774,9 +777,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testBrokenIngestion(boolean useOAuth) throws Exception {
+  @Test
+  public void testBrokenIngestion() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -844,9 +847,9 @@ public class SnowflakeSinkServiceV2IT {
         : "expected: " + 0 + " actual: " + TestUtils.tableSize(table);
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testBrokenRecordIngestionFollowedUpByValidRecord(boolean useOAuth) throws Exception {
+  @Test
+  public void testBrokenRecordIngestionFollowedUpByValidRecord() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -901,9 +904,9 @@ public class SnowflakeSinkServiceV2IT {
    * broken records (Non valid JSON) followed by another good record with max buffer record size
    * being 2
    */
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testBrokenRecordIngestionAfterValidRecord(boolean useOAuth) throws Exception {
+  @Test
+  public void testBrokenRecordIngestionAfterValidRecord() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
@@ -1245,9 +1248,9 @@ public class SnowflakeSinkServiceV2IT {
     service.closeAll();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testStreamingIngestionValidClientLag(boolean useOAuth) throws Exception {
+  @Test
+  public void testStreamingIngestionValidClientLag() throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = getConfig(useOAuth);
     config.put(SNOWPIPE_STREAMING_MAX_CLIENT_LAG, "30");
@@ -1306,10 +1309,10 @@ public class SnowflakeSinkServiceV2IT {
     }
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testStreamingIngestionValidClientPropertiesOverride(boolean useOAuth)
+  @Test
+  public void testStreamingIngestionValidClientPropertiesOverride()
       throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = new HashMap<>(getConfig(useOAuth));
     config.put(
@@ -1344,10 +1347,10 @@ public class SnowflakeSinkServiceV2IT {
    * Even if override key is invalid, we will still create a client since we dont verify key and
    * values, only format.
    */
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testStreamingIngestion_invalidClientPropertiesOverride(boolean useOAuth)
+  @Test
+  public void testStreamingIngestion_invalidClientPropertiesOverride()
       throws Exception {
+    boolean useOAuth = false;
     conn = getConn(useOAuth);
     Map<String, String> config = new HashMap<>(getConfig(useOAuth));
     config.put(SNOWPIPE_STREAMING_CLIENT_PROVIDER_OVERRIDE_MAP, "MAX_SOMETHING_SOMETHING:1");

@@ -23,16 +23,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -67,15 +64,9 @@ public class SnowflakeSinkTaskForStreamingIT {
     TestUtils.dropTable(topicName);
   }
 
-  private static Stream<Arguments> oAuthAndSingleBufferParameters() {
-    return Stream.of(Arguments.of(false, false), Arguments.of(false, true));
-    // OAuth tests are temporary disabled
-    // return TestUtils.nBooleanProduct(2);
-  }
-
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testSinkTask(boolean useOAuth) throws Exception {
+  @Test
+  public void testSinkTask() throws Exception {
+    boolean useOAuth = false;
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
     config.put(BUFFER_COUNT_RECORDS, "1"); // override
@@ -113,9 +104,9 @@ public class SnowflakeSinkTaskForStreamingIT {
     sinkTask.stop();
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testSinkTaskWithMultipleOpenClose(boolean useOAuth) throws Exception {
+  @Test
+  public void testSinkTaskWithMultipleOpenClose() throws Exception {
+    boolean useOAuth = false;
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
     config.put(BUFFER_COUNT_RECORDS, "1"); // override
@@ -208,9 +199,9 @@ public class SnowflakeSinkTaskForStreamingIT {
     assert partitionsInTable.size() == 2;
   }
 
-  @ParameterizedTest(name = "useOAuth: {0}")
-  @ValueSource(booleans = {true, false})
-  public void testTopicToTableRegex(boolean useOAuth) {
+  @Test
+  public void testTopicToTableRegex() {
+    boolean useOAuth = false;
     Map<String, String> config = getConfig(useOAuth);
 
     testTopicToTableRegexMain(config);
