@@ -933,8 +933,12 @@ public class ConnectorConfigValidatorTest {
 
   @Test
   public void testStreamingNameV2Config_validWithSnowpipeStreaming_byDefault() {
+    // V2 channel naming requires migration to be disabled
     Map<String, String> config =
-        SnowflakeSinkConnectorConfigBuilder.streamingConfig().withV2ChannelNaming().build();
+        SnowflakeSinkConnectorConfigBuilder.streamingConfig()
+            .withV2toV1ChannelNameMigrationEnabled(false)
+            .withV2ChannelNaming()
+            .build();
     connectorConfigValidator.validateConfig(config);
   }
 
