@@ -243,6 +243,11 @@ public class SnowflakeSinkServiceV2IT {
         channelNameFormatVersion == ChannelNameFormatVersion.V2 ? conn.getConnectorName() : null;
     Map<String, String> config = getConfig(useOAuth);
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
+    if (channelNameFormatVersion == ChannelNameFormatVersion.V2) {
+      config.put(
+          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG,
+          "true");
+    }
 
     // set up telemetry service spy
     SnowflakeConnectionService connectionService = Mockito.spy(this.conn);
