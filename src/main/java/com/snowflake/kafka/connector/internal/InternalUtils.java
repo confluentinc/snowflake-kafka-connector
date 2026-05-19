@@ -236,6 +236,13 @@ public class InternalUtils {
     if (!properties.containsKey(JDBC_AUTHENTICATOR)) {
       properties.put(JDBC_AUTHENTICATOR, Utils.SNOWFLAKE_JWT);
     }
+    LOGGER.info(
+        "[DIAG] auth branch entry: authenticator={}, oauth.client.id.present={},"
+            + " oauth.token.endpoint='{}', private.key.present={}",
+        properties.getProperty(JDBC_AUTHENTICATOR),
+        !oAuthClientId.isEmpty(),
+        oAuthTokenEndpoint,
+        !privateKey.isEmpty());
     if (properties.getProperty(JDBC_AUTHENTICATOR).equals(Utils.SNOWFLAKE_JWT)) {
       // JWT key pair auth
       if (!privateKeyPassphrase.isEmpty()) {
@@ -264,6 +271,9 @@ public class InternalUtils {
       String accessToken =
           Utils.getSnowflakeOAuthAccessToken(
               oauthUrl, oAuthClientId, oAuthClientSecret, oAuthRefreshToken);
+      LOGGER.info(
+          "[DIAG] OAuth token fetched: length={}",
+          accessToken == null ? -1 : accessToken.length());
       properties.put(JDBC_TOKEN, accessToken);
     } else {
       throw SnowflakeErrors.ERROR_0029.getException();
