@@ -448,7 +448,7 @@ public class TopicPartitionChannelTest {
                 anyString(), anyString(), Mockito.anyString()))
         .thenReturn(new ChannelMigrateOffsetTokenResponseDTO(50, "SUCCESS"));
 
-    // checking default
+    sfConnectorConfig.put(ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG, "false");
     TopicPartitionChannel topicPartitionChannel =
         createTopicPartitionChannel(
             mockStreamingClient,

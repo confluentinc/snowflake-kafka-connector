@@ -30,7 +30,7 @@ class SnowflakeSinkServiceV1Test {
     when(mockConn.getTelemetryClient()).thenReturn(mockTelemetryService);
     when(mockConn.getConnectorName()).thenReturn(TestUtils.TEST_CONNECTOR_NAME);
 
-    sinkService = new SnowflakeSinkServiceV1(mockConn);
+    sinkService = new SnowflakeSinkServiceV1(mockConn, 60L);
   }
 
   @Test
