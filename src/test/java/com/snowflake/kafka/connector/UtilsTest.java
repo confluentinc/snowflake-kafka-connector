@@ -4,6 +4,7 @@ import static java.util.Arrays.*;
 import static java.util.Collections.*;
 
 import com.snowflake.kafka.connector.internal.SnowflakeErrors;
+import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.SnowflakeURL;
 import com.snowflake.kafka.connector.internal.TestUtils;
 import java.util.HashMap;
@@ -332,6 +333,64 @@ public class UtilsTest {
       TestUtils.assertError(
           SnowflakeErrors.ERROR_1004,
           () -> Utils.getSnowflakeOAuthAccessToken(url, "INVALID", "INVALID", "INVALID"));
+    }
+  }
+
+  @Test
+  public void testParseOAuthTokenResponseSuccess() {
+    String body = "{\"access_token\":\"abc123\",\"token_type\":\"Bearer\"}";
+    String token = Utils.parseOAuthTokenResponse("access_token", 200, body);
+    Assert.assertEquals("abc123", token);
+  }
+
+  // Regression for CC-40192: a Snowflake OAuth error response (missing
+  // access_token) used to trigger a NullPointerException because the code
+  // called .toString() on a null JsonElement. The validate endpoint should
+  // now surface this as ERROR_1004 with a meaningful message.
+  @Test
+  public void testParseOAuthTokenResponseMissingTokenThrows1004() {
+    String body =
+        "{\"error\":\"invalid_grant\",\"error_description\":\"refresh token is invalid\"}";
+    try {
+      Utils.parseOAuthTokenResponse("access_token", 400, body);
+      Assert.fail("Expected SnowflakeKafkaConnectorException");
+    } catch (SnowflakeKafkaConnectorException e) {
+      Assert.assertEquals("1004", e.getCode());
+      Assert.assertTrue(
+          "error message should mention missing token field, but was: " + e.getMessage(),
+          e.getMessage().contains("access_token"));
+      Assert.assertTrue(
+          "error message should include OAuth error code from response, but was: " + e.getMessage(),
+          e.getMessage().contains("invalid_grant"));
+      Assert.assertTrue(
+          "error message should include the HTTP status code, but was: " + e.getMessage(),
+          e.getMessage().contains("400"));
+    }
+  }
+
+  @Test
+  public void testParseOAuthTokenResponseNullTokenFieldThrows1004() {
+    // JSON where the token field is explicitly null — previously caused NPE.
+    String body = "{\"access_token\":null}";
+    try {
+      Utils.parseOAuthTokenResponse("access_token", 200, body);
+      Assert.fail("Expected SnowflakeKafkaConnectorException");
+    } catch (SnowflakeKafkaConnectorException e) {
+      Assert.assertEquals("1004", e.getCode());
+    }
+  }
+
+  @Test
+  public void testParseOAuthTokenResponseNonJsonThrows1004() {
+    String body = "Service Unavailable";
+    try {
+      Utils.parseOAuthTokenResponse("access_token", 503, body);
+      Assert.fail("Expected SnowflakeKafkaConnectorException");
+    } catch (SnowflakeKafkaConnectorException e) {
+      Assert.assertEquals("1004", e.getCode());
+      Assert.assertTrue(
+          "error message should mention non-JSON response, but was: " + e.getMessage(),
+          e.getMessage().contains("non-JSON"));
     }
   }
 
