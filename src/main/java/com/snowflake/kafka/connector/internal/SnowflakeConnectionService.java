@@ -4,6 +4,7 @@ import com.snowflake.kafka.connector.internal.streaming.ChannelMigrateOffsetToke
 import com.snowflake.kafka.connector.internal.streaming.schemaevolution.ColumnInfos;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.sql.Connection;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -171,6 +172,14 @@ public interface SnowflakeConnectionService {
   void hasSchemaPrivileges(String schemaName, String ingestionMethod);
 
   void hasTableRequiredPrivileges(String tableName);
+
+  /**
+   * Batch check table existence and required privileges for multiple tables. Replaces per-table
+   * queries with batch operations for better performance at scale.
+   *
+   * @param tableNames collection of table names to check
+   */
+  void checkTablesExistenceAndPrivileges(Collection<String> tableNames);
 
   /**
    * drop snowpipe

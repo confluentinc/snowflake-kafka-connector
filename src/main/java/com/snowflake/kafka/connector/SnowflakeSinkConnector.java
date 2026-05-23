@@ -26,7 +26,9 @@ import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.streaming.DefaultStreamingConfigValidator;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -349,36 +351,24 @@ public class SnowflakeSinkConnector extends SinkConnector {
 
   private static boolean shouldCheckTablePrivilege(Map<String, String> connectorConfigs) {
     String topicsTablesMap = connectorConfigs.get(SnowflakeSinkConnectorConfig.TOPICS_TABLES_MAP);
-    return topicsTablesMap != null && !topicsTablesMap.isEmpty();
+    if (topicsTablesMap == null || topicsTablesMap.isEmpty()) {
+      return false;
+    }
+    String enabled =
+        connectorConfigs.getOrDefault(
+            SnowflakeSinkConnectorConfig.ENABLE_TABLE_PRIVILEGE_VALIDATION,
+            String.valueOf(SnowflakeSinkConnectorConfig.ENABLE_TABLE_PRIVILEGE_VALIDATION_DEFAULT));
+    return Boolean.parseBoolean(enabled);
   }
 
   private static void checkTablePrivilege(
       Map<String, String> topicsTablesMap, SnowflakeConnectionService testConnection) {
-    topicsTablesMap.forEach(
-        (topic, table) -> {
-          try {
-            if (testConnection.tableExist(table)) {
-              LOGGER.info("Table already {} exists, checking if we sufficient privileges", table);
-              testConnection.hasTableRequiredPrivileges(table);
-            }
-          } catch (SnowflakeKafkaConnectorException e) {
-            LOGGER.error(
-                "Validation Error for table {}: msg:{}, errorCode:{}",
-                table,
-                e.getMessage(),
-                e.getCode());
-            if (e.getCode().equals("2001")) {
-              LOGGER.error(table, " Table does not have the required OWNERSHIP privilege");
-            }
-          } catch (Exception e) {
-            LOGGER.error(
-                "Unexpected Exception in validate for table privilege check {}: msg:{},"
-                    + " errorCode:{}",
-                table,
-                e.getMessage(),
-                e);
-          }
-        });
+    Collection<String> uniqueTableNames = new HashSet<>(topicsTablesMap.values());
+    try {
+      testConnection.checkTablesExistenceAndPrivileges(uniqueTableNames);
+    } catch (Exception e) {
+      LOGGER.error("Batch table privilege validation failed: {}", e.getMessage(), e);
+    }
   }
 
   private static boolean isUsingConfigProvider(Map<String, String> connectorConfigs) {

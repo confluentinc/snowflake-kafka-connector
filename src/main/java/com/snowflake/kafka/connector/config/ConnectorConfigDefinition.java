@@ -658,6 +658,14 @@ public class ConnectorConfigDefinition {
             ConfigDef.Type.LONG,
             TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT,
             ConfigDef.Importance.LOW,
-            "Maximum total buffer size in bytes per task.");
+            "Maximum total buffer size in bytes per task.")
+        .define(
+            ENABLE_TABLE_PRIVILEGE_VALIDATION,
+            ConfigDef.Type.BOOLEAN,
+            ENABLE_TABLE_PRIVILEGE_VALIDATION_DEFAULT,
+            ConfigDef.Importance.LOW,
+            "Enable table privilege validation during connector config validation. "
+                + "Set to false to skip table existence and privilege checks, "
+                + "which can improve validation performance with many table mappings.");
   }
 }
