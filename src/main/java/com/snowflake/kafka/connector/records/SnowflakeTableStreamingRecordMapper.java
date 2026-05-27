@@ -20,6 +20,11 @@ class SnowflakeTableStreamingRecordMapper extends StreamingRecordMapper {
     super(mapper, schematizationEnabled);
   }
 
+  public SnowflakeTableStreamingRecordMapper(
+      ObjectMapper mapper, boolean schematizationEnabled, boolean enableInfinitySupport) {
+    super(mapper, schematizationEnabled, enableInfinitySupport);
+  }
+
   @Override
   public Map<String, Object> processSnowflakeRecord(
       RecordService.SnowflakeTableRow row, boolean includeAllMetadata)

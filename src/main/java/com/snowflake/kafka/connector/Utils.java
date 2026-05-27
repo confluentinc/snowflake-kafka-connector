@@ -496,6 +496,19 @@ public class Utils {
 
   /**
    * @param config config with applied default values
+   * @return true when streaming infinity handling is enabled.
+   */
+  public static boolean isStreamingInfinityHandlingEnabled(Map<String, String> config) {
+    String value =
+        config.get(SnowflakeSinkConnectorConfig.ENABLE_STREAMING_INFINITY_HANDLING_CONFIG);
+    if (value == null) {
+      return SnowflakeSinkConnectorConfig.ENABLE_STREAMING_INFINITY_HANDLING_DEFAULT;
+    }
+    return Boolean.parseBoolean(value);
+  }
+
+  /**
+   * @param config config with applied default values
    * @return role specified in rhe config
    */
   public static String role(Map<String, String> config) {

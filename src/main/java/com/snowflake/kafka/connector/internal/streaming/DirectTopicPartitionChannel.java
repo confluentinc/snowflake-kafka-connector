@@ -175,7 +175,9 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
         sinkTaskContext,
         conn,
         RecordServiceFactory.createRecordService(
-            false, Utils.isSchematizationEnabled(sfConnectorConfig)),
+            false,
+            Utils.isSchematizationEnabled(sfConnectorConfig),
+            Utils.isStreamingInfinityHandlingEnabled(sfConnectorConfig)),
         telemetryService,
         false,
         null,

@@ -668,6 +668,16 @@ public class ConnectorConfigDefinition {
             CONNECTOR_CONFIG_DOC,
             12,
             ConfigDef.Width.NONE,
-            SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_DISPLAY);
+            SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_DISPLAY)
+        .define(
+            ENABLE_STREAMING_INFINITY_HANDLING_CONFIG,
+            ConfigDef.Type.BOOLEAN,
+            ENABLE_STREAMING_INFINITY_HANDLING_DEFAULT,
+            ConfigDef.Importance.LOW,
+            ENABLE_STREAMING_INFINITY_HANDLING_DOC,
+            CONNECTOR_CONFIG_DOC,
+            13,
+            ConfigDef.Width.NONE,
+            ENABLE_STREAMING_INFINITY_HANDLING_DISPLAY);
   }
 }

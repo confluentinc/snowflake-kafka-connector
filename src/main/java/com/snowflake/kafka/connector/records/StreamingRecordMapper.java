@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.FloatNode;
 import com.fasterxml.jackson.databind.node.NumericNode;
+import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.records.RecordService.SnowflakeTableRow;
 import java.util.Map;
 
@@ -13,10 +14,20 @@ abstract class StreamingRecordMapper {
 
   protected final ObjectMapper mapper;
   protected final boolean schematizationEnabled;
+  protected final boolean enableInfinitySupport;
 
   public StreamingRecordMapper(ObjectMapper mapper, boolean schematizationEnabled) {
+    this(
+        mapper,
+        schematizationEnabled,
+        SnowflakeSinkConnectorConfig.ENABLE_STREAMING_INFINITY_HANDLING_DEFAULT);
+  }
+
+  public StreamingRecordMapper(
+      ObjectMapper mapper, boolean schematizationEnabled, boolean enableInfinitySupport) {
     this.mapper = mapper;
     this.schematizationEnabled = schematizationEnabled;
+    this.enableInfinitySupport = enableInfinitySupport;
   }
 
   abstract Map<String, Object> processSnowflakeRecord(
@@ -29,11 +40,31 @@ abstract class StreamingRecordMapper {
     } else if (valueNode.isNull()) {
       value = null;
     } else {
-      value = writeValueAsStringOrNanOrInfinity(valueNode);
+      if (enableInfinitySupport) {
+        value = writeValueAsStringOrNanOrInfinity(valueNode);
+      } else {
+        value = writeValueAsStringOrNan(valueNode);
+      }
     }
     return value;
   }
 
+  /**
+   * Original function that treats both NaN and infinity values as NaN. Used when infinity support
+   * is disabled for backward compatibility.
+   */
+  protected String writeValueAsStringOrNan(JsonNode columnNode) throws JsonProcessingException {
+    if (columnNode instanceof NumericNode && ((NumericNode) columnNode).isNaN()) {
+      return "NaN";
+    } else {
+      return mapper.writeValueAsString(columnNode);
+    }
+  }
+
+  /**
+   * Function that correctly handles both NaN and infinity values. Used when infinity support is
+   * enabled.
+   */
   protected String writeValueAsStringOrNanOrInfinity(JsonNode columnNode)
       throws JsonProcessingException {
     if (columnNode instanceof NumericNode && ((NumericNode) columnNode).isNaN()) {
