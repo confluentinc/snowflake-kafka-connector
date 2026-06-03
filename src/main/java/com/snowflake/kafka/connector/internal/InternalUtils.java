@@ -313,9 +313,10 @@ public class InternalUtils {
 
     // Set additional HTTP client timeouts for validation mode to ensure faster failure
     if (isValidationMode) {
-      properties.put(JDBC_HTTP_CLIENT_CONNECTION_TIMEOUT, "60000"); // 60 seconds in milliseconds
-      properties.put(JDBC_HTTP_CLIENT_SOCKET_TIMEOUT, "60000"); // 60 seconds in milliseconds
-      properties.put(JDBC_RETRY_TIMEOUT, "30"); // 30 seconds
+      properties.put(JDBC_HTTP_CLIENT_CONNECTION_TIMEOUT, "45000"); // 45 seconds in milliseconds
+      properties.put(JDBC_HTTP_CLIENT_SOCKET_TIMEOUT, "45000"); // 45 seconds in milliseconds
+      properties.put(JDBC_RETRY_TIMEOUT, "10");
+      properties.put("maxHttpRetries", "1");
     }
 
     // put values for optional parameters
