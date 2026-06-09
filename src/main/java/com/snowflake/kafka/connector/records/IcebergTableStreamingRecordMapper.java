@@ -18,9 +18,13 @@ class IcebergTableStreamingRecordMapper extends StreamingRecordMapper {
   private static final TypeReference<Map<String, Object>> OBJECTS_MAP_TYPE_REFERENCE =
       new TypeReference<Map<String, Object>>() {};
 
-  public IcebergTableStreamingRecordMapper(
-      ObjectMapper objectMapper, boolean schematizationEnabled) {
+  public IcebergTableStreamingRecordMapper(ObjectMapper objectMapper, boolean schematizationEnabled) {
     super(objectMapper, schematizationEnabled);
+  }
+
+  public IcebergTableStreamingRecordMapper(
+      ObjectMapper objectMapper, boolean schematizationEnabled, boolean enableInfinitySupport) {
+    super(objectMapper, schematizationEnabled, enableInfinitySupport);
   }
 
   @Override

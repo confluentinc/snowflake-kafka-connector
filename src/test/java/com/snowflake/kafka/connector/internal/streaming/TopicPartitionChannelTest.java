@@ -1124,6 +1124,52 @@ public class TopicPartitionChannelTest {
     }
   }
 
+  /**
+   * Test that when openChannel always throws SFException with HTTP 429, the channel creation fails
+   * after OpenChannelRetryPolicy exhausts all 10 retries. This verifies the integration between
+   * DirectTopicPartitionChannel.openChannelForTable() and OpenChannelRetryPolicy.executeWithRetry().
+   */
+  @Test
+  public void testOpenChannelFailsAfterRetryPolicyExhaustsAllRetries() {
+    // Only run for one parameterized case to avoid long test times due to retry delays
+    if (this.enableSchematization || this.channelNameFormatVersion != ChannelNameFormatVersion.V1) {
+      return;
+    }
+
+    // Given - openChannel always throws SFException with HTTP 429
+    SFException sfException429 =
+        new SFException(
+            ErrorCode.INTERNAL_ERROR,
+            "Encountered an error while calling a Snowflake API. HTTP Status: 429");
+
+    Mockito.when(mockStreamingClient.openChannel(any(OpenChannelRequest.class)))
+        .thenThrow(sfException429);
+
+    // When/Then - creating TopicPartitionChannel should fail with SFException after all retries
+    SFException thrownException =
+        assertThrows(
+            SFException.class,
+            () ->
+                createTopicPartitionChannel(
+                    mockStreamingClient,
+                    topicPartition,
+                    testChannelName,
+                    TEST_TABLE_NAME,
+                    sfConnectorConfig,
+                    mockKafkaRecordErrorReporter,
+                    mockSinkTaskContext,
+                    mockSnowflakeConnectionService,
+                    mockTelemetryService,
+                    this.schemaEvolutionService));
+
+    // Verify the exception contains the HTTP 429 error
+    Assert.assertTrue(thrownException.getMessage().contains("HTTP Status: 429"));
+
+    // Verify openChannel was called exactly 10 times (MAX_ATTEMPTS in OpenChannelRetryPolicy)
+    Mockito.verify(mockStreamingClient, Mockito.times(10))
+        .openChannel(any(OpenChannelRequest.class));
+  }
+
   @Test
   public void assignANewChannel_whenNoOffsetIsPresentInSnowflake() {
     // given

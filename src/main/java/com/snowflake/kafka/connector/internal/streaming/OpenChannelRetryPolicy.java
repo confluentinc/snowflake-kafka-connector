@@ -34,6 +34,9 @@ class OpenChannelRetryPolicy {
   /** Random jitter added to retry delays to prevent thundering herd. */
   private static final Duration JITTER_DURATION = Duration.ofMillis(200);
 
+  /** Maximum number of retry attempts before giving up. */
+  private static final int MAX_ATTEMPTS = 10;
+
   /**
    * Executes the provided channel opening action with retry handling.
    *
@@ -52,7 +55,7 @@ class OpenChannelRetryPolicy {
             .handleIf(OpenChannelRetryPolicy::isRetryableError)
             .withBackoff(INITIAL_DELAY, MAX_DELAY, BACKOFF_MULTIPLIER)
             .withJitter(JITTER_DURATION)
-            .withMaxAttempts(-1)
+            .withMaxAttempts(MAX_ATTEMPTS)
             .onRetry(
                 event ->
                     LOGGER.warn(

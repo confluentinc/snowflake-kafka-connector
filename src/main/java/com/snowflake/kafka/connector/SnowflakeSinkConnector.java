@@ -234,6 +234,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
           SnowflakeConnectionServiceFactory.builder()
               .setNetworkTimeout(VALIDATION_NETWORK_TIMEOUT_IN_MS)
               .setLoginTimeOut(VALIDATION_LOGIN_TIMEOUT_IN_SEC)
+              .setValidationMode(true)
               .setProperties(connectorConfigs)
               .build();
 

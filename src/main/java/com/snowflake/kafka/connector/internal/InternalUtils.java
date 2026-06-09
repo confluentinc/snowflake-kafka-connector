@@ -39,6 +39,12 @@ public class InternalUtils {
 
   static final String JDBC_LOGIN_TIMEOUT = "loginTimeout";
 
+  // HTTP client timeouts for validation mode (in milliseconds)
+  static final String JDBC_HTTP_CLIENT_CONNECTION_TIMEOUT = "HTTP_CLIENT_CONNECTION_TIMEOUT";
+  static final String JDBC_HTTP_CLIENT_SOCKET_TIMEOUT = "HTTP_CLIENT_SOCKET_TIMEOUT";
+  // Retry timeout in seconds
+  static final String JDBC_RETRY_TIMEOUT = "retryTimeout";
+
   static final String JDBC_AUTHENTICATOR = SFSessionProperty.AUTHENTICATOR.getPropertyKey();
   static final String JDBC_TOKEN = SFSessionProperty.TOKEN.getPropertyKey();
   static final String JDBC_QUERY_RESULT_FORMAT = "JDBC_QUERY_RESULT_FORMAT";
@@ -158,7 +164,7 @@ public class InternalUtils {
   static Properties createProperties(
       Map<String, String> conf, int networkTimeout, int loginTimeout, SnowflakeURL url) {
     return createProperties(
-        conf, networkTimeout, loginTimeout, url, IngestionMethodConfig.SNOWPIPE);
+        conf, networkTimeout, loginTimeout, url, IngestionMethodConfig.SNOWPIPE, false);
   }
 
   /**
@@ -175,6 +181,27 @@ public class InternalUtils {
       int loginTimeout,
       SnowflakeURL url,
       IngestionMethodConfig ingestionMethodConfig) {
+    return createProperties(
+        conf, networkTimeout, loginTimeout, url, ingestionMethodConfig, false);
+  }
+
+  /**
+   * create a properties for snowflake connection
+   *
+   * @param conf a map contains all parameters
+   * @param url target server url
+   * @param ingestionMethodConfig which ingestion method is provided.
+   * @param isValidationMode if true, sets additional HTTP client timeouts for faster failure during
+   *     validation
+   * @return a Properties instance
+   */
+  static Properties createProperties(
+      Map<String, String> conf,
+      int networkTimeout,
+      int loginTimeout,
+      SnowflakeURL url,
+      IngestionMethodConfig ingestionMethodConfig,
+      boolean isValidationMode) {
     Properties properties = new Properties();
 
     // add application parameter to identify connector created from CONFLUENT_CLOUD
@@ -282,6 +309,14 @@ public class InternalUtils {
 
     if (loginTimeout != 0) {
       properties.put(JDBC_LOGIN_TIMEOUT, loginTimeout);
+    }
+
+    // Set additional HTTP client timeouts for validation mode to ensure faster failure
+    if (isValidationMode) {
+      properties.put(JDBC_HTTP_CLIENT_CONNECTION_TIMEOUT, "45000"); // 45 seconds in milliseconds
+      properties.put(JDBC_HTTP_CLIENT_SOCKET_TIMEOUT, "45000"); // 45 seconds in milliseconds
+      properties.put(JDBC_RETRY_TIMEOUT, "10");
+      properties.put("maxHttpRetries", "1");
     }
 
     // put values for optional parameters

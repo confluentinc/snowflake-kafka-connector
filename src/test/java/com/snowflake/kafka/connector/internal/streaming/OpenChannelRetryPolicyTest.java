@@ -3,6 +3,7 @@ package com.snowflake.kafka.connector.internal.streaming;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.failsafe.function.CheckedSupplier;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -107,5 +108,34 @@ public class OpenChannelRetryPolicyTest {
     // Then
     assertSame(mockChannel, result);
     assertEquals(3, attemptCount.get()); // Verify it retried 2 times before succeeding
+  }
+
+  @Test
+  void shouldThrowSFExceptionAfterAllRetriesExhaustedWithNoMoreAttempts() {
+    // Given - MAX_ATTEMPTS is 10 in OpenChannelRetryPolicy
+    SFException exception429 = new SFException(ErrorCode.INTERNAL_ERROR, EXCEPTION_429_MSG);
+    AtomicInteger attemptCount = new AtomicInteger(0);
+
+    CheckedSupplier<SnowflakeStreamingIngestChannel> supplier =
+        () -> {
+          int currentAttempt = attemptCount.incrementAndGet();
+          // If we ever reach 11, fail the test - there should be no 11th attempt
+          if (currentAttempt > 10) {
+            throw new AssertionError(
+                "Should not attempt more than 10 times, but got attempt #" + currentAttempt);
+          }
+          throw exception429; // Always fail with 429
+        };
+
+    // When/Then - should throw SFException after all retries exhausted
+    SFException thrownException =
+        assertThrows(
+            SFException.class,
+            () -> OpenChannelRetryPolicy.executeWithRetry(supplier, channelName));
+
+    // Verify the original SFException is thrown with 429 error
+    assertTrue(thrownException.getMessage().contains("HTTP Status: 429"));
+    // Verify exactly 10 attempts - no more (no 11th attempt), no less
+    assertEquals(10, attemptCount.get(), "Expected exactly 10 attempts");
   }
 }

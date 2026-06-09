@@ -286,6 +286,17 @@ public class SnowflakeSinkConnectorConfig {
           + " for incremental offsets (might contain gaps) and might signal false positives in case"
           + " of SMT. Can only be set if Streaming Snowpipe is enabled";
 
+  public static final String ENABLE_STREAMING_INFINITY_HANDLING_CONFIG =
+      "snowflake.streaming.enable.handling.infinity.values";
+  public static final String ENABLE_STREAMING_INFINITY_HANDLING_DISPLAY =
+      "Enable handling infinity values";
+  public static final boolean ENABLE_STREAMING_INFINITY_HANDLING_DEFAULT = false;
+  public static final String ENABLE_STREAMING_INFINITY_HANDLING_DOC =
+      "Whether to enable correct handling for infinity and negative infinity values in float/double"
+          + " fields when using Snowpipe Streaming. When enabled, infinity values will be correctly"
+          + " ingested as 'Inf' or '-Inf'. When disabled, infinity values will be treated as 'NaN'"
+          + " for backward compatibility. Can only be set if Streaming Snowpipe is enabled";
+
   public static final String ENABLE_TASK_FAIL_ON_AUTHORIZATION_ERRORS =
       "enable.task.fail.on.authorization.errors";
   public static final boolean ENABLE_TASK_FAIL_ON_AUTHORIZATION_ERRORS_DEFAULT = false;

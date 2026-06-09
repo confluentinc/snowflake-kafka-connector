@@ -188,6 +188,7 @@ public class SnowflakeSinkServiceV2AvroSchematizationIT {
   private Map<String, String> prepareConfig() {
     Map<String, String> config = TestUtils.getConfForStreaming();
     config.put(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG, "true");
+    config.put(SnowflakeSinkConnectorConfig.ENABLE_STREAMING_INFINITY_HANDLING_CONFIG, "true");
     config.put(
         SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD,
         "io.confluent.connect.avro.AvroConverter");

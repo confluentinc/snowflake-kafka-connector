@@ -28,6 +28,10 @@ public class SnowflakeConnectionServiceFactory {
     // https://docs.snowflake.com/en/user-guide/jdbc-parameters.html#logintimeout
     private int loginTimeOut = 60;
 
+    // Flag to indicate if this connection is for validation purposes
+    // When true, additional HTTP client timeouts are set for faster failure
+    private boolean isValidationMode = false;
+
     // whether kafka is hosted on premise or on confluent cloud.
     // This info is provided in the connector configuration
     // This property will be appeneded to user agent while calling snowpipe API in http request
@@ -73,6 +77,11 @@ public class SnowflakeConnectionServiceFactory {
       return this;
     }
 
+    public SnowflakeConnectionServiceBuilder setValidationMode(boolean isValidationMode) {
+      this.isValidationMode = isValidationMode;
+      return this;
+    }
+
     public SnowflakeConnectionServiceBuilder setProperties(Map<String, String> conf) {
       if (!conf.containsKey(Utils.SF_URL)) {
         throw SnowflakeErrors.ERROR_0017.getException();
@@ -86,7 +95,12 @@ public class SnowflakeConnectionServiceFactory {
       Properties proxyProperties = InternalUtils.generateProxyParametersIfRequired(conf);
       Properties connectionProperties =
           InternalUtils.createProperties(
-              conf, this.networkTimeOut, this.loginTimeOut, this.url, ingestionMethodConfig);
+              conf,
+              this.networkTimeOut,
+              this.loginTimeOut,
+              this.url,
+              ingestionMethodConfig,
+              this.isValidationMode);
       Properties jdbcPropertiesMap = InternalUtils.parseJdbcPropertiesMap(conf);
       this.jdbcProperties =
           JdbcProperties.create(connectionProperties, proxyProperties, jdbcPropertiesMap);
