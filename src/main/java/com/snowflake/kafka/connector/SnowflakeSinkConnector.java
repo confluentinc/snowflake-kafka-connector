@@ -65,7 +65,7 @@ public class SnowflakeSinkConnector extends SinkConnector {
   // creation, etc.
   // Using setupComplete to synchronize
   private boolean setupComplete;
-  private static final int VALIDATION_NETWORK_TIMEOUT_IN_MS = 45000;
+  private static final int VALIDATION_NETWORK_TIMEOUT_IN_MS = 30000;
 
   private static final int VALIDATION_LOGIN_TIMEOUT_IN_SEC = 20;
   private final ConnectorConfigValidator connectorConfigValidator =

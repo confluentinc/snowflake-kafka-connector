@@ -311,11 +311,21 @@ public class InternalUtils {
       properties.put(JDBC_LOGIN_TIMEOUT, loginTimeout);
     }
 
-    // Set additional HTTP client timeouts for validation mode to ensure faster failure
+    // Set additional HTTP client timeouts for validation mode to ensure faster failure.
+    // Validation must complete within 90 seconds total.
+    //
+    // In snowflake-jdbc 3.26.x:
+    // - retryTimeout only accepts values >= 300 or exactly 0; values 1-299 are silently ignored
+    // - maxHttpRetries=0 is ignored; must be >= 1 for the check to work
+    // - MIN_RETRY_COUNT=1 is hardcoded, so at least 1 retry will always occur
+    //
+    // Timing budget (worst case):
+    //   2 attempts × 30s connection timeout + 16s max backoff = 76s < 90s
     if (isValidationMode) {
-      properties.put(JDBC_HTTP_CLIENT_CONNECTION_TIMEOUT, "45000"); // 45 seconds in milliseconds
-      properties.put(JDBC_HTTP_CLIENT_SOCKET_TIMEOUT, "45000"); // 45 seconds in milliseconds
-      properties.put(JDBC_RETRY_TIMEOUT, "10");
+      LOGGER.info("Adding additional validation timeouts");
+      properties.put(JDBC_HTTP_CLIENT_CONNECTION_TIMEOUT, "30000"); // 30 seconds
+      properties.put(JDBC_HTTP_CLIENT_SOCKET_TIMEOUT, "30000"); // 30 seconds
+      // Limit to 1 retry (2 total attempts) to fail fast on unreachable hosts
       properties.put("maxHttpRetries", "1");
     }
 
