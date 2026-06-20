@@ -1022,7 +1022,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       // Just checking buffer size, no atomic operation required
       if (buffer.isEmpty()) {
-        LOGGER.info(
+        LOGGER.debug(
             "Buffer for pipe: {}, tableName: {}, stageName: {}, nothing to be flushed",
             pipeName,
             tableName,
@@ -1119,7 +1119,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
     private void flush(final SnowpipeBuffer buff) {
       if (buff == null || buff.isEmpty()) {
-        LOGGER.info("Buffer empty, nothing to be flushed");
+        LOGGER.debug("Buffer empty, nothing to be flushed");
         return;
       }
       this.previousFlushTimeStamp = System.currentTimeMillis();
