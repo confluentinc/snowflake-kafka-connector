@@ -1,18 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  ~ /*
-  ~  * Copyright (c) 2019 - 2024 Snowflake Computing Inc. All rights reserved.
-  ~  */
-  -->
-
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.snowflake</groupId>
     <artifactId>snowflake-kafka-connector</artifactId>
-    <version>3.4.0</version>
+    <version>3.4.0-rc-a40c435f</version>
     <packaging>jar</packaging>
     <name>Snowflake Kafka Connector</name>
     <description>Snowflake Kafka Connect Sink Connector</description>
@@ -45,7 +36,7 @@
         <url>https://github.com/snowflakedb/snowflake-kafka-connector</url>
     </scm>
 
-    <!-- Set our Language Level to Java 8 -->
+    
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -56,18 +47,14 @@
         </license.processing.dependencyJarsDir>
         <license.processing.dependencyListFile>${project.build.directory}/dependency-list.txt
         </license.processing.dependencyListFile>
-        <!--
-            /licenses folder is copied into zip file distribution by kafka-connect-maven-plugin
-            It is an undocumented behaviour that originates from the zip file structure https://docs.confluent.io/platform/current/connect/confluent-hub/component-archive.html
-            There is no way to change the path for something inside /target, so it needs to be cleaned up independently
-        -->
+        
         <license.processing.targetDir>${project.build.directory}/../licenses</license.processing.targetDir>
 
         <kafka.version>3.9.1</kafka.version>
         <awaitility.version>4.2.2</awaitility.version>
         <assertj-core.version>3.26.3</assertj-core.version>
         <confluent.version>7.9.2</confluent.version>
-        <!--Compatible protobuf version https://github.com/confluentinc/common/blob/v7.7.0/pom.xml#L91 -->
+        
         <protobuf.version>3.25.5</protobuf.version>
         <guava.version>33.4.0-jre</guava.version>
         <iceberg.version>1.6.1</iceberg.version>
@@ -88,7 +75,7 @@
             <url>https://packages.confluent.io/maven/</url>
         </repository>
 
-        <!-- AWS CodeArtifact repositories for io.confluent packages -->
+        
         <repository>
             <id>confluent-codeartifact-snapshots</id>
             <name>Confluent CodeArtifact Snapshots</name>
@@ -115,10 +102,7 @@
 
     <build>
         <plugins>
-            <!--
-            Copy all project dependencies to target/dependency-jars directory. License processing Python script will check
-            only this directory for the license files of SDK dependencies.
-            -->
+            
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -139,10 +123,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
-            Compile the list of SDK dependencies in 'compile' and 'runtime' scopes.
-            This list is an entry point for the license processing python script.
-            -->
+            
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -160,10 +141,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
-            Plugin executes license processing Python script, which copies third party license files into the "license"
-            directory which is later copied into zip file distribution.
-            -->
+            
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -248,7 +226,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- Clean additional files created outside of target -->
+            
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
                 <version>3.3.2</version>
@@ -421,7 +399,7 @@
             </plugin>
         </plugins>
 
-        <!-- disable default maven deploy plugin since we are using gpg:sign-and-deploy-file -->
+        
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -434,16 +412,16 @@
         </pluginManagement>
     </build>
     <dependencies>
-        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcpkix-fips -->
+        
         <dependency>
-            <!-- Do not match this with pom.xml-->
-            <!-- This dependency won't be present in the kafka connect runtime, hence we are packaging this in an uber jar -->
+            
+            
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-fips</artifactId>
             <version>2.1.8</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/org.apache.kafka/connect-api -->
+        
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
@@ -479,7 +457,7 @@
             <version>4.5.13</version>
         </dependency>
 
-        <!--JDBC driver for building connection with Snowflake-->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-jdbc</artifactId>
@@ -497,7 +475,7 @@
             <version>${protobuf.version}</version>
         </dependency>
 
-        <!-- Ingest SDK for copy staged file into snowflake table -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>snowflake-ingest-sdk</artifactId>
@@ -550,7 +528,7 @@
             </exclusions>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
+        
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
@@ -563,27 +541,27 @@
             </exclusions>
         </dependency>
 
-        <!-- Direct dependency for commons-lang3 with latest version to fix CVE-2025-48924 -->
+        
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>${commons-lang3.version}</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
+        
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>${jackson.version}</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
+        
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
 
-        <!-- <https://mvnrepository.com/artifact/io.confluent/kafka-schema-registry-client?repo=confluent-packages -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-schema-registry-client</artifactId>
@@ -607,7 +585,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/io.confluent/kafka-connect-avro-data -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-avro-serializer</artifactId>
@@ -620,7 +598,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/io.confluent/kafka-connect-avro-converter -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-avro-converter</artifactId>
@@ -635,20 +613,20 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/io.confluent/connect-utils -->
+        
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>connect-utils</artifactId>
             <version>0.6.4</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core -->
+        
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
             <version>4.2.26</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jmx -->
+        
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-jmx</artifactId>
@@ -661,14 +639,14 @@
             <version>${guava.version}</version>
         </dependency>
 
-        <!-- https://github.com/failsafe-lib/failsafe-->
+        
         <dependency>
             <groupId>dev.failsafe</groupId>
             <artifactId>failsafe</artifactId>
             <version>3.3.2</version>
         </dependency>
 
-        <!--junit for unit test-->
+        
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
@@ -679,13 +657,13 @@
             <artifactId>junit-jupiter-params</artifactId>
             <scope>test</scope>
         </dependency>
-        <!--JUnit Jupiter Engine to depend on the JUnit4 engine and JUnit 4 API  -->
+        
         <dependency>
             <groupId>org.junit.vintage</groupId>
             <artifactId>junit-vintage-engine</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Optional : override the JUnit 4 API version provided by junit-vintage-engine -->
+        
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -693,7 +671,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!--Mockito for unit test-->
+        
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
@@ -724,7 +702,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!--Kafka JSON converter for SMT unit test-->
+        
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-json</artifactId>
@@ -788,7 +766,7 @@
             <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.assertj/assertj-core -->
+        
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -870,8 +848,8 @@
             </build>
         </profile>
 
-        <!-- Shard profiles for parallel CI execution -->
-        <!-- Shard 1: Core tests (catch-all — new tests land here automatically) -->
+        
+        
         <profile>
             <id>shard-1</id>
             <build>
@@ -885,7 +863,7 @@
                                 <include>**/*IT.java</include>
                             </includes>
                             <excludes>
-                                <!-- Shard 2: Streaming tests -->
+                                
                                 <exclude>**/SnowflakeSinkTaskForStreamingIT.java</exclude>
                                 <exclude>**/SnowflakeSinkServiceV2IT.java</exclude>
                                 <exclude>**/SnowflakeSinkServiceV2StopIT.java</exclude>
@@ -894,7 +872,7 @@
                                 <exclude>**/CloseTopicPartitionChannelIT.java</exclude>
                                 <exclude>**/StreamingClientProviderIT.java</exclude>
                                 <exclude>**/TombstoneRecordIngestionIT.java</exclude>
-                                <!-- Shard 3: Iceberg + Connect cluster tests -->
+                                
                                 <exclude>**/IcebergIngestionSchemaEvolutionIT.java</exclude>
                                 <exclude>**/IcebergIngestionNoSchemaEvolutionIT.java</exclude>
                                 <exclude>**/IcebergTableSchemaValidatorIT.java</exclude>
@@ -919,7 +897,7 @@
             </build>
         </profile>
 
-        <!-- Shard 2: Streaming tests -->
+        
         <profile>
             <id>shard-2</id>
             <build>
@@ -954,7 +932,7 @@
             </build>
         </profile>
 
-        <!-- Shard 3: Iceberg + Connect cluster tests -->
+        
         <profile>
             <id>shard-3</id>
             <build>
