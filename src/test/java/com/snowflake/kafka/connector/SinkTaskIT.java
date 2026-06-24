@@ -285,7 +285,7 @@ public class SinkTaskIT {
     offsetMap1 = task1.preCommit(offsetMap1);
 
     // verify task1 precommit logs
-    Mockito.verify(logger, Mockito.times(1)).info(Mockito.contains("PRECOMMIT"));
+    Mockito.verify(logger, Mockito.times(1)).debug(Mockito.contains("PRECOMMIT"));
 
     // close tasks
     task0.close(topicPartitions0);
