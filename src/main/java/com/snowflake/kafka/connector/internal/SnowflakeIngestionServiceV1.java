@@ -187,7 +187,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
   @Override
   public void ingestFiles(final List<String> fileNames) {
     if (fileNames.isEmpty()) {
-      LOGGER.info("ingest files: [Nothing to ingest]");
+      LOGGER.debug("ingest files: [Nothing to ingest]");
       return;
     }
 
@@ -195,7 +195,7 @@ public class SnowflakeIngestionServiceV1 implements SnowflakeIngestionService {
         LOGGER.isDebugEnabled()
             ? String.format("\nfileNames: %s", Arrays.toString(fileNames.toArray()))
             : StringUtils.EMPTY;
-    LOGGER.info("ingest files: {}{}", fileNames.size(), debugInfo);
+    LOGGER.debug("ingest files: {}{}", fileNames.size(), debugInfo);
 
     try {
       InternalUtils.backoffAndRetry(

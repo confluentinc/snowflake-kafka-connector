@@ -691,7 +691,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       this.useStageFilesProcessor = v2CleanerExecutor != null;
       if (useStageFilesProcessor) {
-        LOGGER.info("Using StageFileProcessor");
+        LOGGER.debug("Using StageFileProcessor");
 
         StageFilesProcessor processor =
             new StageFilesProcessor(
@@ -711,7 +711,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         this.cleanerExecutor = null;
         this.reprocessCleanerExecutor = null;
       } else {
-        LOGGER.info("Using cleaner executor");
+        LOGGER.debug("Using cleaner executor");
         this.cleanerExecutor =
             Executors.newSingleThreadExecutor(
                 createNamedThreadFactory(
@@ -738,7 +738,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       if (!useStageFilesProcessor) {
         try {
-          LOGGER.info("Starting cleaner with offset: {}", recordOffset);
+          LOGGER.debug("Starting cleaner with offset: {}", recordOffset);
           startCleaner(recordOffset, pipeCreation);
         } catch (Exception e) {
           LOGGER.warn("Cleaner and Flusher threads shut down before initialization");
@@ -766,7 +766,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         forceCleanerFileReset = false;
         LOGGER.warn("Resetting cleaner files {} done", pipeName);
         if (LOGGER.isInfoEnabled()) {
-          LOGGER.info(
+          LOGGER.debug(
               "For pipe {} cleaner files after reset: {}",
               pipeName,
               String.join(", ", cleanerFileNames));
@@ -899,7 +899,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private void insert(final SinkRecord record) {
       // init pipe
       if (!hasInitialized) {
-        LOGGER.info("Initializing with offset: {}", record.kafkaOffset());
+        LOGGER.debug("Initializing with offset: {}", record.kafkaOffset());
         // This will only be called once at the beginning when an offset arrives for first time
         // after connector starts/rebalance
         init(record.kafkaOffset());
@@ -921,7 +921,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
         // broken record
         if (isRecordBroken(snowflakeRecord)) {
-          LOGGER.warn(
+          LOGGER.debug(
               "Writing broken record to a table stage, offset: {},", snowflakeRecord.kafkaOffset());
           writeBrokenDataToTableStage(snowflakeRecord);
           // don't move committed offset in this case
@@ -941,7 +941,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
             buffer.insert(snowflakeRecord);
             if (buffer.getBufferSizeBytes() >= getFileSize()
                 || (getRecordNumber() != 0 && buffer.getNumOfRecords() >= getRecordNumber())) {
-              LOGGER.info(
+              LOGGER.debug(
                   "Buffer ready to flush, moving content to a temporary buffer, buffer details: {}",
                   buffer);
               tmpBuff = buffer;
@@ -1030,7 +1030,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         return;
       }
 
-      LOGGER.info(
+      LOGGER.debug(
           "Flushing buffer for pipe: {}, tableName: {}, stageName: {}",
           pipeName,
           tableName,
@@ -1045,7 +1045,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       }
       flush(tmpBuff);
 
-      LOGGER.info(
+      LOGGER.debug(
           "Buffer flushed for pipe: {}, tableName: {}, stageName: {}",
           pipeName,
           tableName,
@@ -1080,7 +1080,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
     private long getOffset() {
       if (fileNames.isEmpty()) {
         long offsetToReturn = committedOffset.get();
-        LOGGER.info("No files to commit, returning {} offset", offsetToReturn);
+        LOGGER.debug("No files to commit, returning {} offset", offsetToReturn);
         return offsetToReturn;
       }
 
@@ -1099,11 +1099,11 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
       ingestionService.ingestFiles(fileNamesCopy);
 
-      LOGGER.info("pipe {}, ingested files: {}", pipeName, fileNamesCopy);
+      LOGGER.debug("pipe {}, ingested files: {}", pipeName, fileNamesCopy);
 
       // committedOffset should be updated only when ingestFiles has succeeded.
       long flushedOffset = this.flushedOffset.get();
-      LOGGER.info("Setting commitedOffset to {}", flushedOffset);
+      LOGGER.debug("Setting commitedOffset to {}", flushedOffset);
       committedOffset.set(flushedOffset);
 
       // update telemetry data
@@ -1128,7 +1128,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       // SnowflakeThreadPoolUtils.flusherThreadPool.submit(
       String fileName = FileNameUtils.fileName(prefix, buff.getFirstOffset(), buff.getLastOffset());
       String content = buff.getData();
-      LOGGER.info("Putting buffer to stage: {}", fileName);
+      LOGGER.debug("Putting buffer to stage: {}", fileName);
       conn.putWithCache(stageName, fileName, content);
 
       // compute metrics which will be exported to JMX for now.
@@ -1314,7 +1314,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
         LOGGER.info("pipe {}, recovered from existing pipe", pipeName);
         pipeCreation.setReusePipe(true);
       } else {
-        LOGGER.info(
+        LOGGER.debug(
             "Creating pipe {} for stageName: {}, tableName: {}", pipeName, stageName, tableName);
         conn.createPipe(tableName, stageName, pipeName);
       }

@@ -474,7 +474,7 @@ public class SnowflakeSinkTask extends SinkTask {
           executionTimeMs);
     } else {
       if (isPrecommit) {
-        this.DYNAMIC_LOGGER.info("Successfully " + logExecutionContent);
+        this.DYNAMIC_LOGGER.debug("Successfully " + logExecutionContent);
       } else {
         this.DYNAMIC_LOGGER.debug("Successfully " + logExecutionContent);
       }
