@@ -389,11 +389,35 @@ public class SnowflakeSinkTask extends SinkTask {
     try {
       offsets.forEach(
           (topicPartition, offsetAndMetadata) -> {
-            long offset = sink.getOffset(topicPartition);
-            if ((ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE && offset != 0)
-                || (ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE_STREAMING
-                    && offset != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE)) {
-              committedOffsets.put(topicPartition, new OffsetAndMetadata(offset));
+            // Compute the decided frontier from the framework's consumed position (this key's
+            // offset). That position includes records dropped by SMTs, which the sink never sees,
+            // so it is what lets preCommit clear lag caused by those drops as well as skipped
+            // nulls. Everything below the frontier is decided, so committing it clears the lag
+            // without stepping over a real record still in flight.
+            long frontier = sink.getDecidedFrontier(topicPartition, offsetAndMetadata.offset());
+            if (frontier != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
+              // Commit the frontier and carry a recovery floor of frontier - 1 so open() re-seeks
+              // to exactly the frontier. A frontier of 0 gives a negative floor (only before
+              // anything is consumed), so attach a bare offset in that case.
+              long floor = frontier - 1L;
+              committedOffsets.put(
+                  topicPartition,
+                  floor < 0L
+                      ? new OffsetAndMetadata(frontier)
+                      : new OffsetAndMetadata(frontier, "floor=" + floor));
+            } else {
+              // Feature off, Snowpipe V1, or no channel yet: preserve the original behaviour.
+              long offset = sink.getOffset(topicPartition);
+              if ((ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE && offset != 0)
+                  || (ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE_STREAMING
+                      && offset != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE)) {
+                String floorMetadata = sink.getOffsetMetadata(topicPartition);
+                committedOffsets.put(
+                    topicPartition,
+                    floorMetadata == null
+                        ? new OffsetAndMetadata(offset)
+                        : new OffsetAndMetadata(offset, floorMetadata));
+              }
             }
           });
     } catch (Exception e) {

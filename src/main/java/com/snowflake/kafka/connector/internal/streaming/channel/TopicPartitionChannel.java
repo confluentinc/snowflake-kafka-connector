@@ -81,4 +81,40 @@ public interface TopicPartitionChannel extends ExposingInternalsTopicPartitionCh
   String getChannelName();
 
   void setLatestConsumerGroupOffset(long consumerOffset);
+
+  /**
+   * Record that a null/tombstone record at {@code offset} was intentionally skipped (e.g.
+   * behavior.on.null.values=IGNORE), so {@link #getOffsetSafeToCommitToKafka()} can advance the
+   * committed Kafka offset past skipped records without writing them and avoid false consumer-group
+   * lag. No-op unless the advance feature is enabled.
+   *
+   * @param offset Kafka offset of the skipped null record
+   */
+  default void markSkippedRecordOffset(long offset) {}
+
+  /**
+   * The metadata string to attach to the next consumer-offset commit for this partition, carrying
+   * the recovery floor (e.g. {@code "floor=204"}) so {@code open()} can re-seek past a skipped run
+   * on restart. The committed offset itself is unchanged. Returns {@code null} when the feature is
+   * off or there is no skipped run to advance past.
+   *
+   * @return the floor metadata string, or {@code null} for no metadata
+   */
+  default String getMetadataFloorForCommit() {
+    return null;
+  }
+
+  /**
+   * Given the framework's consumed position for this partition, return the highest offset it is safe
+   * to treat as fully handled, that is the lowest real record buffered but not yet durable, or the
+   * consumed position when nothing is in flight. Both the committed offset and the recovery floor
+   * derive from this one number. Returns {@code NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE} when the
+   * feature is off.
+   *
+   * @param consumedHwm the framework's consumed position for this partition
+   * @return the decided frontier, or {@code NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE}
+   */
+  default long getDecidedFrontier(long consumedHwm) {
+    return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+  }
 }
