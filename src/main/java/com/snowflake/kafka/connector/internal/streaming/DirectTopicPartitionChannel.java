@@ -2,6 +2,8 @@ package com.snowflake.kafka.connector.internal.streaming;
 
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DEFAULT;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_METADATA_FLOOR_RECOVERY;
+import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG;
 import static com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig.ERRORS_TOLERANCE_CONFIG;
 import static com.snowflake.kafka.connector.internal.streaming.StreamingUtils.DURATION_BETWEEN_GET_OFFSET_TOKEN_RETRY;
@@ -15,6 +17,9 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
@@ -44,13 +49,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import net.snowflake.ingest.streaming.*;
 import net.snowflake.ingest.utils.SFException;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsOptions;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -84,6 +94,39 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
   // channel versions compatible.
   private final AtomicLong currentConsumerGroupOffset =
       new AtomicLong(NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE);
+
+  // Intentionally skipped (null/tombstone) Kafka offsets, held as a coalesced set of ranges. The
+  // commit and recovery floor is the top of the contiguous run of skipped offsets above the durable
+  // token (see contiguousSkipFloor), so it never leapfrogs a real record that was consumed but is
+  // not yet durable. closedOpen ranges merge adjacent integers. In-memory, reset on every (re)open.
+  // Every access synchronizes on the set.
+  private final RangeSet<Long> skippedRanges = TreeRangeSet.create();
+
+  // Kafka offsets of real records this channel has buffered but not yet confirmed durable in
+  // Snowflake. The decided frontier is the minimum of this set, or the consumed position when it is
+  // empty; everything below the frontier is decided (durably written, a skipped null, or a record
+  // dropped upstream), so the frontier never steps over a real record that is not yet durable. An
+  // offset enters here when its record is buffered (transformAndSend), is pruned once the durable
+  // token passes it (getDecidedFrontier), and the whole set is cleared on (re)open/reset. A record
+  // that was dead-lettered is not tracked here: the framework awaits its DLQ produce before commit,
+  // and a later row's flush advances the token past it. Guarded by its own monitor.
+  private final java.util.TreeSet<Long> pendingRealOffsets = new java.util.TreeSet<>();
+
+  // Whether the in-memory committed-offset advance is enabled.
+  private final boolean enableNullRecordOffsetAdvance;
+
+  // Whether the recovery floor is persisted into the OffsetAndMetadata.metadata of the
+  // consumer-offset commit and read back at open() to re-seek past the skipped run. Only effective
+  // when enableNullRecordOffsetAdvance is also true.
+  private final boolean enableMetadataFloorRecovery;
+
+  // Prefix for the floor value embedded in OffsetAndMetadata.metadata, e.g. "floor=204".
+  private static final String METADATA_FLOOR_PREFIX = "floor=";
+
+  // Config key carrying the Connect sink consumer group id (e.g. "connect-<connectorName>").
+  // Required to read the committed floor back at open(), because the original Connect connector
+  // name is not recoverable inside the connector (Utils.convertAppName munges the "name" config).
+  private static final String METADATA_FLOOR_GROUP_ID_CONFIG = "metadata.floor.group.id";
 
   // Indicates whether we need to skip and discard any leftover rows in the current batch, this
   // could happen when the channel gets invalidated and reset, then anything left in the buffer
@@ -245,6 +288,19 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
     this.enableSchemaEvolution = this.enableSchematization && hasSchemaEvolutionPermission;
     this.schemaEvolutionService = schemaEvolutionService;
 
+    this.enableNullRecordOffsetAdvance =
+        Boolean.parseBoolean(
+            this.sfConnectorConfig.getOrDefault(
+                SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE,
+                Boolean.toString(
+                    SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT)));
+
+    this.enableMetadataFloorRecovery =
+        Boolean.parseBoolean(
+            this.sfConnectorConfig.getOrDefault(
+                ENABLE_METADATA_FLOOR_RECOVERY,
+                Boolean.toString(ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT)));
+
     this.channelOffsetTokenMigrator = new ChannelOffsetTokenMigrator(conn, telemetryService);
 
     if (isEnableChannelOffsetMigration(sfConnectorConfig)) {
@@ -261,6 +317,11 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
     final long lastCommittedOffsetToken = fetchOffsetTokenWithRetry();
     this.offsetPersistedInSnowflake.set(lastCommittedOffsetToken);
     this.processedOffset.set(lastCommittedOffsetToken);
+    // A fresh (re)open re-seeks and re-reads, so nothing is in flight yet. Clear the pending-real
+    // set so a stale entry from a prior incarnation cannot hold the frontier back.
+    synchronized (pendingRealOffsets) {
+      pendingRealOffsets.clear();
+    }
 
     // setup telemetry and metrics
     String connectorName =
@@ -284,12 +345,124 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
     this.insertErrorMapper = insertErrorMapper;
 
     if (lastCommittedOffsetToken != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
-      this.sinkTaskContext.offset(this.topicPartition, lastCommittedOffsetToken + 1L);
+      // Recovery normally re-seeks to durable token + 1. If the metadata-floor feature is on, read
+      // the floor carried in the commit's metadata and re-seek to max(token, floor) + 1 instead,
+      // skipping a contiguous run of already-skipped tombstones. A stale, missing, or unreadable
+      // floor falls back to token + 1, a harmless re-read of tombstones, never data loss.
+      long seekTarget = lastCommittedOffsetToken + 1L;
+      if (enableMetadataFloorRecovery && enableNullRecordOffsetAdvance) {
+        long floorH = readMetadataFloor(lastCommittedOffsetToken);
+        if (floorH > lastCommittedOffsetToken) {
+          seekTarget = floorH + 1L;
+          LOGGER.info(
+              "TopicPartitionChannel:{}, metadata-floor recovery: token={}, floorH={}, seeking"
+                  + " to {} (skipping re-read of skipped run)",
+              this.getChannelName(),
+              lastCommittedOffsetToken,
+              floorH,
+              seekTarget);
+        }
+      }
+      this.sinkTaskContext.offset(this.topicPartition, seekTarget);
+    } else if (enableMetadataFloorRecovery && enableNullRecordOffsetAdvance) {
+      // No durable token yet. Read the recovery floor rather than trusting the raw committed Kafka
+      // offset. A recorded leading run of tombstones from offset 0 has a floor that is never a real
+      // record (the run stops at the first non-skip), so seeking to floor + 1 skips only tombstones.
+      // With no readable floor, fall through to the committed offset, at worst a harmless re-read.
+      long floorH = readMetadataFloor(lastCommittedOffsetToken);
+      if (floorH > NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
+        long seekTarget = floorH + 1L;
+        LOGGER.info(
+            "TopicPartitionChannel:{}, token-null metadata-floor recovery: floorH={}, seeking to {}"
+                + " (skipping re-read of leading skipped run)",
+            this.getChannelName(),
+            floorH,
+            seekTarget);
+        this.sinkTaskContext.offset(this.topicPartition, seekTarget);
+      } else {
+        LOGGER.info(
+            "TopicPartitionChannel:{}, offset token is NULL and no recovery floor, relying on Kafka"
+                + " committed offset (clamped to the decided frontier by the commit fix)",
+            this.getChannelName());
+      }
     } else {
       LOGGER.info(
           "TopicPartitionChannel:{}, offset token is NULL, will rely on Kafka to send us the"
               + " correct offset instead",
           this.getChannelName());
+    }
+  }
+
+  /**
+   * Read the recovery floor previously persisted in the committed OffsetAndMetadata.metadata for
+   * this connector's consumer group and topic-partition, via AdminClient.listConsumerGroupOffsets.
+   * Best-effort: returns {@link #NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE} on any error, missing
+   * metadata, or unparsable value, so recovery falls back to token + 1. The AdminClient bootstrap
+   * config is sourced from the connector's {@code admin.override.*} properties.
+   *
+   * @param durableToken the durable Snowflake token (used only for logging context)
+   * @return the parsed floor, or {@code NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE} if none
+   */
+  private long readMetadataFloor(long durableToken) {
+    // The Connect sink consumer group is "connect-<connector name>" using the original Connect REST
+    // name, which is not available inside the connector because Utils.convertAppName() munges the
+    // "name" config. So the group id must be supplied explicitly via the "metadata.floor.group.id"
+    // config. If it is absent, skip the read (harmless fallback to token + 1).
+    String groupId = this.sfConnectorConfig.get(METADATA_FLOOR_GROUP_ID_CONFIG);
+    if (Strings.isNullOrEmpty(groupId)) {
+      LOGGER.info(
+          "TopicPartitionChannel:{}, metadata-floor read skipped: no '{}' config (cannot derive"
+              + " the Connect consumer group from the munged connector name)",
+          this.getChannelName(),
+          METADATA_FLOOR_GROUP_ID_CONFIG);
+      return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+    }
+
+    Properties adminProps = new Properties();
+    for (Map.Entry<String, String> entry : this.sfConnectorConfig.entrySet()) {
+      String key = entry.getKey();
+      if (key.startsWith("admin.override.")) {
+        adminProps.put(key.substring("admin.override.".length()), entry.getValue());
+      }
+    }
+
+    try (AdminClient adminClient = AdminClient.create(adminProps)) {
+      Map<TopicPartition, OffsetAndMetadata> committed =
+          adminClient
+              .listConsumerGroupOffsets(
+                  groupId,
+                  new ListConsumerGroupOffsetsOptions()
+                      .topicPartitions(Collections.singletonList(this.topicPartition)))
+              .partitionsToOffsetAndMetadata()
+              .get(5, TimeUnit.SECONDS);
+      OffsetAndMetadata oam = committed == null ? null : committed.get(this.topicPartition);
+      if (oam == null
+          || oam.metadata() == null
+          || !oam.metadata().startsWith(METADATA_FLOOR_PREFIX)) {
+        LOGGER.info(
+            "TopicPartitionChannel:{}, metadata-floor read: no floor in committed metadata"
+                + " (group={}, token={}, committedOffset={}, metadata={})",
+            this.getChannelName(),
+            groupId,
+            durableToken,
+            oam == null ? "<none>" : oam.offset(),
+            oam == null ? "<none>" : oam.metadata());
+        return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+      }
+      long parsed = Long.parseLong(oam.metadata().substring(METADATA_FLOOR_PREFIX.length()));
+      LOGGER.info(
+          "TopicPartitionChannel:{}, metadata-floor read: floorH={} (group={}, token={})",
+          this.getChannelName(),
+          parsed,
+          groupId,
+          durableToken);
+      return parsed;
+    } catch (Exception e) {
+      LOGGER.info(
+          "TopicPartitionChannel:{}, metadata-floor read failed, falling back to token+1: {}",
+          this.getChannelName(),
+          e.getMessage());
+      return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
     }
   }
 
@@ -434,6 +607,14 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
               response.hasErrors());
 
           handleInsertRowFailure(response.getInsertErrors(), kafkaSinkRecord);
+        } else if (enableNullRecordOffsetAdvance) {
+          // A real record was successfully buffered and will become durable on the next flush.
+          // Record it as pending so the decided frontier cannot advance the committed offset or the
+          // recovery floor past it until the durable token confirms it. A record on the hasErrors()
+          // branch above is dead-lettered and deliberately not tracked here.
+          synchronized (pendingRealOffsets) {
+            pendingRealOffsets.add(kafkaSinkRecord.kafkaOffset());
+          }
         }
       }
 
@@ -593,14 +774,121 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
   @Override
   public long getOffsetSafeToCommitToKafka() {
     final long committedOffsetInSnowflake = fetchOffsetTokenWithRetry();
-    if (committedOffsetInSnowflake == NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
-      return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
-    } else {
-      // Return an offset which is + 1 of what was present in snowflake.
-      // Idea of sending + 1 back to Kafka is that it should start sending offsets after task
-      // restart from this offset
-      return committedOffsetInSnowflake + 1;
+    final long tokenBasedOffset =
+        committedOffsetInSnowflake == NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE
+            ? NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE
+            // Return an offset which is + 1 of what was present in snowflake.
+            // Idea of sending + 1 back to Kafka is that it should start sending offsets after task
+            // restart from this offset
+            : committedOffsetInSnowflake + 1;
+
+    if (!enableNullRecordOffsetAdvance) {
+      return tokenBasedOffset;
     }
+
+    // Also advance past a contiguous run of intentionally skipped null records. The committed offset
+    // becomes max(token + 1, contiguousSkipFloor + 1). The contiguous floor stops at the first
+    // non-skipped offset, so it never steps over a real record that is buffered but not yet durable.
+    final long floor = contiguousSkipFloor(committedOffsetInSnowflake);
+    final long skipBasedOffset =
+        (floor > committedOffsetInSnowflake)
+            ? floor + 1
+            : NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+    return Math.max(tokenBasedOffset, skipBasedOffset);
+  }
+
+  /**
+   * Given the framework's consumed position for this partition, return the highest offset it is safe
+   * to treat as fully handled, so the committed offset and the recovery floor can move up to it. The
+   * frontier is the lowest real record buffered but not yet durable, or the consumed position when
+   * nothing is pending. Everything below the frontier is decided, so it can never step over a real
+   * record still in flight, because such a record would itself be the minimum of the pending set.
+   * The pending set is pruned against the live durable token first, so a real record that has since
+   * become durable no longer holds the frontier back.
+   *
+   * <p>The consumed position must be supplied by the caller because it includes offsets dropped by
+   * SMTs, which the sink never sees, so the connector's own state cannot bound the frontier across
+   * such a gap.
+   *
+   * @param consumedHwm the framework's consumed position for this partition
+   * @return the decided frontier, or {@link #NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE} when the
+   *     feature is off
+   */
+  @Override
+  public long getDecidedFrontier(long consumedHwm) {
+    if (!enableNullRecordOffsetAdvance) {
+      return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+    }
+    final long durableToken = fetchOffsetTokenWithRetry();
+    synchronized (pendingRealOffsets) {
+      // Prune reals that have since become durable: the token passing an offset means that real, or
+      // a later one sharing its flush, registered, so it no longer bounds the frontier.
+      if (durableToken != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
+        pendingRealOffsets.headSet(durableToken + 1L).clear();
+      }
+      if (pendingRealOffsets.isEmpty()) {
+        // Nothing real is in flight, so the entire consumed run is durable or decided-dropped.
+        return consumedHwm;
+      }
+      // The lowest real still in flight is the first genuinely-unfinished offset; stop there.
+      return pendingRealOffsets.first();
+    }
+  }
+
+  @Override
+  public void markSkippedRecordOffset(long offset) {
+    if (enableNullRecordOffsetAdvance) {
+      // Record this skipped offset as a coalescing range. closedOpen(offset, offset+1) makes
+      // adjacent integers merge, so a run of consecutive tombstones becomes one interval.
+      synchronized (skippedRanges) {
+        skippedRanges.add(Range.closedOpen(offset, offset + 1L));
+      }
+    }
+  }
+
+  /**
+   * Returns the highest Kafka offset {@code H} such that every offset in {@code (durableToken, H]}
+   * was an intentionally skipped tombstone, that is, the top of the unbroken skipped run starting
+   * immediately above the durable token. Returns {@code durableToken} when the offset right above
+   * the token was not skipped. Because the run stops at the first offset that is not a recorded
+   * skip, a real record, a dead-lettered record, or an unconsumed gap is always a stop boundary and
+   * can never be leapfrogged.
+   */
+  private long contiguousSkipFloor(long durableToken) {
+    synchronized (skippedRanges) {
+      Range<Long> run = skippedRanges.rangeContaining(durableToken + 1L);
+      if (run == null) {
+        return durableToken;
+      }
+      // run is closedOpen [a, b) and contains durableToken+1, so [durableToken+1, b) are all
+      // skipped; the highest skipped offset in that contiguous run is b-1.
+      return run.upperEndpoint() - 1L;
+    }
+  }
+
+  @Override
+  public String getMetadataFloorForCommit() {
+    if (!enableMetadataFloorRecovery || !enableNullRecordOffsetAdvance) {
+      return null;
+    }
+    // The floor is the top of the contiguous run of skipped offsets starting at durableToken + 1,
+    // so it can never point past a record that still needs to be written. This is computed even with
+    // no durable token yet: the anchor is offset 0 in that case, so a leading run of tombstones
+    // yields a real floor that lets open() seek past it. When the offset above the anchor was not
+    // skipped, there is nothing to advance past, so emit no metadata.
+    final long durableToken = offsetPersistedInSnowflake.get();
+    final long floorValue = contiguousSkipFloor(durableToken);
+    if (floorValue <= durableToken) {
+      return null;
+    }
+    String floor = METADATA_FLOOR_PREFIX + floorValue;
+    LOGGER.info(
+        "TopicPartitionChannel:{}, metadata-floor emit: token={}, floorH={}, metadata={}",
+        this.getChannelName(),
+        durableToken,
+        floorValue,
+        floor);
+    return floor;
   }
 
   @Override
@@ -726,6 +1014,12 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
     // might get rejected.
     this.offsetPersistedInSnowflake.set(offsetRecoveredFromSnowflake);
     this.processedOffset.set(offsetRecoveredFromSnowflake);
+    // The buffer was discarded and the channel re-seeks, so nothing is in flight anymore. Clear the
+    // pending-real set; the reals will re-enter it as the re-read records flow back through
+    // transformAndSend.
+    synchronized (pendingRealOffsets) {
+      pendingRealOffsets.clear();
+    }
 
     // Set the flag so that any leftover rows in the buffer should be skipped, it will be
     // re-ingested since the offset in kafka was reset

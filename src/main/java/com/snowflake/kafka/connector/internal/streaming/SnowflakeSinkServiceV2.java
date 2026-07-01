@@ -102,6 +102,10 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
 
   private final boolean enableChannelNameV2Usage;
 
+  // When true, record skipped null-record offsets on the channel so the committed Kafka offset can
+  // advance past them.
+  private final boolean enableNullRecordOffsetAdvance;
+
   /**
    * Key is formulated in {@link #partitionChannelKey(String, String, int)}
    *
@@ -176,6 +180,13 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
             .orElse(
                 SnowflakeSinkConnectorConfig
                     .SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_DEFAULT);
+
+    this.enableNullRecordOffsetAdvance =
+        Boolean.parseBoolean(
+            connectorConfig.getOrDefault(
+                SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE,
+                Boolean.toString(
+                    SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT)));
 
     this.streamingIngestClient =
         StreamingClientProvider.getStreamingClientProviderInstance()
@@ -310,6 +321,15 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     for (SinkRecord record : records) {
       // check if it needs to handle null value records
       if (recordService.shouldSkipNullValue(record, behaviorOnNullValues)) {
+        // Remember the skipped offset on its channel so the committed Kafka offset can advance past
+        // it (otherwise consumer lag grows on tombstone-heavy topics).
+        if (enableNullRecordOffsetAdvance) {
+          String partitionChannelKey = partitionChannelKey(record.topic(), record.kafkaPartition());
+          TopicPartitionChannel channel = partitionsToChannel.get(partitionChannelKey);
+          if (channel != null) {
+            channel.markSkippedRecordOffset(record.kafkaOffset());
+          }
+        }
         continue;
       }
 
@@ -361,6 +381,22 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
           topicPartition.partition());
       return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
     }
+  }
+
+  @Override
+  public String getOffsetMetadata(TopicPartition topicPartition) {
+    String partitionChannelKey =
+        partitionChannelKey(topicPartition.topic(), topicPartition.partition());
+    TopicPartitionChannel channel = partitionsToChannel.get(partitionChannelKey);
+    return channel == null ? null : channel.getMetadataFloorForCommit();
+  }
+
+  @Override
+  public long getDecidedFrontier(TopicPartition topicPartition, long consumedHwm) {
+    String partitionChannelKey =
+        partitionChannelKey(topicPartition.topic(), topicPartition.partition());
+    TopicPartitionChannel channel = partitionsToChannel.get(partitionChannelKey);
+    return channel == null ? -1L : channel.getDecidedFrontier(consumedHwm);
   }
 
   @Override
