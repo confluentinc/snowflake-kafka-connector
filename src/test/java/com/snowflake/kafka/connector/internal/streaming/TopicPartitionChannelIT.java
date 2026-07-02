@@ -549,6 +549,8 @@ public class TopicPartitionChannelIT {
   public void testChannelMigrateOffsetTokenSystemFunction_NonNullOffsetTokenForSourceChannel()
       throws Exception {
     Map<String, String> config = getConfForStreaming();
+    // Enable offset migration for this test
+    config.put(SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG, "true");
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
 
     InMemorySinkTaskContext inMemorySinkTaskContext =
@@ -632,6 +634,8 @@ public class TopicPartitionChannelIT {
   public void testChannelMigrateOffsetTokenSystemFunction_NullOffsetTokenInFormatV2()
       throws Exception {
     Map<String, String> config = getConfForStreaming();
+    // Enable offset migration for this test
+    config.put(SnowflakeSinkConnectorConfig.ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG, "true");
     SnowflakeSinkConnectorConfig.setDefaultValues(config);
 
     InMemorySinkTaskContext inMemorySinkTaskContext =
