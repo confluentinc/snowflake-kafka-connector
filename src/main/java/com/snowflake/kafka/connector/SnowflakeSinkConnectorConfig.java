@@ -252,7 +252,7 @@ public class SnowflakeSinkConnectorConfig {
       "enable.streaming.channel.offset.migration";
   public static final String ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DISPLAY =
       "Enable Streaming Channel Offset Migration";
-  public static final boolean ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DEFAULT = true;
+  public static final boolean ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DEFAULT = false;
   public static final String ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_DOC =
       "This config is used to enable/disable streaming channel offset migration logic. If true, we"
           + " will migrate offset token from channel name format V2 to name format v1. V2 channel"
