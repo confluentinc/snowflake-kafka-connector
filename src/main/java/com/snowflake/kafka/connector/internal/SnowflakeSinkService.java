@@ -54,6 +54,19 @@ public interface SnowflakeSinkService {
   long getOffset(TopicPartition topicPartition);
 
   /**
+   * Returns the decided frontier for this partition: the lowest record received but not yet durable
+   * or decided, or the given consumed high-water mark when nothing is pending. The caller supplies
+   * the high-water mark because it includes SMT-filtered offsets the sink never sees.
+   *
+   * @param topicPartition topic and partition
+   * @param consumedHwm the framework's consumed position for this partition
+   * @return the decided frontier, or {@code -1} when the feature is off or unsupported
+   */
+  default long getDecidedFrontier(TopicPartition topicPartition, long consumedHwm) {
+    return -1L;
+  }
+
+  /**
    * get the number of partitions assigned to this sink service
    *
    * @return number of partitions

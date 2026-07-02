@@ -144,7 +144,9 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     boolean infinityHandlingEnabled = Utils.isStreamingInfinityHandlingEnabled(connectorConfig);
     this.recordService =
         RecordServiceFactory.createRecordService(
-            Utils.isIcebergEnabled(connectorConfig), schematizationEnabled, infinityHandlingEnabled);
+            Utils.isIcebergEnabled(connectorConfig),
+            schematizationEnabled,
+            infinityHandlingEnabled);
     this.icebergTableSchemaValidator = new IcebergTableSchemaValidator(conn);
     this.icebergInitService = new IcebergInitService(conn);
     this.schemaEvolutionService =
@@ -310,6 +312,7 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     for (SinkRecord record : records) {
       // check if it needs to handle null value records
       if (recordService.shouldSkipNullValue(record, behaviorOnNullValues)) {
+        // A skipped null is decided by definition; the frontier steps over untracked offsets.
         continue;
       }
 
@@ -361,6 +364,14 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
           topicPartition.partition());
       return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
     }
+  }
+
+  @Override
+  public long getDecidedFrontier(TopicPartition topicPartition, long consumedHwm) {
+    String partitionChannelKey =
+        partitionChannelKey(topicPartition.topic(), topicPartition.partition());
+    TopicPartitionChannel channel = partitionsToChannel.get(partitionChannelKey);
+    return channel == null ? -1L : channel.getDecidedFrontier(consumedHwm);
   }
 
   @Override
