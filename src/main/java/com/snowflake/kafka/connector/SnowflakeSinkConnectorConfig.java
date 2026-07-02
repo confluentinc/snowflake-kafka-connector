@@ -260,6 +260,22 @@ public class SnowflakeSinkConnectorConfig {
           + " enabled, disabling this config could have ramifications. Please consult Snowflake"
           + " support before setting this to false.";
 
+  // Streaming only: commit the decided frontier (lowest record received but not yet durable or
+  // decided) from preCommit instead of the durable token, so consumer-group lag reflects only
+  // records genuinely in flight instead of growing across skipped nulls and SMT drops. Default
+  // off.
+  public static final String ENABLE_NULL_RECORD_OFFSET_ADVANCE =
+      "enable.null.record.offset.advance";
+  public static final boolean ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT = false;
+
+  // Streaming only: carry a recovery floor (frontier - 1) in the consumer-offset commit metadata
+  // and read it back at channel open to re-seek to the frontier, so decided runs are not re-read
+  // after restart. Requires ENABLE_NULL_RECORD_OFFSET_ADVANCE and "metadata.floor.group.id" (the
+  // sink's consumer group). A stale or inconsistent floor falls back to durableToken+1. Default
+  // off.
+  public static final String ENABLE_METADATA_FLOOR_RECOVERY = "enable.metadata.floor.recovery";
+  public static final boolean ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT = false;
+
   // related to ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG /
   // enable.streaming.channel.offset.migration above
   public static final String SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG =

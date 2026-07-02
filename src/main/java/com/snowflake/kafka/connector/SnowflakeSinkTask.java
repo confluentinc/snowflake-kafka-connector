@@ -389,11 +389,27 @@ public class SnowflakeSinkTask extends SinkTask {
     try {
       offsets.forEach(
           (topicPartition, offsetAndMetadata) -> {
-            long offset = sink.getOffset(topicPartition);
-            if ((ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE && offset != 0)
-                || (ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE_STREAMING
-                    && offset != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE)) {
-              committedOffsets.put(topicPartition, new OffsetAndMetadata(offset));
+            // Commit the decided frontier instead of the durable token. The consumed position
+            // passed to preCommit includes SMT-filtered offsets, so the frontier clears ghost lag
+            // from skipped nulls and SMT drops without passing a record that still needs writing.
+            long frontier = sink.getDecidedFrontier(topicPartition, offsetAndMetadata.offset());
+            if (frontier != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE) {
+              // Carry the recovery floor (frontier - 1) in the commit metadata so open() can
+              // re-seek to max(durableToken, floor) + 1, which lands on the frontier.
+              long floor = frontier - 1L;
+              committedOffsets.put(
+                  topicPartition,
+                  floor < 0L
+                      ? new OffsetAndMetadata(frontier)
+                      : new OffsetAndMetadata(frontier, "floor=" + floor));
+            } else {
+              // Feature off, or Snowpipe V1, or no channel yet: preserve the original behaviour.
+              long offset = sink.getOffset(topicPartition);
+              if ((ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE && offset != 0)
+                  || (ingestionMethodConfig == IngestionMethodConfig.SNOWPIPE_STREAMING
+                      && offset != NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE)) {
+                committedOffsets.put(topicPartition, new OffsetAndMetadata(offset));
+              }
             }
           });
     } catch (Exception e) {

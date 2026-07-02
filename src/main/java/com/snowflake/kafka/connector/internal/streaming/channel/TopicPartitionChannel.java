@@ -81,4 +81,17 @@ public interface TopicPartitionChannel extends ExposingInternalsTopicPartitionCh
   String getChannelName();
 
   void setLatestConsumerGroupOffset(long consumerOffset);
+
+  /**
+   * Returns the decided frontier: the lowest record received but not yet durable or decided, or the
+   * given consumed high-water mark when nothing is pending. Both the committed offset and the
+   * recovery floor carried in the commit metadata derive from this number.
+   *
+   * @param consumedHwm the framework's consumed position for this partition
+   * @return the decided frontier, or {@code NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE} when the
+   *     feature is off
+   */
+  default long getDecidedFrontier(long consumedHwm) {
+    return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+  }
 }
