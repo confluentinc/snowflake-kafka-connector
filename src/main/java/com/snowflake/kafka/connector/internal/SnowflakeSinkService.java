@@ -54,6 +54,31 @@ public interface SnowflakeSinkService {
   long getOffset(TopicPartition topicPartition);
 
   /**
+   * The metadata string to attach to the consumer-offset commit for this partition (e.g. {@code
+   * "floor=204"}), carrying the recovery floor that {@code open()} reads back to re-seek past a
+   * skipped tombstone run. Returns {@code null} when no metadata should be attached.
+   *
+   * @param topicPartition topic and partition
+   * @return commit metadata string, or {@code null}
+   */
+  default String getOffsetMetadata(TopicPartition topicPartition) {
+    return null;
+  }
+
+  /**
+   * Given the framework's consumed position for this partition, return the highest offset it is
+   * safe to treat as fully handled. The caller supplies the consumed position because it includes
+   * offsets dropped by SMTs, which the sink never sees. Returns {@code -1} when the feature is off.
+   *
+   * @param topicPartition topic and partition
+   * @param consumedHwm the framework's consumed position for this partition
+   * @return the decided frontier, or {@code -1}
+   */
+  default long getDecidedFrontier(TopicPartition topicPartition, long consumedHwm) {
+    return -1L;
+  }
+
+  /**
    * get the number of partitions assigned to this sink service
    *
    * @return number of partitions

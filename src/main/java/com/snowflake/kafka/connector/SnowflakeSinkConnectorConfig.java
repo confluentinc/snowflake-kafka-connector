@@ -260,6 +260,22 @@ public class SnowflakeSinkConnectorConfig {
           + " enabled, disabling this config could have ramifications. Please consult Snowflake"
           + " support before setting this to false.";
 
+  // Advance the committed Kafka offset past intentionally skipped null/tombstone records so
+  // consumer-group lag does not grow on tombstone-heavy topics with behavior.on.null.values=IGNORE.
+  // Advisory only: recovery always re-seeks to the durable Snowflake token, so a committed offset
+  // ahead of the token never causes a real record to be skipped. Default off.
+  public static final String ENABLE_NULL_RECORD_OFFSET_ADVANCE =
+      "enable.null.record.offset.advance";
+  public static final boolean ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT = false;
+
+  // Persist a recovery floor in the OffsetAndMetadata.metadata of the consumer-offset commit so
+  // open() can re-seek past a skipped tombstone run on restart instead of re-reading it. The
+  // committed offset itself is unchanged. A stale or missing floor falls back to a harmless
+  // re-read, never data loss. Only effective when ENABLE_NULL_RECORD_OFFSET_ADVANCE is also on.
+  // Default off.
+  public static final String ENABLE_METADATA_FLOOR_RECOVERY = "enable.metadata.floor.recovery";
+  public static final boolean ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT = false;
+
   // related to ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG /
   // enable.streaming.channel.offset.migration above
   public static final String SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG =
