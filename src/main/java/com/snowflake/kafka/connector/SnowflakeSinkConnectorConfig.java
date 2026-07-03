@@ -260,6 +260,42 @@ public class SnowflakeSinkConnectorConfig {
           + " enabled, disabling this config could have ramifications. Please consult Snowflake"
           + " support before setting this to false.";
 
+  public static final String ENABLE_NULL_RECORD_OFFSET_ADVANCE =
+      "enable.null.record.offset.advance";
+  public static final String ENABLE_NULL_RECORD_OFFSET_ADVANCE_DISPLAY =
+      "Enable committed offset advance over skipped records";
+  public static final boolean ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT = false;
+  public static final String ENABLE_NULL_RECORD_OFFSET_ADVANCE_DOC =
+      "Whether the connector commits the decided frontier instead of the durable offset token. The"
+          + " decided frontier is the lowest record received but not yet durable in Snowflake or"
+          + " otherwise decided (dead-lettered or dropped), so the committed offset advances over"
+          + " skipped null records and records dropped by an SMT, and consumer lag reflects only"
+          + " records genuinely in flight. Can only be set if Streaming Snowpipe is enabled";
+
+  public static final String ENABLE_METADATA_FLOOR_RECOVERY = "enable.metadata.floor.recovery";
+  public static final String ENABLE_METADATA_FLOOR_RECOVERY_DISPLAY =
+      "Enable recovery floor in commit metadata";
+  public static final boolean ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT = false;
+  public static final String ENABLE_METADATA_FLOOR_RECOVERY_DOC =
+      "Whether each offset commit carries a recovery floor (the committed offset minus one) in the"
+          + " consumer-offset metadata, which is read back at channel open so the partition"
+          + " re-seeks to the decided frontier and already-decided runs are not re-read after a"
+          + " restart. Requires "
+          + ENABLE_NULL_RECORD_OFFSET_ADVANCE
+          + " and metadata.floor.group.id. A missing, stale, or inconsistent floor falls back to"
+          + " the durable offset token plus one, which is at worst a harmless re-read. Can only be"
+          + " set if Streaming Snowpipe is enabled";
+
+  public static final String METADATA_FLOOR_GROUP_ID = "metadata.floor.group.id";
+  public static final String METADATA_FLOOR_GROUP_ID_DISPLAY = "Recovery floor consumer group id";
+  public static final String METADATA_FLOOR_GROUP_ID_DOC =
+      "The Connect consumer group id of this sink, typically connect-<connector name>, used to"
+          + " read the recovery floor back from the committed consumer-offset metadata at channel"
+          + " open. Required when "
+          + ENABLE_METADATA_FLOOR_RECOVERY
+          + " is enabled; the connector cannot derive it internally because the connector name is"
+          + " transformed before it reaches the sink";
+
   // related to ENABLE_CHANNEL_OFFSET_TOKEN_MIGRATION_CONFIG /
   // enable.streaming.channel.offset.migration above
   public static final String SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG =
