@@ -110,11 +110,6 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
   // Prefix for the floor value embedded in OffsetAndMetadata.metadata, e.g. "floor=204".
   private static final String METADATA_FLOOR_PREFIX = "floor=";
 
-  // Config key carrying the Connect sink consumer group id ("connect-<connector name>"). The
-  // original Connect name is not recoverable inside the connector (Utils.convertAppName munges
-  // it), so the group id must be supplied explicitly for the floor to be read back at open().
-  private static final String METADATA_FLOOR_GROUP_ID_CONFIG = "metadata.floor.group.id";
-
   // Indicates whether we need to skip and discard any leftover rows in the current batch, this
   // could happen when the channel gets invalidated and reset, then anything left in the buffer
   // should be skipped
@@ -384,33 +379,18 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
    * config is sourced from the connector's {@code admin.override.*} properties.
    */
   private long readMetadataFloor(long durableToken) {
-    String groupId = this.sfConnectorConfig.get(METADATA_FLOOR_GROUP_ID_CONFIG);
+    String groupId =
+        this.sfConnectorConfig.get(SnowflakeSinkConnectorConfig.METADATA_FLOOR_GROUP_ID);
     if (Strings.isNullOrEmpty(groupId)) {
       LOGGER.info(
           "TopicPartitionChannel:{}, metadata-floor read skipped: no '{}' config",
           this.getChannelName(),
-          METADATA_FLOOR_GROUP_ID_CONFIG);
+          SnowflakeSinkConnectorConfig.METADATA_FLOOR_GROUP_ID);
       return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
     }
 
-    Properties adminProps = new Properties();
-    for (Map.Entry<String, String> entry : this.sfConnectorConfig.entrySet()) {
-      String key = entry.getKey();
-      if (key.startsWith("admin.override.")) {
-        adminProps.put(key.substring("admin.override.".length()), entry.getValue());
-      }
-    }
-
-    try (AdminClient adminClient = AdminClient.create(adminProps)) {
-      Map<TopicPartition, OffsetAndMetadata> committed =
-          adminClient
-              .listConsumerGroupOffsets(
-                  groupId,
-                  new ListConsumerGroupOffsetsOptions()
-                      .topicPartitions(Collections.singletonList(this.topicPartition)))
-              .partitionsToOffsetAndMetadata()
-              .get(5, TimeUnit.SECONDS);
-      OffsetAndMetadata oam = committed == null ? null : committed.get(this.topicPartition);
+    try {
+      OffsetAndMetadata oam = fetchCommittedOffsetAndMetadata(groupId);
       if (oam == null
           || oam.metadata() == null
           || !oam.metadata().startsWith(METADATA_FLOOR_PREFIX)) {
@@ -452,6 +432,35 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
           this.getChannelName(),
           e.getMessage());
       return NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE;
+    }
+  }
+
+  /**
+   * Fetches the committed OffsetAndMetadata for this topic-partition from the given consumer group,
+   * via AdminClient.listConsumerGroupOffsets. The AdminClient bootstrap config is sourced from the
+   * connector's {@code admin.override.*} properties. Package-private so tests can stub the broker
+   * interaction.
+   */
+  @VisibleForTesting
+  OffsetAndMetadata fetchCommittedOffsetAndMetadata(String groupId) throws Exception {
+    Properties adminProps = new Properties();
+    for (Map.Entry<String, String> entry : this.sfConnectorConfig.entrySet()) {
+      String key = entry.getKey();
+      if (key.startsWith("admin.override.")) {
+        adminProps.put(key.substring("admin.override.".length()), entry.getValue());
+      }
+    }
+
+    try (AdminClient adminClient = AdminClient.create(adminProps)) {
+      Map<TopicPartition, OffsetAndMetadata> committed =
+          adminClient
+              .listConsumerGroupOffsets(
+                  groupId,
+                  new ListConsumerGroupOffsetsOptions()
+                      .topicPartitions(Collections.singletonList(this.topicPartition)))
+              .partitionsToOffsetAndMetadata()
+              .get(5, TimeUnit.SECONDS);
+      return committed == null ? null : committed.get(this.topicPartition);
     }
   }
 

@@ -139,12 +139,37 @@ public class DefaultConnectorConfigValidator implements ConnectorConfigValidator
                 IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
       }
       if (config.containsKey(
-          SnowflakeSinkConnectorConfig.SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG)) {
+          SnowflakeSinkConnectorConfig
+              .SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG)) {
         invalidConfigParams.put(
             SnowflakeSinkConnectorConfig
                 .SNOWPIPE_STREAMING_CHANNEL_NAME_INCLUDE_CONNECTOR_NAME_CONFIG,
             Utils.formatString(
                 "Streaming channel name version is only available with {}.",
+                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
+      }
+      if (config.containsKey(SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE)) {
+        invalidConfigParams.put(
+            SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE,
+            Utils.formatString(
+                "{} is only available with ingestion type: {}.",
+                SnowflakeSinkConnectorConfig.ENABLE_NULL_RECORD_OFFSET_ADVANCE,
+                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
+      }
+      if (config.containsKey(SnowflakeSinkConnectorConfig.ENABLE_METADATA_FLOOR_RECOVERY)) {
+        invalidConfigParams.put(
+            SnowflakeSinkConnectorConfig.ENABLE_METADATA_FLOOR_RECOVERY,
+            Utils.formatString(
+                "{} is only available with ingestion type: {}.",
+                SnowflakeSinkConnectorConfig.ENABLE_METADATA_FLOOR_RECOVERY,
+                IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
+      }
+      if (config.containsKey(SnowflakeSinkConnectorConfig.METADATA_FLOOR_GROUP_ID)) {
+        invalidConfigParams.put(
+            SnowflakeSinkConnectorConfig.METADATA_FLOOR_GROUP_ID,
+            Utils.formatString(
+                "{} is only available with ingestion type: {}.",
+                SnowflakeSinkConnectorConfig.METADATA_FLOOR_GROUP_ID,
                 IngestionMethodConfig.SNOWPIPE_STREAMING.toString()));
       }
     }

@@ -678,6 +678,36 @@ public class ConnectorConfigDefinition {
             CONNECTOR_CONFIG_DOC,
             13,
             ConfigDef.Width.NONE,
-            ENABLE_STREAMING_INFINITY_HANDLING_DISPLAY);
+            ENABLE_STREAMING_INFINITY_HANDLING_DISPLAY)
+        .define(
+            ENABLE_NULL_RECORD_OFFSET_ADVANCE,
+            ConfigDef.Type.BOOLEAN,
+            ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT,
+            ConfigDef.Importance.LOW,
+            ENABLE_NULL_RECORD_OFFSET_ADVANCE_DOC,
+            CONNECTOR_CONFIG_DOC,
+            14,
+            ConfigDef.Width.NONE,
+            ENABLE_NULL_RECORD_OFFSET_ADVANCE_DISPLAY)
+        .define(
+            ENABLE_METADATA_FLOOR_RECOVERY,
+            ConfigDef.Type.BOOLEAN,
+            ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT,
+            ConfigDef.Importance.LOW,
+            ENABLE_METADATA_FLOOR_RECOVERY_DOC,
+            CONNECTOR_CONFIG_DOC,
+            15,
+            ConfigDef.Width.NONE,
+            ENABLE_METADATA_FLOOR_RECOVERY_DISPLAY)
+        .define(
+            METADATA_FLOOR_GROUP_ID,
+            ConfigDef.Type.STRING,
+            "",
+            ConfigDef.Importance.LOW,
+            METADATA_FLOOR_GROUP_ID_DOC,
+            CONNECTOR_CONFIG_DOC,
+            16,
+            ConfigDef.Width.NONE,
+            METADATA_FLOOR_GROUP_ID_DISPLAY);
   }
 }

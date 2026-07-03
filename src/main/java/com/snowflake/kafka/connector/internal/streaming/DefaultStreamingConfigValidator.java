@@ -126,6 +126,8 @@ public class DefaultStreamingConfigValidator implements StreamingConfigValidator
           invalidParams.putAll(validateSchematizationConfig(inputConfig));
 
           invalidParams.putAll(validateChannelNameV2Usage(inputConfig));
+
+          invalidParams.putAll(validateDecidedFrontierConfig(inputConfig));
         }
       } catch (ConfigException exception) {
         invalidParams.put(
@@ -228,6 +230,50 @@ public class DefaultStreamingConfigValidator implements StreamingConfigValidator
               inputConfig.get(inputConfigConverterField),
               IngestionMethodConfig.SNOWPIPE_STREAMING,
               Iterables.toString(DISALLOWED_CONVERTERS_STREAMING)));
+    }
+
+    return invalidParams;
+  }
+
+  private static Map<String, String> validateDecidedFrontierConfig(Map<String, String> config) {
+    Map<String, String> invalidParams = new HashMap<>();
+
+    if (config.containsKey(ENABLE_NULL_RECORD_OFFSET_ADVANCE)) {
+      BOOLEAN_VALIDATOR.ensureValid(
+          ENABLE_NULL_RECORD_OFFSET_ADVANCE, config.get(ENABLE_NULL_RECORD_OFFSET_ADVANCE));
+    }
+    if (config.containsKey(ENABLE_METADATA_FLOOR_RECOVERY)) {
+      BOOLEAN_VALIDATOR.ensureValid(
+          ENABLE_METADATA_FLOOR_RECOVERY, config.get(ENABLE_METADATA_FLOOR_RECOVERY));
+    }
+
+    boolean frontierEnabled =
+        Boolean.parseBoolean(
+            config.getOrDefault(
+                ENABLE_NULL_RECORD_OFFSET_ADVANCE,
+                Boolean.toString(ENABLE_NULL_RECORD_OFFSET_ADVANCE_DEFAULT)));
+    boolean floorRecoveryEnabled =
+        Boolean.parseBoolean(
+            config.getOrDefault(
+                ENABLE_METADATA_FLOOR_RECOVERY,
+                Boolean.toString(ENABLE_METADATA_FLOOR_RECOVERY_DEFAULT)));
+
+    if (floorRecoveryEnabled && !frontierEnabled) {
+      invalidParams.put(
+          ENABLE_METADATA_FLOOR_RECOVERY,
+          Utils.formatString(
+              "{} requires {} to be enabled.",
+              ENABLE_METADATA_FLOOR_RECOVERY,
+              ENABLE_NULL_RECORD_OFFSET_ADVANCE));
+    }
+    if (floorRecoveryEnabled && Strings.isNullOrEmpty(config.get(METADATA_FLOOR_GROUP_ID))) {
+      invalidParams.put(
+          METADATA_FLOOR_GROUP_ID,
+          Utils.formatString(
+              "{} must be set to the sink's Connect consumer group (connect-<connector name>) when"
+                  + " {} is enabled.",
+              METADATA_FLOOR_GROUP_ID,
+              ENABLE_METADATA_FLOOR_RECOVERY));
     }
 
     return invalidParams;

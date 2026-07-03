@@ -1055,6 +1055,45 @@ public class ConnectorConfigValidatorTest {
         .hasMessageContaining(SnowflakeSinkConnectorConfig.OAUTH_REFRESH_TOKEN);
   }
 
+  // ---------- Decided frontier / metadata floor recovery tests ---------- //
+  @Test
+  public void testDecidedFrontierConfig_validStreamingConfig() {
+    Map<String, String> config = SnowflakeSinkConnectorConfigBuilder.streamingConfig().build();
+    config.put(ENABLE_NULL_RECORD_OFFSET_ADVANCE, "true");
+    config.put(ENABLE_METADATA_FLOOR_RECOVERY, "true");
+    config.put(METADATA_FLOOR_GROUP_ID, "connect-test-connector");
+    connectorConfigValidator.validateConfig(config);
+  }
+
+  @Test
+  public void testDecidedFrontierConfig_notAllowedWithSnowpipe() {
+    Map<String, String> config = SnowflakeSinkConnectorConfigBuilder.snowpipeConfig().build();
+    config.put(ENABLE_NULL_RECORD_OFFSET_ADVANCE, "true");
+    assertThatThrownBy(() -> connectorConfigValidator.validateConfig(config))
+        .isInstanceOf(SnowflakeKafkaConnectorException.class)
+        .hasMessageContaining(ENABLE_NULL_RECORD_OFFSET_ADVANCE);
+  }
+
+  @Test
+  public void testMetadataFloorRecovery_requiresNullRecordOffsetAdvance() {
+    Map<String, String> config = SnowflakeSinkConnectorConfigBuilder.streamingConfig().build();
+    config.put(ENABLE_METADATA_FLOOR_RECOVERY, "true");
+    config.put(METADATA_FLOOR_GROUP_ID, "connect-test-connector");
+    assertThatThrownBy(() -> connectorConfigValidator.validateConfig(config))
+        .isInstanceOf(SnowflakeKafkaConnectorException.class)
+        .hasMessageContaining(ENABLE_METADATA_FLOOR_RECOVERY);
+  }
+
+  @Test
+  public void testMetadataFloorRecovery_requiresGroupId() {
+    Map<String, String> config = SnowflakeSinkConnectorConfigBuilder.streamingConfig().build();
+    config.put(ENABLE_NULL_RECORD_OFFSET_ADVANCE, "true");
+    config.put(ENABLE_METADATA_FLOOR_RECOVERY, "true");
+    assertThatThrownBy(() -> connectorConfigValidator.validateConfig(config))
+        .isInstanceOf(SnowflakeKafkaConnectorException.class)
+        .hasMessageContaining(METADATA_FLOOR_GROUP_ID);
+  }
+
   private void invalidConfigRunner(List<String> paramsToRemove) {
     Map<String, String> config = getConfig();
     for (String configParam : paramsToRemove) {
