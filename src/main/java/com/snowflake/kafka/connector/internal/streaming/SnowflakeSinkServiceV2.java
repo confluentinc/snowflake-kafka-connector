@@ -310,6 +310,11 @@ public class SnowflakeSinkServiceV2 implements SnowflakeSinkService {
     for (SinkRecord record : records) {
       // check if it needs to handle null value records
       if (recordService.shouldSkipNullValue(record, behaviorOnNullValues)) {
+        LOGGER.info(
+            "Skipping record with null value. Topic: {}, Partition: {}, Offset: {}",
+            record.topic(),
+            record.kafkaPartition(),
+            record.kafkaOffset());
         continue;
       }
 
