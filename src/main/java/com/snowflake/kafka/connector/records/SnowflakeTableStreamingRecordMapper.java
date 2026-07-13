@@ -37,7 +37,7 @@ class SnowflakeTableStreamingRecordMapper extends StreamingRecordMapper {
         } catch (StringIndexOutOfBoundsException e) {
           LOGGER.trace(
               "Record data that caused StringIndexOutOfBoundsException: {}", node.toString());
-          LOGGER.info(
+          LOGGER.debug(
               "StringIndexOutOfBoundsException occurred while processing record, metadata "
                   + mapper.writeValueAsString(row.getMetadata()));
 
