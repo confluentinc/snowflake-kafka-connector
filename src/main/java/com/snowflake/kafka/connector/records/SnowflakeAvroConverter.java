@@ -165,8 +165,10 @@ public class SnowflakeAvroConverter extends SnowflakeConverter {
               id));
     } catch (Exception e) {
       if (breakOnSchemaRegistryError) {
+        // Do not include the Avro decode exception message/toString: it can embed a fragment
+        // of the record payload. Emit the decode error class only.
         throw SnowflakeErrors.ERROR_0010.getException(
-            "Failed to parse AVRO " + "record\n" + e.toString());
+            "Failed to parse AVRO record: " + e.getClass().getName());
       } else {
         return logErrorAndReturnBrokenRecord(e, bytes);
       }
@@ -174,8 +176,9 @@ public class SnowflakeAvroConverter extends SnowflakeConverter {
   }
 
   private SchemaAndValue logErrorAndReturnBrokenRecord(final Exception e, final byte[] bytes) {
-
-    LOGGER.error("failed to parse AVRO record\n" + e.getMessage());
+    // Do not log the raw exception message: for an Avro decode over record bytes it can embed
+    // a fragment of the record payload. Log the error class only.
+    LOGGER.error("Failed to parse AVRO record: {}", e.getClass().getName());
     return new SchemaAndValue(new SnowflakeJsonSchema(), new SnowflakeRecordContent(bytes));
   }
 

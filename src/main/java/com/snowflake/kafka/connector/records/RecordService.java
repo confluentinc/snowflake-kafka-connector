@@ -445,7 +445,10 @@ public class RecordService {
           }
       }
 
-      throw SnowflakeErrors.ERROR_5015.getException("Couldn't convert " + value + " to JSON.");
+      // Do not concatenate the raw record value (customer data) into the message; emit the
+      // Connect schema type only, mirroring the ClassCastException branch below.
+      throw SnowflakeErrors.ERROR_5015.getException(
+          "Couldn't convert record of type " + schemaType + " to JSON.");
     } catch (ClassCastException e) {
       throw SnowflakeErrors.ERROR_5015.getException(
           "Invalid type for " + schema.type() + ": " + value.getClass());

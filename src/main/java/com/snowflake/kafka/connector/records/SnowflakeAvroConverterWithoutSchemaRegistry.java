@@ -58,13 +58,10 @@ public class SnowflakeAvroConverterWithoutSchemaRegistry extends SnowflakeConver
         try {
           buffer.add(mapper.readTree(jsonString));
         } catch (IOException e) {
+          // Do not include jsonString (the decoded record content) in the exception: it is
+          // customer data that is logged at ERROR below. Keep the parser error only.
           throw SnowflakeErrors.ERROR_0010.getException(
-              "Failed to parse JSON"
-                  + " "
-                  + "record\nInput String: "
-                  + jsonString
-                  + "\n"
-                  + e.getMessage());
+              "Failed to parse JSON record: " + e.getMessage());
         }
       }
 
@@ -82,7 +79,9 @@ public class SnowflakeAvroConverterWithoutSchemaRegistry extends SnowflakeConver
 
       return new SchemaAndValue(new SnowflakeJsonSchema(), new SnowflakeRecordContent(result));
     } catch (Exception e) {
-      LOGGER.error("Failed to parse AVRO record\n" + e.getMessage());
+      // Do not log the raw exception message: for the Avro/JSON decode errors above it can
+      // embed a fragment of the record payload. Log the topic and error class only.
+      LOGGER.error("Failed to parse AVRO record for topic {}: {}", topic, e.getClass().getName());
       return new SchemaAndValue(new SnowflakeJsonSchema(), new SnowflakeRecordContent(value));
     }
   }

@@ -18,6 +18,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.dlq.InMemoryKafkaRecordErrorReporter;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
+import com.snowflake.kafka.connector.internal.LogCaptureAppender;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.TestUtils;
 import com.snowflake.kafka.connector.internal.metrics.MetricsJmxReporter;
@@ -48,6 +49,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -868,6 +870,122 @@ public class TopicPartitionChannelTest {
     }
   }
 
+  /**
+   * A record value type with no corresponding Connect schema, whose class name is a canary. It is
+   * Serializable so the conversion failure is turned into a broken record (avoiding the unrelated,
+   * cleared "Failed to convert broken native record" log that legitimately names the class).
+   */
+  public static final class CanaryF3ValueType implements java.io.Serializable {}
+
+  /**
+   * F6 — on a Snowpipe Streaming insert failure with no error tolerance, the exception propagated
+   * to task status (and the telemetry fatal-error report) must not embed the SDK per-row error
+   * message, which can carry the offending row/column value; the value-bearing SDK exception must
+   * not be attached as the cause either. Red on the pre-fix code, which formatted the SDK message
+   * into the DataException and attached the SDK exception as cause.
+   */
+  @Test
+  public void f6_insertError_taskStatusException_doesNotEchoSdkMessage() {
+    List<SinkRecord> records = TestUtils.createNativeJsonSinkRecords(0, 1, TOPIC, PARTITION);
+
+    String canary = "CANARY_F6_col=ssn_val=123-45-6789";
+    SFException sdkError = new SFException(ErrorCode.INVALID_FORMAT_ROW, canary, "row 0");
+    // Precondition: the SDK message really embeds the canary, otherwise the red-green is
+    // meaningless.
+    Assert.assertTrue(
+        "precondition: SDK exception message should embed the canary",
+        String.valueOf(sdkError.getMessage()).contains(canary));
+
+    InsertValidationResponse response = new InsertValidationResponse();
+    InsertValidationResponse.InsertError insertError =
+        new InsertValidationResponse.InsertError("CONTENT", 0);
+    insertError.setException(sdkError);
+    response.addError(insertError);
+
+    Mockito.when(mockStreamingChannel.insertRow(anyMap(), anyString())).thenReturn(response);
+    Mockito.when(mockStreamingChannel.getLatestCommittedOffsetToken()).thenReturn(null);
+
+    // errors.tolerance defaults to NONE and schematization is off -> the fail-fast branch that
+    // throws
+    // to the Connect framework (task status).
+    Map<String, String> config = new HashMap<>(sfConnectorConfig);
+    config.put(SnowflakeSinkConnectorConfig.ENABLE_SCHEMATIZATION_CONFIG, "false");
+
+    TopicPartitionChannel channel =
+        createTopicPartitionChannel(
+            mockStreamingClient,
+            topicPartition,
+            testChannelName,
+            TEST_TABLE_NAME,
+            config,
+            mockKafkaRecordErrorReporter,
+            mockSinkTaskContext,
+            mockSnowflakeConnectionService,
+            mockTelemetryService,
+            this.schemaEvolutionService);
+
+    DataException ex =
+        assertThrows(DataException.class, () -> channel.insertRecord(records.get(0), true));
+
+    // GREEN: no frame of the task-status exception echoes the SDK row/column value.
+    for (Throwable t = ex; t != null; t = t.getCause()) {
+      Assert.assertFalse(
+          "task-status exception must not echo the SDK row/column value: " + t.getMessage(),
+          String.valueOf(t.getMessage()).contains(canary));
+    }
+    // GREEN: the value-bearing SDK exception is not attached as cause (framework stack-trace
+    // logging
+    // of the failed task cannot re-leak it).
+    Assert.assertNull("must not attach the value-bearing SDK exception as cause", ex.getCause());
+    // GREEN: the telemetry fatal-error report is scrubbed too.
+    Mockito.verify(mockTelemetryService)
+        .reportKafkaConnectFatalError(
+            ArgumentMatchers.argThat(msg -> msg != null && !msg.contains(canary)));
+  }
+
+  /**
+   * F3 — on a Snowpipe Streaming native-record conversion failure, the ERROR log must carry the
+   * record's Kafka coordinates and the error class only, not the conversion exception message. Red
+   * on the pre-fix code, which logged {@code e.getMessage()}.
+   */
+  @Test
+  public void f3_nativeRecordConversionError_logsCoordinatesNotMessage() {
+    LogCaptureAppender appender =
+        LogCaptureAppender.attachTo(DirectTopicPartitionChannel.class.getName());
+    try {
+      Mockito.when(mockStreamingChannel.getLatestCommittedOffsetToken()).thenReturn(null);
+      Mockito.when(mockStreamingChannel.insertRow(anyMap(), anyString()))
+          .thenReturn(new InsertValidationResponse());
+      TopicPartitionChannel channel =
+          createTopicPartitionChannel(
+              mockStreamingClient,
+              topicPartition,
+              testChannelName,
+              TEST_TABLE_NAME,
+              sfConnectorConfig,
+              mockKafkaRecordErrorReporter,
+              mockSinkTaskContext,
+              mockSnowflakeConnectionService,
+              mockTelemetryService,
+              this.schemaEvolutionService);
+
+      // A native (non-SnowflakeRecordContent) value with no Connect schema fails conversion; its
+      // class name stands in for the record content that the pre-fix log echoed via e.getMessage().
+      SinkRecord record =
+          new SinkRecord(TOPIC, PARTITION, null, null, null, new CanaryF3ValueType(), 0L);
+      channel.insertRecord(record, true);
+
+      Assert.assertTrue(
+          "expected sanitized conversion-error log with coordinates, got: " + appender.messages(),
+          appender.anyMessageContains("Native content parser error for record at TEST-0 offset 0"));
+      Assert.assertFalse(
+          "conversion-error log must not echo the exception message: " + appender.messages(),
+          appender.anyMessageContains("CanaryF3ValueType"));
+    } finally {
+      appender.detach();
+    }
+  }
+
   @Test
   public void testTopicPartitionChannelMetrics() throws Exception {
     // variables
@@ -1127,7 +1245,8 @@ public class TopicPartitionChannelTest {
   /**
    * Test that when openChannel always throws SFException with HTTP 429, the channel creation fails
    * after OpenChannelRetryPolicy exhausts all 10 retries. This verifies the integration between
-   * DirectTopicPartitionChannel.openChannelForTable() and OpenChannelRetryPolicy.executeWithRetry().
+   * DirectTopicPartitionChannel.openChannelForTable() and
+   * OpenChannelRetryPolicy.executeWithRetry().
    */
   @Test
   public void testOpenChannelFailsAfterRetryPolicyExhaustsAllRetries() {
