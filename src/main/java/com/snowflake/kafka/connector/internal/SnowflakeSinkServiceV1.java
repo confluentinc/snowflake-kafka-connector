@@ -987,7 +987,14 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       try {
         newSFContent = new SnowflakeRecordContent(schema, content, false);
       } catch (Exception e) {
-        LOGGER.error("Native content parser error:\n{}", e.getMessage());
+        // Do not log the conversion exception message: it can carry the record value.
+        // Log the record's Kafka coordinates and the error class only.
+        LOGGER.error(
+            "Native content parser error for record at {}-{} offset {}: {}",
+            record.topic(),
+            record.kafkaPartition(),
+            record.kafkaOffset(),
+            e.getClass().getName());
         try {
           // try to serialize this object and send that as broken record
           ByteArrayOutputStream out = new ByteArrayOutputStream();

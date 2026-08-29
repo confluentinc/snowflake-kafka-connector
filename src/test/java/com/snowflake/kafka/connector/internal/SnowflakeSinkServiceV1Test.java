@@ -153,6 +153,40 @@ class SnowflakeSinkServiceV1Test {
     // Should not throw, just a no-op
   }
 
+  /**
+   * F2 — on a Snowpipe (non-streaming) native-record conversion failure, the ERROR log must carry
+   * the record's Kafka coordinates and the error class only, not the conversion exception message
+   * (which can echo the record value). Red on the pre-fix code, which logged {@code
+   * e.getMessage()}.
+   */
+  @Test
+  void f2_nativeRecordConversionError_logsCoordinatesNotMessage() {
+    LogCaptureAppender appender =
+        LogCaptureAppender.attachTo(SnowflakeSinkServiceV1.class.getName());
+    try {
+      setupTableAndStageMocks();
+      sinkService.startPartition(TEST_TABLE, new TopicPartition(TEST_TOPIC, 0));
+
+      // A native (non-SnowflakeRecordContent) value with no Connect schema fails conversion; its
+      // class name stands in for the record content that the pre-fix log echoed via e.getMessage().
+      // Serializable so the failure becomes a broken record rather than hitting the unrelated,
+      // cleared "Failed to convert broken native record" log that legitimately names the class.
+      SinkRecord record =
+          new SinkRecord(TEST_TOPIC, 0, null, null, null, new CanaryF2ValueType(), 0L);
+      sinkService.insert(record);
+
+      assertThat(
+              appender.anyMessageContains(
+                  "Native content parser error for record at test_topic-0 offset 0"))
+          .isTrue();
+      assertThat(appender.anyMessageContains("CanaryF2ValueType")).isFalse();
+    } finally {
+      appender.detach();
+    }
+  }
+
+  static final class CanaryF2ValueType implements java.io.Serializable {}
+
   // Helper method to setup common table and stage mocks
   private void setupTableAndStageMocks() {
     when(mockConn.tableExist(TEST_TABLE)).thenReturn(true);

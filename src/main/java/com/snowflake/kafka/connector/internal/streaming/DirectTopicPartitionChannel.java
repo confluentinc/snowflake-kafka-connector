@@ -387,7 +387,14 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
     try {
       newSFContent = new SnowflakeRecordContent(schema, content, true);
     } catch (Exception e) {
-      LOGGER.error("Native content parser error:\n{}", e.getMessage());
+      // Do not log the conversion exception message: it can carry the record value.
+      // Log the record's Kafka coordinates and the error class only.
+      LOGGER.error(
+          "Native content parser error for record at {}-{} offset {}: {}",
+          record.topic(),
+          record.kafkaPartition(),
+          record.kafkaOffset(),
+          e.getClass().getName());
       try {
         // try to serialize this object and send that as broken record
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -555,7 +562,9 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
   private void handleError(List<Exception> insertErrors, SinkRecord kafkaSinkRecord) {
     if (logErrors) {
       for (Exception insertError : insertErrors) {
-        LOGGER.error("Insert Row Error message:{}", insertError.getMessage());
+        // The Snowpipe Streaming SDK insert-error message can embed the offending row/column
+        // value; log the error class only, not the raw SDK message.
+        LOGGER.error("Insert Row Error: {}", insertError.getClass().getName());
       }
     }
     if (errorTolerance) {
@@ -579,12 +588,16 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
                             "Reported record error, however exception list is empty.")));
       }
     } else {
+      // The SDK insert-error message can embed the offending row/column value. Do not surface
+      // it to task status or telemetry: report the error class only, and omit the value-bearing
+      // cause so the framework's ERROR log for the failed task cannot re-leak it.
+      final Exception firstError = insertErrors.get(0);
       final String errMsg =
           String.format(
-              "Error inserting Records using Streaming API with msg:%s",
-              insertErrors.get(0).getMessage());
+              "Error inserting Records using Streaming API. Error class: %s",
+              firstError.getClass().getName());
       this.telemetryServiceV2.reportKafkaConnectFatalError(errMsg);
-      throw new DataException(errMsg, insertErrors.get(0));
+      throw new DataException(errMsg);
     }
   }
 
