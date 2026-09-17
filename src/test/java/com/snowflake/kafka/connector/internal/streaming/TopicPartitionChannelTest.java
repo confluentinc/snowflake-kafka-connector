@@ -944,12 +944,14 @@ public class TopicPartitionChannelTest {
   }
 
   /**
-   * F3 — on a Snowpipe Streaming native-record conversion failure, the ERROR log must carry the
-   * record's Kafka coordinates and the error class only, not the conversion exception message. Red
-   * on the pre-fix code, which logged {@code e.getMessage()}.
+   * F3 — on a Snowpipe Streaming native-record conversion failure, the ERROR log carries the full
+   * exception message. {@code SnowflakeRecordContent}'s native/avro constructor only ever throws
+   * {@code SnowflakeKafkaConnectorException}, whose message is a fixed, structured error
+   * description (error code + template) that never carries the record value, so logging it in full
+   * is safe (SME-confirmed).
    */
   @Test
-  public void f3_nativeRecordConversionError_logsCoordinatesNotMessage() {
+  public void f3_nativeRecordConversionError_logsFullConnectorExceptionMessage() {
     LogCaptureAppender appender =
         LogCaptureAppender.attachTo(DirectTopicPartitionChannel.class.getName());
     try {
@@ -969,17 +971,21 @@ public class TopicPartitionChannelTest {
               mockTelemetryService,
               this.schemaEvolutionService);
 
-      // A native (non-SnowflakeRecordContent) value with no Connect schema fails conversion; its
-      // class name stands in for the record content that the pre-fix log echoed via e.getMessage().
+      // A native (non-SnowflakeRecordContent) value with no Connect schema fails conversion with a
+      // SnowflakeKafkaConnectorException (ERROR_5015); its class name lands in that exception's
+      // structured message.
       SinkRecord record =
           new SinkRecord(TOPIC, PARTITION, null, null, null, new CanaryF3ValueType(), 0L);
       channel.insertRecord(record, true);
 
       Assert.assertTrue(
-          "expected sanitized conversion-error log with coordinates, got: " + appender.messages(),
-          appender.anyMessageContains("Native content parser error for record at TEST-0 offset 0"));
-      Assert.assertFalse(
-          "conversion-error log must not echo the exception message: " + appender.messages(),
+          "expected full connector-exception message, got: " + appender.messages(),
+          appender.anyMessageContains("Native content parser error"));
+      Assert.assertTrue(
+          "expected error code in message, got: " + appender.messages(),
+          appender.anyMessageContains("Error Code: 5015"));
+      Assert.assertTrue(
+          "expected full exception message (SME-confirmed safe), got: " + appender.messages(),
           appender.anyMessageContains("CanaryF3ValueType"));
     } finally {
       appender.detach();
