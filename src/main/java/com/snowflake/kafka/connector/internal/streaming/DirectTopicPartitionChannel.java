@@ -566,9 +566,7 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
   private void handleError(List<Exception> insertErrors, SinkRecord kafkaSinkRecord) {
     if (logErrors) {
       for (Exception insertError : insertErrors) {
-        // The Snowpipe Streaming SDK insert-error message can embed the offending row/column
-        // value; log the error class only, not the raw SDK message.
-        LOGGER.error("Insert Row Error: {}", insertError.getClass().getName());
+        LOGGER.error("Insert Row Error message:{}", insertError.getMessage());
       }
     }
     if (errorTolerance) {
@@ -592,16 +590,12 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
                             "Reported record error, however exception list is empty.")));
       }
     } else {
-      // The SDK insert-error message can embed the offending row/column value. Do not surface
-      // it to task status or telemetry: report the error class only, and omit the value-bearing
-      // cause so the framework's ERROR log for the failed task cannot re-leak it.
-      final Exception firstError = insertErrors.get(0);
       final String errMsg =
           String.format(
-              "Error inserting Records using Streaming API. Error class: %s",
-              firstError.getClass().getName());
+              "Error inserting Records using Streaming API with msg:%s",
+              insertErrors.get(0).getMessage());
       this.telemetryServiceV2.reportKafkaConnectFatalError(errMsg);
-      throw new DataException(errMsg);
+      throw new DataException(errMsg, insertErrors.get(0));
     }
   }
 
