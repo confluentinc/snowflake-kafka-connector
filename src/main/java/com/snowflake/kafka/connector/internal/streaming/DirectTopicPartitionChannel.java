@@ -387,9 +387,6 @@ public class DirectTopicPartitionChannel implements TopicPartitionChannel {
     try {
       newSFContent = new SnowflakeRecordContent(schema, content, true);
     } catch (Exception e) {
-      // handleNativeRecord's SnowflakeRecordContent construction only ever throws
-      // SnowflakeKafkaConnectorException, whose message is a fixed, structured error
-      // description (error code + template) that never carries the record value.
       LOGGER.error("Native content parser error:\n{}", e.getMessage());
       try {
         // try to serialize this object and send that as broken record
