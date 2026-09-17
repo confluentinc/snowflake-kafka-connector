@@ -992,9 +992,6 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
           // (error code + template) and never carry the record value, so logging in full is safe.
           LOGGER.error("Native content parser error:\n{}", e.getMessage());
         } else {
-          // catch (Exception e) is intentionally broad: guard against any other exception type
-          // reaching here whose message contract isn't audited. Log the record's Kafka
-          // coordinates and the error class only.
           LOGGER.error(
               "Native content parser error for record at {}-{} offset {}: {}",
               record.topic(),
