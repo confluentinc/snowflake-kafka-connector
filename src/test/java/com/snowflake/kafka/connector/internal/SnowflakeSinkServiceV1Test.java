@@ -153,6 +153,39 @@ class SnowflakeSinkServiceV1Test {
     // Should not throw, just a no-op
   }
 
+  /**
+   * F2 — on a Snowpipe (non-streaming) native-record conversion failure, the ERROR log carries the
+   * full exception message. {@code SnowflakeRecordContent}'s native/avro constructor only ever
+   * throws {@code SnowflakeKafkaConnectorException}, whose message is a fixed, structured error
+   * description (error code + template) that never carries the record value, so logging it in full
+   * is safe (SME-confirmed).
+   */
+  @Test
+  void f2_nativeRecordConversionError_logsFullConnectorExceptionMessage() {
+    LogCaptureAppender appender =
+        LogCaptureAppender.attachTo(SnowflakeSinkServiceV1.class.getName());
+    try {
+      setupTableAndStageMocks();
+      sinkService.startPartition(TEST_TABLE, new TopicPartition(TEST_TOPIC, 0));
+
+      // A native (non-SnowflakeRecordContent) value with no Connect schema fails conversion with a
+      // SnowflakeKafkaConnectorException (ERROR_5015); its class name lands in that exception's
+      // structured message. Serializable so the failure becomes a broken record rather than
+      // hitting the unrelated, cleared "Failed to convert broken native record" log.
+      SinkRecord record =
+          new SinkRecord(TEST_TOPIC, 0, null, null, null, new CanaryF2ValueType(), 0L);
+      sinkService.insert(record);
+
+      assertThat(appender.anyMessageContains("Native content parser error")).isTrue();
+      assertThat(appender.anyMessageContains("Error Code: 5015")).isTrue();
+      assertThat(appender.anyMessageContains("CanaryF2ValueType")).isTrue();
+    } finally {
+      appender.detach();
+    }
+  }
+
+  static final class CanaryF2ValueType implements java.io.Serializable {}
+
   // Helper method to setup common table and stage mocks
   private void setupTableAndStageMocks() {
     when(mockConn.tableExist(TEST_TABLE)).thenReturn(true);

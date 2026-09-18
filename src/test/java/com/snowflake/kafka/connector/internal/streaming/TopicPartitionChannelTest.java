@@ -18,6 +18,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.dlq.InMemoryKafkaRecordErrorReporter;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
+import com.snowflake.kafka.connector.internal.LogCaptureAppender;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.TestUtils;
 import com.snowflake.kafka.connector.internal.metrics.MetricsJmxReporter;
@@ -868,6 +869,62 @@ public class TopicPartitionChannelTest {
     }
   }
 
+  /**
+   * A record value type with no corresponding Connect schema, whose class name is a canary. It is
+   * Serializable so the conversion failure is turned into a broken record (avoiding the unrelated,
+   * cleared "Failed to convert broken native record" log that legitimately names the class).
+   */
+  public static final class CanaryF3ValueType implements java.io.Serializable {}
+
+  /**
+   * F3 — on a Snowpipe Streaming native-record conversion failure, the ERROR log carries the full
+   * exception message. {@code SnowflakeRecordContent}'s native/avro constructor only ever throws
+   * {@code SnowflakeKafkaConnectorException}, whose message is a fixed, structured error
+   * description (error code + template) that never carries the record value, so logging it in full
+   * is safe (SME-confirmed).
+   */
+  @Test
+  public void f3_nativeRecordConversionError_logsFullConnectorExceptionMessage() {
+    LogCaptureAppender appender =
+        LogCaptureAppender.attachTo(DirectTopicPartitionChannel.class.getName());
+    try {
+      Mockito.when(mockStreamingChannel.getLatestCommittedOffsetToken()).thenReturn(null);
+      Mockito.when(mockStreamingChannel.insertRow(anyMap(), anyString()))
+          .thenReturn(new InsertValidationResponse());
+      TopicPartitionChannel channel =
+          createTopicPartitionChannel(
+              mockStreamingClient,
+              topicPartition,
+              testChannelName,
+              TEST_TABLE_NAME,
+              sfConnectorConfig,
+              mockKafkaRecordErrorReporter,
+              mockSinkTaskContext,
+              mockSnowflakeConnectionService,
+              mockTelemetryService,
+              this.schemaEvolutionService);
+
+      // A native (non-SnowflakeRecordContent) value with no Connect schema fails conversion with a
+      // SnowflakeKafkaConnectorException (ERROR_5015); its class name lands in that exception's
+      // structured message.
+      SinkRecord record =
+          new SinkRecord(TOPIC, PARTITION, null, null, null, new CanaryF3ValueType(), 0L);
+      channel.insertRecord(record, true);
+
+      Assert.assertTrue(
+          "expected full connector-exception message, got: " + appender.messages(),
+          appender.anyMessageContains("Native content parser error"));
+      Assert.assertTrue(
+          "expected error code in message, got: " + appender.messages(),
+          appender.anyMessageContains("Error Code: 5015"));
+      Assert.assertTrue(
+          "expected full exception message (SME-confirmed safe), got: " + appender.messages(),
+          appender.anyMessageContains("CanaryF3ValueType"));
+    } finally {
+      appender.detach();
+    }
+  }
+
   @Test
   public void testTopicPartitionChannelMetrics() throws Exception {
     // variables
@@ -1127,7 +1184,8 @@ public class TopicPartitionChannelTest {
   /**
    * Test that when openChannel always throws SFException with HTTP 429, the channel creation fails
    * after OpenChannelRetryPolicy exhausts all 10 retries. This verifies the integration between
-   * DirectTopicPartitionChannel.openChannelForTable() and OpenChannelRetryPolicy.executeWithRetry().
+   * DirectTopicPartitionChannel.openChannelForTable() and
+   * OpenChannelRetryPolicy.executeWithRetry().
    */
   @Test
   public void testOpenChannelFailsAfterRetryPolicyExhaustsAllRetries() {
