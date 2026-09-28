@@ -1,6 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
 import com.google.common.base.Strings;
+import com.google.common.hash.Hashing;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -8,7 +9,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.CRC32C;
 import org.apache.commons.lang3.tuple.Pair;
 
 public class FileNameUtils {
@@ -74,9 +74,7 @@ public class FileNameUtils {
       // In theory - we would support 32767 partitions, which is more than any reasonable value for
       // a single topic
       byte[] bytes = topic.toUpperCase().getBytes(StandardCharsets.UTF_8);
-      CRC32C crc32C = new CRC32C();
-      crc32C.update(bytes, 0, bytes.length);
-      BigInteger hash = BigInteger.valueOf(crc32C.getValue());
+      BigInteger hash = BigInteger.valueOf(Hashing.crc32c().hashBytes(bytes).padToLong());
       partitionPart =
           hash.abs()
               .multiply(BigInteger.valueOf(0x10000))
