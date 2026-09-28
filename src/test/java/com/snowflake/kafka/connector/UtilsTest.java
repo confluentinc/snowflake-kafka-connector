@@ -10,6 +10,7 @@ import com.snowflake.kafka.connector.internal.TestUtils;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadFactory;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -588,5 +589,17 @@ public class UtilsTest {
     String recommended = Utils.findRecommendedVersion(current, availableVersions);
 
     Assert.assertNull(recommended);
+  }
+
+  @Test
+  public void testCreateNamedThreadFactory() {
+    ThreadFactory threadFactory = Utils.createNamedThreadFactory("connector1", "0", "cleaner");
+
+    Thread first = threadFactory.newThread(() -> {});
+    Thread second = threadFactory.newThread(() -> {});
+
+    Assert.assertEquals("connector1-0-cleaner-1", first.getName());
+    Assert.assertEquals("connector1-0-cleaner-2", second.getName());
+    Assert.assertFalse(first.isDaemon());
   }
 }
