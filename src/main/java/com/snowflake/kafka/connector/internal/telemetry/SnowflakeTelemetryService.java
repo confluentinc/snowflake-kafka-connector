@@ -6,13 +6,15 @@ import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
 import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.internal.KCLogger;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
+import java.io.InputStream;
 import java.util.Map;
+import java.util.Properties;
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.JsonNode;
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.ObjectMapper;
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.node.ObjectNode;
 import net.snowflake.client.jdbc.telemetry.Telemetry;
 import net.snowflake.client.jdbc.telemetry.TelemetryUtil;
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.connect.connector.Task;
 
 /**
  * Abstract class handling basics of sending telemetry information to snowflake. Please note, this
@@ -42,6 +44,8 @@ public abstract class SnowflakeTelemetryService {
   protected static final String IS_CHANNEL_CLOSING = "is_channel_closing";
   public static final String JDK_VERSION = "jdk_version";
   public static final String JDK_DISTRIBUTION = "jdk_distribution";
+
+  private static final String KAFKA_CLIENT_VERSION = loadKafkaVersion();
 
   // Telemetry instance fetched from JDBC
   protected Telemetry telemetry;
@@ -83,7 +87,7 @@ public abstract class SnowflakeTelemetryService {
     String jdkDistribution = System.getProperty("java.vendor");
 
     dataObjectNode.put(START_TIME, startTime);
-    dataObjectNode.put(KAFKA_VERSION, AppInfoParser.getVersion());
+    dataObjectNode.put(KAFKA_VERSION, KAFKA_CLIENT_VERSION);
     dataObjectNode.put(JDK_VERSION, jdkVersion);
     dataObjectNode.put(JDK_DISTRIBUTION, jdkDistribution);
     addUserConnectorPropertiesToDataNode(userProvidedConfig, dataObjectNode);
@@ -313,5 +317,17 @@ public abstract class SnowflakeTelemetryService {
     public String toString() {
       return this.name;
     }
+  }
+
+  private static String loadKafkaVersion() {
+    Properties props = new Properties();
+    try (InputStream in = Task.class.getResourceAsStream("/kafka/kafka-version.properties")) {
+      if (in != null) {
+        props.load(in);
+      }
+    } catch (Exception e) {
+      // ignore, fall back to "unknown"
+    }
+    return props.getProperty("version", "unknown").trim();
   }
 }

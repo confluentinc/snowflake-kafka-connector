@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.CRC32C;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.kafka.common.utils.Crc32C;
 
 public class FileNameUtils {
   private static final KCLogger LOGGER = new KCLogger(FileNameUtils.class.getName());
@@ -74,7 +74,9 @@ public class FileNameUtils {
       // In theory - we would support 32767 partitions, which is more than any reasonable value for
       // a single topic
       byte[] bytes = topic.toUpperCase().getBytes(StandardCharsets.UTF_8);
-      BigInteger hash = BigInteger.valueOf(Crc32C.compute(bytes, 0, bytes.length));
+      CRC32C crc32C = new CRC32C();
+      crc32C.update(bytes, 0, bytes.length);
+      BigInteger hash = BigInteger.valueOf(crc32C.getValue());
       partitionPart =
           hash.abs()
               .multiply(BigInteger.valueOf(0x10000))
