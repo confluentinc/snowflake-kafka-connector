@@ -39,12 +39,6 @@ public class StreamingUtils {
    */
   protected static final long STREAMING_BUFFER_BYTES_DEFAULT = 20_000_000;
 
-  // excluding key, value and headers: 5 bytes length + 10 bytes timestamp + 5 bytes offset + 1
-  // byte attributes. (This is not for record metadata, this is before we transform to snowflake
-  // understood JSON)
-  // This is overhead size for calculating while buffering Kafka records.
-  public static final int MAX_RECORD_OVERHEAD_BYTES = 21;
-
   // TODO: Modify STREAMING_CONSTANT to Constants. after SNOW-352846 is released
   public static final String STREAMING_CONSTANT_AUTHORIZATION_TYPE = "authorization_type";
   public static final String STREAMING_CONSTANT_JWT = "JWT";
