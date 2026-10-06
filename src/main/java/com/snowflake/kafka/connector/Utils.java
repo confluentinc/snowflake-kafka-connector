@@ -48,7 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1045,8 +1045,12 @@ public class Utils {
   public static ThreadFactory createNamedThreadFactory(
       String connectorName, String taskID, String threadType) {
     String namePattern = String.join("-", connectorName, taskID, threadType, "%d");
-    AtomicInteger threadNumber = new AtomicInteger(1);
-    return runnable ->
-        new Thread(runnable, String.format(namePattern, threadNumber.getAndIncrement()));
+    AtomicLong threadNumber = new AtomicLong(0);
+    return runnable -> {
+      Thread thread =
+          new Thread(runnable, String.format(namePattern, threadNumber.incrementAndGet()));
+      thread.setDaemon(false);
+      return thread;
+    };
   }
 }

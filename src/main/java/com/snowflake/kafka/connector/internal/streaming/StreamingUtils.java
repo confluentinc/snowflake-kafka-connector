@@ -13,7 +13,6 @@ import java.util.Properties;
 import net.snowflake.client.core.SFSessionProperty;
 import net.snowflake.ingest.streaming.OffsetTokenVerificationFunction;
 import net.snowflake.ingest.utils.Constants;
-import org.apache.kafka.common.record.DefaultRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +43,7 @@ public class StreamingUtils {
   // byte attributes. (This is not for record metadata, this is before we transform to snowflake
   // understood JSON)
   // This is overhead size for calculating while buffering Kafka records.
-  public static final int MAX_RECORD_OVERHEAD_BYTES = DefaultRecord.MAX_RECORD_OVERHEAD;
+  public static final int MAX_RECORD_OVERHEAD_BYTES = 21;
 
   // TODO: Modify STREAMING_CONSTANT to Constants. after SNOW-352846 is released
   public static final String STREAMING_CONSTANT_AUTHORIZATION_TYPE = "authorization_type";

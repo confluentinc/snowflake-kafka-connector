@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -592,7 +593,7 @@ public class UtilsTest {
   }
 
   @Test
-  public void testCreateNamedThreadFactory() {
+  public void testCreateNamedThreadFactory() throws InterruptedException {
     ThreadFactory threadFactory = Utils.createNamedThreadFactory("connector1", "0", "cleaner");
 
     Thread first = threadFactory.newThread(() -> {});
@@ -601,5 +602,14 @@ public class UtilsTest {
     Assert.assertEquals("connector1-0-cleaner-1", first.getName());
     Assert.assertEquals("connector1-0-cleaner-2", second.getName());
     Assert.assertFalse(first.isDaemon());
+
+    AtomicReference<Thread> fromDaemon = new AtomicReference<>();
+    Thread daemonParent = new Thread(() -> fromDaemon.set(threadFactory.newThread(() -> {})));
+    daemonParent.setDaemon(true);
+    daemonParent.start();
+    daemonParent.join();
+
+    Assert.assertEquals("connector1-0-cleaner-3", fromDaemon.get().getName());
+    Assert.assertFalse(fromDaemon.get().isDaemon());
   }
 }
