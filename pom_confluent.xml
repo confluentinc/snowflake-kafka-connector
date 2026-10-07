@@ -812,6 +812,9 @@
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <version>2.22.2</version>
                         <configuration>
+                            <!-- Use target/classes instead of the uber jar (jar-with-dependencies): repacking bc-fips
+                                 breaks its module checksum (FipsOperationError). Real bc-fips jar is used instead. -->
+                            <classesDirectory>${project.build.outputDirectory}</classesDirectory>
                             <includes>
                                 <include>**/*IT.java</include>
                             </includes>
@@ -842,6 +845,9 @@
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <version>2.22.2</version>
                         <configuration>
+                            <!-- Use target/classes instead of the uber jar (jar-with-dependencies): repacking bc-fips
+                                 breaks its module checksum (FipsOperationError). Real bc-fips jar is used instead. -->
+                            <classesDirectory>${project.build.outputDirectory}</classesDirectory>
                             <includes>
                                 <include>**/*IT.java</include>
                             </includes>
