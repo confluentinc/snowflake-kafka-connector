@@ -113,6 +113,9 @@ public class SnowflakeTelemetryServiceTest {
 
     assertNotNull(dataNode.get("jdk_version"));
     assertNotNull(dataNode.get("jdk_distribution"));
+    assertNotNull(dataNode.get("kafka_version"));
+    assertFalse(dataNode.get("kafka_version").asText().isEmpty());
+    assertNotEquals("unknown", dataNode.get("kafka_version").asText());
 
     validateBufferProperties(dataNode);
     validateKeyAndValueConverter(dataNode);

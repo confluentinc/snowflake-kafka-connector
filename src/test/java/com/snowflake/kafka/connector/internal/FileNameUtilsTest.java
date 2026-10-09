@@ -147,6 +147,13 @@ public class FileNameUtilsTest {
   }
 
   @Test
+  public void testFilePrefixCrc32CHashIsStable() {
+    String prefix = filePrefix("app", "table", "TEST_TOPIC", 5);
+
+    assertThat(prefix).isEqualTo("app/table/50412292374533/");
+  }
+
+  @Test
   public void testFileNameWontSupportMoreThan32767Partitions() {
     int partition = 0x8000;
     long startOffset = 456L;
