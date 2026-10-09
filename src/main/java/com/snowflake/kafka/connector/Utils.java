@@ -1044,11 +1044,10 @@ public class Utils {
    */
   public static ThreadFactory createNamedThreadFactory(
       String connectorName, String taskID, String threadType) {
-    String namePattern = String.join("-", connectorName, taskID, threadType, "%d");
+    String namePrefix = String.join("-", connectorName, taskID, threadType) + "-";
     AtomicLong threadNumber = new AtomicLong(0);
     return runnable -> {
-      Thread thread =
-          new Thread(runnable, String.format(namePattern, threadNumber.incrementAndGet()));
+      Thread thread = new Thread(runnable, namePrefix + threadNumber.incrementAndGet());
       thread.setDaemon(false);
       return thread;
     };

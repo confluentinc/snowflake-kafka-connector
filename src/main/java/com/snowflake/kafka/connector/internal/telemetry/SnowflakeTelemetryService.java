@@ -14,7 +14,7 @@ import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.ObjectMappe
 import net.snowflake.client.jdbc.internal.fasterxml.jackson.databind.node.ObjectNode;
 import net.snowflake.client.jdbc.telemetry.Telemetry;
 import net.snowflake.client.jdbc.telemetry.TelemetryUtil;
-import org.apache.kafka.connect.connector.Task;
+import org.apache.kafka.common.TopicPartition;
 
 /**
  * Abstract class handling basics of sending telemetry information to snowflake. Please note, this
@@ -22,7 +22,7 @@ import org.apache.kafka.connect.connector.Task;
  */
 public abstract class SnowflakeTelemetryService {
 
-  private final KCLogger LOGGER = new KCLogger(SnowflakeTelemetryService.class.getName());
+  private static final KCLogger LOGGER = new KCLogger(SnowflakeTelemetryService.class.getName());
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -321,12 +321,15 @@ public abstract class SnowflakeTelemetryService {
 
   private static String loadKafkaVersion() {
     Properties props = new Properties();
-    try (InputStream in = Task.class.getResourceAsStream("/kafka/kafka-version.properties")) {
+    try (InputStream in =
+        TopicPartition.class.getResourceAsStream("/kafka/kafka-version.properties")) {
       if (in != null) {
         props.load(in);
+      } else {
+        LOGGER.warn("kafka-version.properties not found, Kafka version will be unknown");
       }
     } catch (Exception e) {
-      // ignore, fall back to "unknown"
+      LOGGER.warn("Error while loading kafka-version.properties: {}", e.getMessage());
     }
     return props.getProperty("version", "unknown").trim();
   }

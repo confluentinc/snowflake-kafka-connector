@@ -813,7 +813,7 @@
         <profile>
             <id>kafka-8.4</id>
             <properties>
-                <kafka.version>8.4.0-0-0-ce</kafka.version>
+                <kafka.version>8.4.0-849-19-ce</kafka.version>
                 <maven.compiler.release>17</maven.compiler.release>
                 <maven.test.skip>true</maven.test.skip>
             </properties>
