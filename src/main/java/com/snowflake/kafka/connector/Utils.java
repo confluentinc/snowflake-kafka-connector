@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -66,7 +67,6 @@ import net.snowflake.client.jdbc.internal.google.gson.JsonParser;
 import net.snowflake.client.jdbc.internal.google.gson.JsonSyntaxException;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
-import org.apache.kafka.common.utils.ThreadUtils;
 
 /** Various arbitrary helper functions */
 public class Utils {
@@ -1044,7 +1044,12 @@ public class Utils {
    */
   public static ThreadFactory createNamedThreadFactory(
       String connectorName, String taskID, String threadType) {
-    return ThreadUtils.createThreadFactory(
-        String.join("-", connectorName, taskID, threadType, "%d"), false);
+    String namePrefix = String.join("-", connectorName, taskID, threadType) + "-";
+    AtomicLong threadNumber = new AtomicLong(0);
+    return runnable -> {
+      Thread thread = new Thread(runnable, namePrefix + threadNumber.incrementAndGet());
+      thread.setDaemon(false);
+      return thread;
+    };
   }
 }
