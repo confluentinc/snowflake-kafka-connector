@@ -1,6 +1,7 @@
 package com.snowflake.kafka.connector.internal;
 
 import com.snowflake.kafka.connector.SnowflakeSinkConnectorConfig;
+import com.snowflake.kafka.connector.Utils;
 import com.snowflake.kafka.connector.dlq.KafkaRecordErrorReporter;
 import com.snowflake.kafka.connector.internal.streaming.IngestionMethodConfig;
 import com.snowflake.kafka.connector.internal.streaming.SnowflakeSinkServiceV2;
@@ -124,6 +125,11 @@ public class SnowflakeSinkServiceFactory {
               Long.parseLong(
                   connectorConfig.get(SnowflakeSinkConnectorConfig.TASK_BUFFER_TOTAL_LIMIT_BYTES));
           svc.configureTaskBufferLimitBytes(taskBufferLimitBytes);
+        }
+
+        if (connectorConfig != null) {
+          svc.configureReplaceNullWithDefault(
+              Utils.isReplaceNullWithDefaultEnabled(connectorConfig));
         }
 
       } else {
