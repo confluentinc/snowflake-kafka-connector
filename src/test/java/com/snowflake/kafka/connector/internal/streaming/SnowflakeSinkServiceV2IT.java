@@ -28,6 +28,7 @@ import com.snowflake.kafka.connector.records.SnowflakeJsonConverter;
 import io.confluent.connect.avro.AvroConverter;
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.PreparedStatement;
@@ -39,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -64,6 +67,17 @@ public class SnowflakeSinkServiceV2IT {
   // Topic name should be same as table name. (Only for testing, not necessarily in real deployment)
   private String topic = table;
   private TopicPartition topicPartition = new TopicPartition(topic, partition);
+
+  // Avro schema as registered by a Connect source connector: optional strings with a default and
+  // connect.default on the union member
+  private static final String AVRO_SCHEMA_OPTIONAL_FIELDS_WITH_DEFAULT =
+      "{\"type\":\"record\",\"name\":\"Value\",\"namespace\":\"replace_null_it\","
+          + "\"fields\":["
+          + "{\"name\":\"ID\",\"type\":\"long\"},"
+          + "{\"name\":\"SAVE_PIN\",\"default\":\"y\",\"type\":"
+          + "[{\"type\":\"string\",\"connect.default\":\"y\"},\"null\"]},"
+          + "{\"name\":\"AGENT_NAME\",\"default\":\"\",\"type\":"
+          + "[{\"type\":\"string\",\"connect.default\":\"\"},\"null\"]}]}";
 
   private SnowflakeConnectionService getConn(boolean useOAuth) {
     if (useOAuth) {
@@ -1606,6 +1620,98 @@ public class SnowflakeSinkServiceV2IT {
     await()
         .atMost(10, TimeUnit.SECONDS)
         .until(() -> service.getOffset(new TopicPartition(topic, partition)) == 4);
+  }
+
+  @Test
+  public void testReplaceNullWithDefault() throws Exception {
+    conn = getConn(false);
+    String tableWithoutReplace = TestUtils.randomTableName();
+    try {
+      // config not set: legacy behavior, null is replaced by the schema default
+      Map<String, Object> row = ingestAvroRecordWithNullFields(table, null);
+      Assertions.assertEquals(32L, row.get("ID"));
+      Assertions.assertEquals("y", row.get("SAVE_PIN"));
+      Assertions.assertEquals("", row.get("AGENT_NAME"));
+
+      // snowflake.replace.null.with.default=false: null is kept
+      row = ingestAvroRecordWithNullFields(tableWithoutReplace, false);
+      Assertions.assertEquals(32L, row.get("ID"));
+      Assertions.assertNull(row.get("SAVE_PIN"));
+      Assertions.assertNull(row.get("AGENT_NAME"));
+    } finally {
+      TestUtils.dropTable(tableWithoutReplace);
+    }
+  }
+
+  /**
+   * Ingests an Avro record with explicit nulls for optional fields that have a default, and
+   * returns the resulting row. The Avro bytes are produced like a plain producer would, going
+   * through {@link AvroConverter#fromConnectData} would replace the nulls by the defaults.
+   *
+   * @param replaceNullWithDefault value of the config, or null to leave it unset
+   */
+  private Map<String, Object> ingestAvroRecordWithNullFields(
+      String tableName, Boolean replaceNullWithDefault) throws Exception {
+    TopicPartition tp = new TopicPartition(tableName, partition);
+
+    Map<String, String> config = TestUtils.getConfForStreaming();
+    config.put(ENABLE_SCHEMATIZATION_CONFIG, "true");
+    config.put(
+        SnowflakeSinkConnectorConfig.VALUE_CONVERTER_CONFIG_FIELD,
+        "io.confluent.connect.avro.AvroConverter");
+    config.put(SnowflakeSinkConnectorConfig.VALUE_SCHEMA_REGISTRY_CONFIG_FIELD, "http://fake-url");
+    if (replaceNullWithDefault != null) {
+      config.put(
+          SnowflakeSinkConnectorConfig.REPLACE_NULL_WITH_DEFAULT_CONFIG,
+          replaceNullWithDefault.toString());
+    }
+    SnowflakeSinkConnectorConfig.setDefaultValues(config);
+
+    org.apache.avro.Schema avroSchema =
+        new org.apache.avro.Schema.Parser().parse(AVRO_SCHEMA_OPTIONAL_FIELDS_WITH_DEFAULT);
+    GenericRecord data = new GenericData.Record(avroSchema);
+    data.put("ID", 32L);
+    data.put("SAVE_PIN", null);
+    data.put("AGENT_NAME", null);
+
+    SchemaRegistryClient schemaRegistry = new MockSchemaRegistryClient();
+    KafkaAvroSerializer serializer = new KafkaAvroSerializer(schemaRegistry);
+    serializer.configure(Collections.singletonMap("schema.registry.url", "http://fake-url"), false);
+    byte[] bytes = serializer.serialize(tableName, data);
+
+    AvroConverter avroConverter = new AvroConverter(schemaRegistry);
+    avroConverter.configure(
+        Collections.singletonMap("schema.registry.url", "http://fake-url"), false);
+    SchemaAndValue avroInputValue = avroConverter.toConnectData(tableName, bytes);
+    SinkRecord record =
+        new SinkRecord(
+            tableName,
+            partition,
+            Schema.STRING_SCHEMA,
+            "test",
+            avroInputValue.schema(),
+            avroInputValue.value(),
+            0);
+
+    conn.createTableWithOnlyMetadataColumn(tableName);
+    SnowflakeSinkService service =
+        SnowflakeSinkServiceFactory.builder(conn, IngestionMethodConfig.SNOWPIPE_STREAMING, config)
+            .setErrorReporter(new InMemoryKafkaRecordErrorReporter())
+            .setSinkTaskContext(new InMemorySinkTaskContext(Collections.singleton(tp)))
+            .addTask(tableName, tp)
+            .build();
+    try {
+      // The first insert fails and schema evolution adds the columns, the retry succeeds
+      service.insert(Collections.singletonList(record));
+      await()
+          .atMost(60, TimeUnit.SECONDS)
+          .until(() -> service.getOffset(tp) == NO_OFFSET_TOKEN_REGISTERED_IN_SNOWFLAKE);
+      service.insert(Collections.singletonList(record));
+      await().atMost(60, TimeUnit.SECONDS).until(() -> service.getOffset(tp) == 1);
+      return TestUtils.getTableContentOneRow(tableName);
+    } finally {
+      service.closeAll();
+    }
   }
 
   private SinkRecord recordWithSingleField(long offset) {

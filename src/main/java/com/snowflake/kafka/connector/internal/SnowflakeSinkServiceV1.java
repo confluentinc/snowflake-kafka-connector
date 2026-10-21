@@ -105,6 +105,9 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
   // CC-30278 if enabled cleaner won't delete reprocess files on stage
   private boolean disableReprocessFilesCleanup = false;
 
+  private boolean replaceNullWithDefault =
+      SnowflakeSinkConnectorConfig.REPLACE_NULL_WITH_DEFAULT_DEFAULT;
+
   private boolean enableDynamicFlush = ENABLE_DYNAMIC_FLUSH_DEFAULT;
   private long taskBufferLimitBytes = TASK_BUFFER_TOTAL_LIMIT_BYTES_DEFAULT;
 
@@ -515,6 +518,10 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
 
   public void configureDisableReprocessFilesCleanup(boolean disable) {
     disableReprocessFilesCleanup = disable;
+  }
+
+  public void configureReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    this.replaceNullWithDefault = replaceNullWithDefault;
   }
 
   public void configureEnableDynamicFlush(boolean enable) {
@@ -985,7 +992,7 @@ class SnowflakeSinkServiceV1 implements SnowflakeSinkService {
       Schema schema = isKey ? record.keySchema() : record.valueSchema();
       Object content = isKey ? record.key() : record.value();
       try {
-        newSFContent = new SnowflakeRecordContent(schema, content, false);
+        newSFContent = new SnowflakeRecordContent(schema, content, false, replaceNullWithDefault);
       } catch (Exception e) {
         if (e instanceof SnowflakeKafkaConnectorException) {
           // SnowflakeKafkaConnectorException messages are fixed, structured error descriptions
