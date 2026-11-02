@@ -16,6 +16,7 @@ import com.snowflake.kafka.connector.config.SinkTaskConfig;
 import com.snowflake.kafka.connector.config.SnowflakeValidation;
 import com.snowflake.kafka.connector.internal.DescribeTableRow;
 import com.snowflake.kafka.connector.internal.KCLogger;
+import com.snowflake.kafka.connector.internal.MdcPropagation;
 import com.snowflake.kafka.connector.internal.SnowflakeConnectionService;
 import com.snowflake.kafka.connector.internal.SnowflakeKafkaConnectorException;
 import com.snowflake.kafka.connector.internal.metrics.TaskMetrics;
@@ -247,35 +248,36 @@ public class SnowpipeStreamingPartitionChannel implements TopicPartitionChannel 
     }
 
     return CompletableFuture.runAsync(
-        () -> {
-          LOGGER.info("Starting flush for channel: {}", this.channelName);
+        MdcPropagation.wrap(
+            () -> {
+              LOGGER.info("Starting flush for channel: {}", this.channelName);
 
-          try {
-            streamingClient.initiateFlush();
-          } catch (SFException e) {
-            if (ClientRecreationException.isClientInvalidError(e)) {
-              LOGGER.warn(
-                  "Skipping flush for channel {}: client is invalid ({}). "
-                      + "Uncommitted data will be replayed on task restart.",
-                  this.channelName,
-                  e.getErrorCodeName());
-              return;
-            }
-            throw e;
-          }
-
-          final long targetOffset = offsetTracker.getLastAppendRowsOffset();
-          WaitForLastOffsetCommittedPolicy.getPolicy(
-              () -> {
-                long offsetCommittedToBackend = fetchLatestCommittedOffsetFromSnowflake();
-                if (offsetCommittedToBackend == targetOffset) {
-                  return true;
+              try {
+                streamingClient.initiateFlush();
+              } catch (SFException e) {
+                if (ClientRecreationException.isClientInvalidError(e)) {
+                  LOGGER.warn(
+                      "Skipping flush for channel {}: client is invalid ({}). "
+                          + "Uncommitted data will be replayed on task restart.",
+                      this.channelName,
+                      e.getErrorCodeName());
+                  return;
                 }
-                throw ERROR_5027.getException();
-              });
+                throw e;
+              }
 
-          LOGGER.info("Completed flush for channel: {}", this.channelName);
-        });
+              final long targetOffset = offsetTracker.getLastAppendRowsOffset();
+              WaitForLastOffsetCommittedPolicy.getPolicy(
+                  () -> {
+                    long offsetCommittedToBackend = fetchLatestCommittedOffsetFromSnowflake();
+                    if (offsetCommittedToBackend == targetOffset) {
+                      return true;
+                    }
+                    throw ERROR_5027.getException();
+                  });
+
+              LOGGER.info("Completed flush for channel: {}", this.channelName);
+            }));
   }
 
   /**

@@ -3,6 +3,7 @@ package com.snowflake.kafka.connector.internal.streaming.telemetry;
 import com.google.common.annotations.VisibleForTesting;
 import com.snowflake.kafka.connector.config.SinkTaskConfig;
 import com.snowflake.kafka.connector.internal.KCLogger;
+import com.snowflake.kafka.connector.internal.MdcPropagation;
 import com.snowflake.kafka.connector.internal.streaming.channel.TopicPartitionChannel;
 import com.snowflake.kafka.connector.internal.telemetry.SnowflakeTelemetryService;
 import java.util.Map;
@@ -74,7 +75,10 @@ public final class PeriodicTelemetryReporter {
     long initialDelay = reportIntervalMs + jitter;
 
     executor.scheduleAtFixedRate(
-        this::reportChannelStatusTelemetry, initialDelay, reportIntervalMs, TimeUnit.MILLISECONDS);
+        MdcPropagation.wrap(this::reportChannelStatusTelemetry),
+        initialDelay,
+        reportIntervalMs,
+        TimeUnit.MILLISECONDS);
     LOGGER.info(
         "Started periodic telemetry reporter with interval {} ms (initial delay {} ms including {}"
             + " ms jitter) for connector: {}, task: {}",
