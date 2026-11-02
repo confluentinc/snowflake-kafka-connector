@@ -2,6 +2,7 @@ package com.snowflake.kafka.connector.internal.streaming.v2.service;
 
 import com.snowflake.kafka.connector.config.SinkTaskConfig;
 import com.snowflake.kafka.connector.internal.KCLogger;
+import com.snowflake.kafka.connector.internal.MdcPropagation;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -40,15 +41,19 @@ public class ThreadPools {
 
     ConnectorThreadPool(String connectorName, int openChannelIoThreads) {
       LOGGER.info("Creating I/O thread pool for connector: {}", connectorName);
+      // Both pools are shared by all tasks of the connector, so each task carries its submitter's
+      // MDC, which holds the task's connector.context.
       this.ioExecutor =
-          Executors.newCachedThreadPool(new DaemonThreadFactory(connectorName + "-io"));
+          MdcPropagation.propagating(
+              Executors.newCachedThreadPool(new DaemonThreadFactory(connectorName + "-io")));
 
       int maxThreads = Math.max(1, openChannelIoThreads);
       LOGGER.info(
           "Creating channel thread pool for connector: {}, threads: {}", connectorName, maxThreads);
       this.openChannelIoExecutor =
-          Executors.newFixedThreadPool(
-              maxThreads, new DaemonThreadFactory(connectorName + "-channel"));
+          MdcPropagation.propagating(
+              Executors.newFixedThreadPool(
+                  maxThreads, new DaemonThreadFactory(connectorName + "-channel")));
     }
   }
 
